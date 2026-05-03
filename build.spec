@@ -18,7 +18,7 @@ a = Analysis(
         (str(root / 'config.json'), '.'),
         (str(root / 'certs' / 'cert.pem'), 'certs'),
         (str(root / 'certs' / 'key.pem'), 'certs'),
-        (str(root / 'server_daemon.py'), '.'),
+        (str(root / 'app' / 'server_daemon.py'), 'app'),
     ],
     hiddenimports=[
         'win32ui', 'win32print', 'win32gui', 'win32com.client',

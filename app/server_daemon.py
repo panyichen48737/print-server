@@ -8,10 +8,13 @@ import argparse
 import threading
 from pathlib import Path
 
+from app._paths import app_root
+
 # 确保在项目根目录
 if not getattr(sys, 'frozen', False):
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    root = app_root()
+    os.chdir(root)
+    sys.path.insert(0, root)
 else:
     os.chdir(os.path.dirname(os.path.abspath(sys.executable)))
 
@@ -21,7 +24,6 @@ from app import bootstrap
 
 def write_status(status, **extra):
     """写入 JSON 状态文件供 TUI 读取"""
-    from app._paths import app_root
     f = Path(app_root()) / 'logs' / 'daemon.json'
     try:
         data = {'status': status, 'pid': os.getpid(), **extra}
@@ -97,11 +99,9 @@ def main():
     port = config.get('port', 5000)
 
     # 查找证书（开发模式在项目根目录，冻结模式在 EXE 同目录）
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    if getattr(sys, 'frozen', False):
-        script_dir = os.path.dirname(os.path.abspath(sys.executable))
-    cert_file = os.path.join(script_dir, 'certs', 'cert.pem')
-    key_file = os.path.join(script_dir, 'certs', 'key.pem')
+    root_dir = root if not getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(sys.executable))
+    cert_file = os.path.join(root_dir, 'certs', 'cert.pem')
+    key_file = os.path.join(root_dir, 'certs', 'key.pem')
 
     if os.path.isfile(cert_file) and os.path.isfile(key_file):
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)

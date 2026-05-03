@@ -11,7 +11,7 @@ from pathlib import Path
 logger = logging.getLogger('print_server')
 
 
-DAEMON_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'server_daemon.py')
+DAEMON_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'app', 'server_daemon.py')
 
 
 def _daemon_json_path():
