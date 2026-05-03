@@ -11,12 +11,17 @@ const POLL_MAX_RETRIES = 60; // 最大轮询次数（约3分钟）
 const ALLOWED_EXTENSIONS = [".doc", ".docx", ".pdf", ".xls", ".xlsx", ".ppt", ".pptx", ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif", ".heic", ".heif"];
 // ===========================
 
-// Get file from share sheet
-const args = Arguments;
-
 async function main() {
   const file = getFile();
-  if (!file) return;
+  if (!file) {
+    // 手动运行时显示使用说明
+    const alert = new Alert();
+    alert.title = "iOS 云打印";
+    alert.message = "请通过分享表单使用此脚本：\n\n1. 在文件 App 或 Safari 中打开文件\n2. 点击分享按钮\n3. 选择「共享」→ Scriptable\n4. 选择此脚本";
+    alert.addOKButton("知道了");
+    await alert.present();
+    return;
+  }
 
   // Check file type
   const ext = getExtension(file.name);
