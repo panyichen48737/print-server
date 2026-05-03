@@ -1,0 +1,638 @@
+{% extends "admin/base.html" %}
+{% set active_page = "upload" %}
+{% block page_title %}上传打印{% endblock %}
+
+{% block content %}
+<div class="upload-layout">
+    <!-- Left: Main -->
+    <div class="upload-main">
+        <!-- Section 1: File Selection -->
+        <div class="card mb-3">
+            <div class="card-header">选择文件</div>
+            <div class="card-body">
+                <div class="upload-zone" id="uploadZone">
+                    <input type="file" id="fileInput" accept="{{ allowed_extensions | join(',') }}" style="display: none;">
+                    <div id="uploadDefault">
+                        <div class="upload-icon">↑</div>
+                        <p>拖拽文件到此处，或点击选择</p>
+                        <p class="upload-hint">支持 {{ allowed_extensions | join(', ') }} 格式，最大 {{ config.max_file_size_mb or 50 }}MB</p>
+                    </div>
+                    <div id="uploadPreview" style="display: none;">
+                        <div class="upload-preview">
+                            <span class="preview-icon" id="previewIcon">📕</span>
+                            <div class="preview-info">
+                                <div class="preview-name" id="previewName"></div>
+                                <div class="preview-size" id="previewSize"></div>
+                            </div>
+                            <button type="button" class="btn btn-ghost btn-sm" id="removeFileBtn" title="移除文件">✕</button>
+                        </div>
+                    </div>
+                    <div id="uploadError" class="upload-error" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2: Print Options -->
+        <div class="card mb-3">
+            <div class="card-header">打印选项</div>
+            <div class="card-body">
+                <div class="print-options-grid">
+                    <div class="form-group">
+                        <label for="printer">打印机</label>
+                        <select class="form-select" id="printer" name="printer" style="width: 100%;">
+                            <option value="">系统默认打印机</option>
+                            {% for printer in printers %}
+                            <option value="{{ printer }}">{{ printer }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="copies">份数</label>
+                        <input type="number" class="form-input" id="copies" name="copies" value="{{ config.default_copies }}" min="1" max="99" style="width: 80px;">
+                    </div>
+                    <div class="form-group">
+                        <label for="paper_size">纸张大小</label>
+                        <select class="form-select" id="paper_size" name="paper_size" style="width: 120px;">
+                            <option value="">默认</option>
+                            <option value="A4">A4</option>
+                            <option value="Letter">Letter</option>
+                            <option value="A3">A3</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label style="visibility: hidden;">复选框</label>
+                        <div class="form-check">
+                            <input type="checkbox" id="duplex" name="duplex" value="1" {% if config.default_duplex %}checked{% endif %}>
+                            <label for="duplex" style="margin: 0;">双面打印</label>
+                        </div>
+                        <div class="form-check" style="margin-top: 8px;">
+                            <input type="checkbox" id="color" name="color" value="1" {% if config.default_color %}checked{% endif %}>
+                            <label for="color" style="margin: 0;">彩色打印</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 3: Submit -->
+        <button type="button" class="btn btn-primary" id="submitBtn" disabled onclick="submitPrint()">↑ 提交打印</button>
+    </div>
+
+    <!-- Right: Sidebar -->
+    <div class="upload-sidebar">
+        <div class="card">
+            <div class="card-header">
+                <span>任务状态</span>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="clearCompleted()">清空</button>
+            </div>
+            <div class="card-body" id="statusCardContainer">
+                <div class="empty-state" id="statusEmpty">
+                    <div class="empty-icon">⎙</div>
+                    <p>暂无任务</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.upload-layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.upload-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.upload-sidebar {
+    width: 360px;
+    flex-shrink: 0;
+}
+
+.upload-sidebar .card-body {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+/* ── Upload Zone ── */
+.upload-zone {
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius);
+    padding: 32px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+}
+
+.upload-zone:hover {
+    border-color: var(--accent-blue);
+    background: var(--accent-blue-glow);
+}
+
+.upload-zone.drag-over {
+    border-color: var(--accent-green);
+    background: var(--accent-green-glow);
+}
+
+.upload-zone .upload-icon {
+    font-size: 36px;
+    opacity: 0.3;
+    margin-bottom: 6px;
+}
+
+.upload-zone p {
+    margin: 4px 0;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.upload-zone .upload-hint {
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+/* ── Upload Preview ── */
+.upload-preview {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--bg-deep);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    text-align: left;
+}
+
+.upload-preview .preview-icon {
+    font-size: 28px;
+    flex-shrink: 0;
+}
+
+.upload-preview .preview-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.upload-preview .preview-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.upload-preview .preview-size {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 2px;
+}
+
+/* ── Upload Error ── */
+.upload-error {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: var(--accent-red-glow);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: var(--radius-sm);
+    color: var(--accent-red);
+    font-size: 12px;
+}
+
+/* ── Print Options Grid ── */
+.print-options-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+/* ── Status Cards ── */
+.status-card {
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-deep);
+    margin-bottom: 8px;
+    border-left: 3px solid var(--text-dim);
+    transition: border-color 0.2s;
+}
+
+.status-card:last-child {
+    margin-bottom: 0;
+}
+
+.status-card.status-uploading {
+    border-left-color: var(--accent-blue);
+    background: linear-gradient(135deg, var(--bg-deep) 0%, var(--accent-blue-glow) 100%);
+    background-size: 200% 100%;
+    animation: stripeSlide 1.5s linear infinite;
+}
+
+.status-card.status-queued {
+    border-left-color: var(--accent-blue);
+}
+
+.status-card.status-printing {
+    border-left-color: var(--accent-amber);
+    animation: statusPulseCard 1.2s ease-in-out infinite;
+}
+
+.status-card.status-completed {
+    border-left-color: var(--accent-green);
+}
+
+.status-card.status-failed {
+    border-left-color: var(--accent-red);
+}
+
+.status-card .status-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.status-card .status-file-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    margin-right: 6px;
+}
+
+.status-card .status-filename {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.status-card .status-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: var(--font-data);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    flex-shrink: 0;
+}
+
+.status-badge.badge-uploading {
+    background: var(--accent-blue-glow);
+    color: var(--accent-blue);
+}
+
+.status-badge.badge-queued {
+    background: var(--accent-blue-glow);
+    color: var(--accent-blue);
+}
+
+.status-badge.badge-printing {
+    background: var(--accent-amber-glow);
+    color: var(--accent-amber);
+}
+
+.status-badge.badge-completed {
+    background: var(--accent-green-glow);
+    color: var(--accent-green);
+}
+
+.status-badge.badge-failed {
+    background: var(--accent-red-glow);
+    color: var(--accent-red);
+}
+
+.status-card .status-filesize {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: var(--font-data);
+}
+
+.status-card .status-error-msg {
+    font-size: 11px;
+    color: var(--accent-red);
+    margin-top: 4px;
+    font-family: var(--font-data);
+}
+
+@keyframes stripeSlide {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+@keyframes statusPulseCard {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+    .upload-layout {
+        flex-direction: column;
+    }
+    .upload-sidebar {
+        width: 100%;
+    }
+}
+</style>
+
+<script>
+// ── File selection state ──
+var selectedFile = null;
+var trackedJobs = {};
+
+var uploadZone = document.getElementById('uploadZone');
+var fileInput = document.getElementById('fileInput');
+var uploadDefault = document.getElementById('uploadDefault');
+var uploadPreview = document.getElementById('uploadPreview');
+var uploadError = document.getElementById('uploadError');
+var previewName = document.getElementById('previewName');
+var previewSize = document.getElementById('previewSize');
+var previewIcon = document.getElementById('previewIcon');
+var removeFileBtn = document.getElementById('removeFileBtn');
+var submitBtn = document.getElementById('submitBtn');
+var statusContainer = document.getElementById('statusCardContainer');
+var statusEmpty = document.getElementById('statusEmpty');
+
+// ── File icon mapping ──
+function getFileIcon(filename) {
+    var ext = filename.toLowerCase().split('.').pop();
+    if (ext === 'pdf') return '📕';
+    if (ext === 'doc' || ext === 'docx') return '📄';
+    if (ext === 'xls' || ext === 'xlsx') return '📊';
+    if (ext === 'ppt' || ext === 'pptx') return '📽';
+    if (['jpg','jpeg','png','bmp','gif','webp','tiff','tif','heic','heif'].indexOf(ext) !== -1) return '🖼';
+    return '📎';
+}
+
+// ── Format file size ──
+function formatSize(bytes) {
+    if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+    if (bytes >= 1024) return (bytes / 1024).toFixed(0) + ' KB';
+    return bytes + ' B';
+}
+
+// ── Validate file ──
+function validateFile(file) {
+    var allowed = {{ allowed_extensions | tojson }};
+    var ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (allowed.indexOf(ext) === -1) {
+        return '不支持的文件格式: ' + ext;
+    }
+    var maxSize = ({{ config.max_file_size_mb or 50 }}) * 1048576;
+    if (file.size > maxSize) {
+        return '文件过大，最大支持 ' + ({{ config.max_file_size_mb or 50 }}) + 'MB';
+    }
+    return null;
+}
+
+// ── Handle file selection ──
+function handleFile(file) {
+    var error = validateFile(file);
+    if (error) {
+        uploadError.textContent = error;
+        uploadError.style.display = 'block';
+        uploadDefault.style.display = 'block';
+        uploadPreview.style.display = 'none';
+        selectedFile = null;
+        submitBtn.disabled = true;
+        return;
+    }
+
+    uploadError.style.display = 'none';
+    uploadDefault.style.display = 'none';
+    uploadPreview.style.display = 'block';
+
+    selectedFile = file;
+    previewName.textContent = file.name;
+    previewSize.textContent = formatSize(file.size);
+    previewIcon.textContent = getFileIcon(file.name);
+    submitBtn.disabled = false;
+}
+
+// ── Click to upload ──
+uploadZone.addEventListener('click', function(e) {
+    // Ignore clicks on the remove button
+    if (e.target.closest('#removeFileBtn')) return;
+    fileInput.click();
+});
+
+fileInput.addEventListener('change', function() {
+    if (fileInput.files && fileInput.files[0]) {
+        handleFile(fileInput.files[0]);
+    }
+});
+
+// ── Drag and drop ──
+uploadZone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    uploadZone.classList.add('drag-over');
+});
+
+uploadZone.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    uploadZone.classList.remove('drag-over');
+});
+
+uploadZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    uploadZone.classList.remove('drag-over');
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        handleFile(e.dataTransfer.files[0]);
+    }
+});
+
+// ── Remove file ──
+removeFileBtn.addEventListener('click', function() {
+    selectedFile = null;
+    fileInput.value = '';
+    uploadDefault.style.display = 'block';
+    uploadPreview.style.display = 'none';
+    uploadError.style.display = 'none';
+    submitBtn.disabled = true;
+});
+
+// ── Submit print ──
+function submitPrint() {
+    if (!selectedFile) return;
+
+    var btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = '上传中...';
+
+    var formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('printer', document.getElementById('printer').value);
+    formData.append('copies', document.getElementById('copies').value);
+    formData.append('paper_size', document.getElementById('paper_size').value);
+    formData.append('duplex', document.getElementById('duplex').checked ? '1' : '0');
+    formData.append('color', document.getElementById('color').checked ? '1' : '0');
+
+    fetch('/admin/api/upload', { method: 'POST', body: formData })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                addStatusCard(data.job_id, selectedFile.name, selectedFile.size);
+                // Reset form
+                selectedFile = null;
+                fileInput.value = '';
+                uploadDefault.style.display = 'block';
+                uploadPreview.style.display = 'none';
+                uploadError.style.display = 'none';
+                showToast('打印任务已提交', 'success');
+            } else {
+                showToast('提交失败: ' + (data.error || '未知错误'), 'error');
+            }
+        })
+        .catch(function(err) {
+            showToast('提交失败: ' + (err.message || '网络错误'), 'error');
+        })
+        .finally(function() {
+            btn.disabled = false;
+            btn.textContent = '↑ 提交打印';
+        });
+}
+
+// ── Add status card ──
+function addStatusCard(jobId, filename, fileSize) {
+    // Hide empty state
+    statusEmpty.style.display = 'none';
+
+    // Remove existing card for same job
+    var existing = trackedJobs[jobId];
+    if (existing) {
+        existing.parentNode.removeChild(existing);
+    }
+
+    var card = document.createElement('div');
+    card.className = 'status-card status-uploading';
+    card.id = 'status-card-' + jobId;
+    card.innerHTML =
+        '<div class="status-card-header">' +
+            '<span class="status-file-icon">' + getFileIcon(filename) + '</span>' +
+            '<span class="status-filename">' + filename + '</span>' +
+            '<span class="status-badge badge-uploading">上传中</span>' +
+        '</div>' +
+        '<div class="status-filesize">' + formatSize(fileSize) + '</div>';
+
+    // Insert at top
+    var firstChild = statusContainer.firstChild;
+    if (firstChild && firstChild.id !== 'statusEmpty') {
+        statusContainer.insertBefore(card, firstChild);
+    } else {
+        statusContainer.appendChild(card);
+    }
+
+    trackedJobs[jobId] = card;
+}
+
+// ── Update status card ──
+function updateStatusCard(jobId, status, error) {
+    var card = trackedJobs[jobId];
+    if (!card) return;
+
+    // Reset status classes
+    card.className = 'status-card';
+
+    var badgeEl = card.querySelector('.status-badge');
+    var statusText = '';
+    var statusClass = '';
+
+    switch (status) {
+        case 'uploading':
+            statusClass = 'status-uploading';
+            statusText = '上传中';
+            card.className += ' ' + statusClass;
+            badgeEl.className = 'status-badge badge-uploading';
+            break;
+        case 'queued':
+            statusClass = 'status-queued';
+            statusText = '排队中';
+            card.className += ' ' + statusClass;
+            badgeEl.className = 'status-badge badge-queued';
+            break;
+        case 'printing':
+            statusClass = 'status-printing';
+            statusText = '打印中';
+            card.className += ' ' + statusClass;
+            badgeEl.className = 'status-badge badge-printing';
+            break;
+        case 'completed':
+            statusClass = 'status-completed';
+            statusText = '已完成';
+            card.className += ' ' + statusClass;
+            badgeEl.className = 'status-badge badge-completed';
+            break;
+        case 'failed':
+            statusClass = 'status-failed';
+            statusText = '失败';
+            card.className += ' ' + statusClass;
+            badgeEl.className = 'status-badge badge-failed';
+            break;
+        default:
+            statusClass = 'status-queued';
+            statusText = status;
+            card.className += ' ' + statusClass;
+            badgeEl.className = 'status-badge badge-queued';
+    }
+
+    badgeEl.textContent = statusText;
+
+    // Show/hide error message
+    var errorEl = card.querySelector('.status-error-msg');
+    if (error) {
+        if (!errorEl) {
+            errorEl = document.createElement('div');
+            errorEl.className = 'status-error-msg';
+            card.appendChild(errorEl);
+        }
+        errorEl.textContent = error;
+    } else if (errorEl) {
+        errorEl.parentNode.removeChild(errorEl);
+    }
+}
+
+// ── Clear completed/failed ──
+function clearCompleted() {
+    var cards = statusContainer.querySelectorAll('.status-card');
+    for (var i = 0; i < cards.length; i++) {
+        var card = cards[i];
+        if (card.classList.contains('status-completed') || card.classList.contains('status-failed')) {
+            var jobId = card.id.replace('status-card-', '');
+            delete trackedJobs[jobId];
+            card.parentNode.removeChild(card);
+        }
+    }
+    // Show empty state if no cards left
+    var remaining = statusContainer.querySelectorAll('.status-card');
+    if (remaining.length === 0) {
+        statusEmpty.style.display = 'block';
+    }
+}
+
+// ── WebSocket listener for job status updates ──
+onWSMessage('job_status', function(data) {
+    var jobId = data.job_id || data.id;
+    if (jobId && trackedJobs[jobId]) {
+        updateStatusCard(jobId, data.status, data.error);
+        // Show toast on completion or failure
+        if (data.status === 'completed') {
+            showToast('打印完成: ' + (data.filename || jobId), 'success');
+        } else if (data.status === 'failed') {
+            showToast('打印失败: ' + (data.filename || jobId), 'error');
+        }
+    }
+});
+</script>
+{% endblock %}
