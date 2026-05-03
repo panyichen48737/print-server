@@ -23,6 +23,12 @@ from .tui import TUI
 
 
 def main():
+    # 冻结 EXE 入口：--server-daemon 参数直接路由到服务器入口
+    if '--server-daemon' in sys.argv:
+        from server_daemon import main as daemon_main
+        daemon_main()
+        return
+
     parser = argparse.ArgumentParser(description='iOS 云打印服务器控制台')
     parser.add_argument('--start', action='store_true', help='启动后台服务（无界面）')
     parser.add_argument('--stop', action='store_true', help='停止后台服务')

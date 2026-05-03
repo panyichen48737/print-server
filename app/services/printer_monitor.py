@@ -1,4 +1,4 @@
-"""打印机状态监控 — 每30s轮询 win32print, 通过 socketio 推送"""
+"""打印机状态监控 — 每30s轮询 win32print, 通过 SSE 广播器推送"""
 import logging
 import threading
 import win32print
@@ -88,8 +88,8 @@ def parse_status(status):
 
 
 class PrinterMonitor:
-    def __init__(self, socketio=None):
-        self.socketio = socketio
+    def __init__(self, broadcaster=None):
+        self._broadcaster = broadcaster
         self._stop_evt = threading.Event()
         self._thread = None
         self._cache = {}  # printer_name -> last_status_dict
@@ -154,15 +154,15 @@ class PrinterMonitor:
 
         # 在锁外推送，避免网络 IO 持锁
         for pr in changed:
-            if self.socketio:
+            if self._broadcaster:
                 try:
-                    self.socketio.emit('printer_status', pr, namespace='/')
+                    self._broadcaster.publish('printer_status', pr)
                 except Exception:
                     pass
         for name in removed:
-            if self.socketio:
+            if self._broadcaster:
                 try:
-                    self.socketio.emit('printer_status', {'name': name, 'overall': 'removed', 'statuses': []}, namespace='/')
+                    self._broadcaster.publish('printer_status', {'name': name, 'overall': 'removed', 'statuses': []})
                 except Exception:
                     pass
 

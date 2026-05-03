@@ -48,9 +48,9 @@ def _get_python_cmd():
     """获取 schtasks 用启动命令"""
     this_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if getattr(sys, 'frozen', False):
-        return f'"{sys.executable}" --start'
+        return f'"{sys.executable}" --server-daemon'
     else:
-        return f'"{sys.executable}" "{this_dir}\\guardian.py"'
+        return f'"{sys.executable}" "{this_dir}\\server_daemon.py"'
 
 
 def is_autostart_installed():
@@ -93,10 +93,10 @@ def _install_nssm():
     try:
         project_root = _project_root()
         python_exe = sys.executable
-        guardian_script = os.path.join(project_root, 'guardian.py')
+        daemon_script = os.path.join(project_root, 'server_daemon.py')
 
         r = subprocess.run(
-            [nssm, 'install', SERVICE_NAME, python_exe, guardian_script],
+            [nssm, 'install', SERVICE_NAME, python_exe, daemon_script],
             capture_output=True, timeout=15
         )
         if r.returncode != 0:

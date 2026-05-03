@@ -72,26 +72,35 @@ function showToast(message, type) {
     }, 4000);
 }
 
-// Socket.IO 实时推送连接
-var socket = io({
-    transports: ['websocket', 'polling'],
-    reconnectionDelay: 5000,
-    reconnectionAttempts: Infinity
-});
+// SSE 实时推送
+var sseSource = null;
+
+function connectSSE() {
+    if (sseSource) sseSource.close();
+    sseSource = new EventSource('/api/events');
+
+    sseSource.addEventListener('printer_status', function(e) {
+        try { dispatchWS('printer_status', JSON.parse(e.data)); } catch(x) {}
+    });
+
+    sseSource.addEventListener('job_status', function(e) {
+        try { dispatchWS('job_status', JSON.parse(e.data)); } catch(x) {}
+    });
+
+    sseSource.addEventListener('log', function(e) {
+        try { dispatchWS('log', JSON.parse(e.data)); } catch(x) {}
+    });
+
+    sseSource.onerror = function() {
+        console.log('SSE 连接断开，5秒后重连');
+        if (sseSource) sseSource.close();
+        setTimeout(connectSSE, 5000);
+    };
+}
+
+connectSSE();
 
 var wsHandlers = {};
-
-socket.on('connect', function() {
-    console.log('WebSocket 已连接');
-});
-
-socket.on('printer_status', function(data) {
-    dispatchWS('printer_status', data);
-});
-
-socket.on('job_status', function(data) {
-    dispatchWS('job_status', data);
-});
 
 function onWSMessage(eventType, callback) {
     if (!wsHandlers[eventType]) wsHandlers[eventType] = [];

@@ -112,18 +112,16 @@
     // Level filter change
     levelFilter.addEventListener('change', renderLogs);
 
-    // Listen for SocketIO log events (from script.js global socket)
-    if (typeof onWSMessage !== 'undefined') {
-        socket.on('log', function(data) {
-            if (!data || !data.message) return;
-            allLogs.push(data.message);
-            // Keep buffer bounded
-            if (allLogs.length > 2000) {
-                allLogs = allLogs.slice(-1000);
-            }
-            renderLogs();
-        });
-    }
+    // Listen for SSE log events (from script.js global dispatchWS)
+    onWSMessage('log', function(data) {
+        if (!data || !data.message) return;
+        allLogs.push(data.message);
+        // Keep buffer bounded
+        if (allLogs.length > 2000) {
+            allLogs = allLogs.slice(-1000);
+        }
+        renderLogs();
+    });
 
     // Fallback: initial load from REST API, then poll if SocketIO fails
     function fetchLogs() {
@@ -143,16 +141,12 @@
     // Initial load
     setTimeout(fetchLogs, 500);
 
-    // If socket doesn't connect within 5s, fall back to polling
+    // If no SSE events arrive within 5s, fall back to polling
     var pollTimer = setTimeout(function() {
         if (allLogs.length === 0) {
             setInterval(fetchLogs, 3000);
         }
     }, 5000);
-
-    socket.on('connect', function() {
-        clearTimeout(pollTimer);
-    });
 })();
 </script>
 {% endblock %}

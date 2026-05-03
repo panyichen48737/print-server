@@ -112,3 +112,32 @@ def cancel_job_api(job_id):
     if not success:
         return jsonify({'error': error}), 400
     return jsonify({'success': True})
+
+
+@api_bp.route('/events')
+def sse_events():
+    """Server-Sent Events endpoint — multiplexes all real-time event types."""
+    from flask import Response, stream_with_context, current_app
+    from app.services.sse_broadcaster import get_broadcaster
+    import json
+
+    broadcaster = get_broadcaster()
+    sub_id, q = broadcaster.subscribe()
+
+    def generate():
+        try:
+            while True:
+                event_type, data = q.get()
+                yield f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+        except GeneratorExit:
+            broadcaster.unsubscribe(sub_id)
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no',
+        }
+    )

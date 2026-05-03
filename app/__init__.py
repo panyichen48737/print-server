@@ -1,10 +1,7 @@
 import os
 import logging
 from flask import Flask
-from flask_socketio import SocketIO
 from app._paths import app_root, ensure_dir
-
-socketio = SocketIO()
 
 
 def create_app():
@@ -27,7 +24,7 @@ def create_app():
 
 
 def bootstrap(config):
-    """初始化所有服务并返回 (app, queue_mgr, print_engine, printer_monitor, socketio) 元组"""
+    """初始化所有服务并返回 (app, queue_mgr, print_engine, printer_monitor) 元组"""
     logger = logging.getLogger('print_server')
 
     from app.services.queue_manager import QueueManager
@@ -35,9 +32,11 @@ def bootstrap(config):
     from app.services.dingtalk import DingTalk
     from app.services.printer_monitor import PrinterMonitor
     from app.services.bark import BarkNotifier
+    from app.services.sse_broadcaster import get_broadcaster
 
     app = create_app()
-    socketio.init_app(app, cors_allowed_origins='*')
+
+    broadcaster = get_broadcaster()
 
     dingtalk = DingTalk(config)
     bark = BarkNotifier(config)
@@ -46,22 +45,23 @@ def bootstrap(config):
     from app.services.log_broadcaster import LogBroadcaster
     logging.getLogger('print_server').addHandler(LogBroadcaster())
 
-    queue_mgr = QueueManager(config, socketio=socketio, dingtalk=dingtalk, bark=bark)
+    queue_mgr = QueueManager(config, broadcaster=broadcaster, dingtalk=dingtalk, bark=bark)
     print_engine = PrintEngine(
         config,
         dingtalk=dingtalk,
         excel_lock=queue_mgr.excel_lock(),
         ppt_lock=queue_mgr.ppt_lock()
     )
-    printer_monitor = PrinterMonitor(socketio=socketio)
+    printer_monitor = PrinterMonitor(broadcaster=broadcaster)
 
     app.config['queue_manager'] = queue_mgr
     app.config['app_config'] = config
     app.config['dingtalk'] = dingtalk
     app.config['bark'] = bark
     app.config['printer_monitor'] = printer_monitor
+    app.config['sse_broadcaster'] = broadcaster
     app.config['MAX_CONTENT_LENGTH'] = config.max_file_size_mb * 1024 * 1024
 
     queue_mgr.cleanup_old_jobs()
 
-    return app, queue_mgr, print_engine, printer_monitor, socketio
+    return app, queue_mgr, print_engine, printer_monitor

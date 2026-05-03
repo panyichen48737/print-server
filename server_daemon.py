@@ -5,6 +5,7 @@ import json
 import ssl
 import atexit
 import argparse
+import threading
 from pathlib import Path
 
 # 确保在项目根目录
@@ -15,7 +16,7 @@ else:
     os.chdir(os.path.dirname(os.path.abspath(sys.executable)))
 
 from app.config import Config, setup_logging
-from app import bootstrap, socketio
+from app import bootstrap
 
 
 def write_status(status, **extra):
@@ -27,6 +28,44 @@ def write_status(status, **extra):
         f.write_text(json.dumps(data, ensure_ascii=False))
     except Exception:
         pass
+
+
+def _health_check_loop(app, config, logger):
+    """Background thread that self-polls the health endpoint. 3 failures -> os._exit(1) (nssm restarts)."""
+    import urllib.request
+    import ssl as ssl_module
+    import time
+    from pathlib import Path
+    from app._paths import app_root
+
+    port = config.get('port', 5000)
+    consecutive_failures = 0
+    max_failures = 3
+    check_interval = 30
+
+    while True:
+        time.sleep(check_interval)
+        try:
+            proto = 'https' if (Path(app_root()) / 'certs' / 'cert.pem').exists() else 'http'
+            ctx = None
+            if proto == 'https':
+                ctx = ssl_module.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl_module.CERT_NONE
+            req = urllib.request.Request(
+                f'{proto}://127.0.0.1:{port}/api/printers/status',
+                method='GET',
+                headers={'Connection': 'close'}
+            )
+            urllib.request.urlopen(req, timeout=5, context=ctx)
+            consecutive_failures = 0
+        except Exception:
+            consecutive_failures += 1
+            logger.warning(f'健康检查失败 ({consecutive_failures}/{max_failures})')
+            if consecutive_failures >= max_failures:
+                logger.critical('健康检查连续失败，进程退出')
+                write_status('crashed')
+                os._exit(1)
 
 
 def main():
@@ -41,7 +80,7 @@ def main():
     write_status('starting')
     logger.info('守护进程启动中...')
 
-    app, queue_mgr, print_engine, printer_monitor, _ = bootstrap(config)
+    app, queue_mgr, print_engine, printer_monitor = bootstrap(config)
     queue_mgr.start_workers(print_engine)
     printer_monitor.start()
 
@@ -72,7 +111,11 @@ def main():
         ssl_context = None
         logger.info(f'守护进程运行在 http://0.0.0.0:{port} (无 SSL)')
 
-    socketio.run(app, host='0.0.0.0', port=port, ssl_context=ssl_context, debug=False)
+    # 启动健康检查线程
+    health_thread = threading.Thread(target=_health_check_loop, args=(app, config, logger), daemon=True)
+    health_thread.start()
+
+    app.run(host='0.0.0.0', port=port, ssl_context=ssl_context, debug=False, threaded=True)
 
 
 if __name__ == '__main__':

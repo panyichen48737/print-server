@@ -10,9 +10,9 @@ logger = logging.getLogger('print_server')
 
 
 class QueueManager:
-    def __init__(self, config, socketio=None, db_path=None, dingtalk=None, bark=None):
+    def __init__(self, config, broadcaster=None, db_path=None, dingtalk=None, bark=None):
         self.config = config
-        self._socketio = socketio
+        self._broadcaster = broadcaster
         self._dingtalk = dingtalk
         self._bark = bark
         self._print_engine = None
@@ -359,59 +359,59 @@ class QueueManager:
             if success:
                 self.update_status(job_id, 'completed')
                 logger.info(f'打印完成: {job["filename"]}')
-                if self._socketio:
-                    self._socketio.emit('job_status', {
+                if self._broadcaster:
+                    self._broadcaster.publish('job_status', {
                         'job_id': job_id,
                         'filename': job['filename'],
                         'status': 'completed',
                         'source': job.get('source', 'api'),
                         'ts': datetime.now().isoformat()
-                    }, namespace='/')
+                    })
                 self._notify_all('completed', job['filename'], source=job.get('source', 'api'))
                 return True, None
             else:
                 error_msg = '打印引擎返回失败'
                 self.update_status(job_id, 'failed', error_msg)
                 logger.error(f'打印失败: {job["filename"]}')
-                if self._socketio:
-                    self._socketio.emit('job_status', {
+                if self._broadcaster:
+                    self._broadcaster.publish('job_status', {
                         'job_id': job_id,
                         'filename': job['filename'],
                         'status': 'failed',
                         'error': error_msg,
                         'source': job.get('source', 'api'),
                         'ts': datetime.now().isoformat()
-                    }, namespace='/')
+                    })
                 return False, error_msg
 
         except FuturesTimeout:
             error_msg = f'打印超时 ({timeout}s)'
             self.update_status(job_id, 'failed', error_msg)
             logger.error(f'打印超时: {job["filename"]}')
-            if self._socketio:
-                self._socketio.emit('job_status', {
+            if self._broadcaster:
+                self._broadcaster.publish('job_status', {
                     'job_id': job_id,
                     'filename': job['filename'],
                     'status': 'failed',
                     'error': error_msg,
                     'source': job.get('source', 'api'),
                     'ts': datetime.now().isoformat()
-                }, namespace='/')
+                })
             return False, error_msg
 
         except Exception as e:
             error_msg = str(e)
             self.update_status(job_id, 'failed', error_msg)
             logger.error(f'打印异常: {job["filename"]} - {error_msg}')
-            if self._socketio:
-                self._socketio.emit('job_status', {
+            if self._broadcaster:
+                self._broadcaster.publish('job_status', {
                     'job_id': job_id,
                     'filename': job['filename'],
                     'status': 'failed',
                     'error': error_msg,
                     'source': job.get('source', 'api'),
                     'ts': datetime.now().isoformat()
-                }, namespace='/')
+                })
             return False, error_msg
 
         finally:
@@ -442,23 +442,23 @@ class QueueManager:
 
         if job['status'] == 'queued':
             self.update_status(job_id, 'failed', '用户取消')
-            if self._socketio:
-                self._socketio.emit('job_status', {
+            if self._broadcaster:
+                self._broadcaster.publish('job_status', {
                     'job_id': job_id, 'filename': job['filename'],
                     'status': 'failed', 'error': '用户取消',
                     'source': job.get('source', 'api')
-                }, namespace='/')
+                })
         else:
             # printing — send cancel to PrintEngine
             if self._print_engine:
                 self._print_engine.cancel_active_job(job_id)
             self.update_status(job_id, 'failed', '用户取消')
-            if self._socketio:
-                self._socketio.emit('job_status', {
+            if self._broadcaster:
+                self._broadcaster.publish('job_status', {
                     'job_id': job_id, 'filename': job['filename'],
                     'status': 'failed', 'error': '用户取消',
                     'source': job.get('source', 'api')
-                }, namespace='/')
+                })
             self._notify_all('cancelled', job['filename'], source=job.get('source', 'api'))
 
         # Delete job file
@@ -480,12 +480,12 @@ class QueueManager:
                 self._mark_cancelled(job['id'])
                 self._cancel_evt.set()
                 self.update_status(job['id'], 'failed', '用户取消')
-                if self._socketio:
-                    self._socketio.emit('job_status', {
+                if self._broadcaster:
+                    self._broadcaster.publish('job_status', {
                         'job_id': job['id'], 'filename': job['filename'],
                         'status': 'failed', 'error': '用户取消',
                         'source': job.get('source', 'api')
-                    }, namespace='/')
+                    })
                 try:
                     if job.get('filepath') and os.path.exists(job['filepath']):
                         os.remove(job['filepath'])
