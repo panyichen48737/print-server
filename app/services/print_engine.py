@@ -418,7 +418,7 @@ class PrintEngine:
             # 请求体
             payload = {
                 'serviceOption': 'scan',
-                'inputConfigs': '{"function_option":"auto_select"}',
+                'inputConfigs': '{"function_option":"auto_select","auto_crop":true,"auto_rotate":true}',
                 'outputConfigs': '{"need_return_image":"True"}',
                 'dataType': data_type,
                 'data': {
