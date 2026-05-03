@@ -1,10 +1,10 @@
 import os
-import sqlite3
 import threading
-import uuid
 import queue
 import logging
 from datetime import datetime, timedelta
+
+from app.services.job_repository import JobRepository
 
 logger = logging.getLogger('print_server')
 
@@ -27,13 +27,7 @@ class QueueManager:
         self._excel_lock = threading.Lock()
         self._ppt_lock = threading.Lock()
 
-        if db_path is None:
-            from app._paths import app_root, ensure_dir
-            db_dir = ensure_dir(app_root(), 'jobs')
-            db_path = os.path.join(db_dir, 'jobs.db')
-        self.db_path = db_path
-
-        self._init_db()
+        self._repo = JobRepository(db_path)
 
     def _is_cancelled(self, job_id):
         with self._cancelled_lock:
@@ -47,143 +41,34 @@ class QueueManager:
         with self._cancelled_lock:
             self._cancelled_ids.discard(job_id)
 
-    def _init_db(self):
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS jobs (
-                    id TEXT PRIMARY KEY,
-                    filename TEXT NOT NULL,
-                    filepath TEXT NOT NULL,
-                    file_size INTEGER DEFAULT 0,
-                    file_type TEXT DEFAULT '',
-                    status TEXT NOT NULL DEFAULT 'queued',
-                    error_message TEXT DEFAULT '',
-                    printer_name TEXT DEFAULT '',
-                    copies INTEGER DEFAULT 1,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    completed_at TIMESTAMP
-                )
-            ''')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at)')
-            conn.commit()
-        self._migrate_db()
-
-    def _migrate_db(self):
-        """向后兼容的列添加（已有列跳过）"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("PRAGMA table_info(jobs)")
-            existing = {row[1] for row in cursor.fetchall()}
-            additions = {
-                'duplex': 'INTEGER DEFAULT 0',
-                'color': 'INTEGER DEFAULT 1',
-                'paper_size': "TEXT DEFAULT 'A4'",
-                'source': "TEXT DEFAULT 'api'",
-                'retry_count': 'INTEGER DEFAULT 0',
-            }
-            for col, dtype in additions.items():
-                if col not in existing:
-                    conn.execute(f'ALTER TABLE jobs ADD COLUMN {col} {dtype}')
-            conn.commit()
-
     def add_job(self, filename, filepath, file_size=0, file_type='',
                 duplex=None, color=None, copies=None, paper_size=None, printer_name=None,
                 source='api'):
-        job_id = str(uuid.uuid4())
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                '''INSERT INTO jobs
-                   (id, filename, filepath, file_size, file_type, status,
-                    duplex, color, copies, paper_size, printer_name, source)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                (job_id, filename, filepath, file_size, file_type, 'queued',
-                 duplex, color, copies, paper_size, printer_name, source)
-            )
-            conn.commit()
+        job_id = self._repo.add_job(filename, filepath, file_size, file_type,
+                                    duplex=duplex, color=color, copies=copies,
+                                    paper_size=paper_size, printer_name=printer_name,
+                                    source=source)
         self._queue.put(job_id)
         logger.info(f'任务已入队: {job_id} - {filename}')
         return job_id
 
     def get_job(self, job_id):
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            row = conn.execute('SELECT * FROM jobs WHERE id = ?', (job_id,)).fetchone()
-            if row:
-                return dict(row)
-            return None
+        return self._repo.get_job(job_id)
 
     def update_status(self, job_id, status, error_message=None):
-        with sqlite3.connect(self.db_path) as conn:
-            now = datetime.now().isoformat()
-            if status in ('completed', 'failed'):
-                conn.execute(
-                    'UPDATE jobs SET status = ?, error_message = ?, completed_at = ? WHERE id = ?',
-                    (status, error_message or '', now, job_id)
-                )
-            else:
-                conn.execute(
-                    'UPDATE jobs SET status = ? WHERE id = ?',
-                    (status, job_id)
-                )
-            conn.commit()
+        self._repo.update_status(job_id, status, error_message)
 
     def get_jobs(self, status=None, search=None, limit=50, offset=0):
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            query = 'SELECT * FROM jobs WHERE 1=1'
-            params = []
-            if status:
-                query += ' AND status = ?'
-                params.append(status)
-            if search:
-                query += ' AND filename LIKE ?'
-                params.append(f'%{search}%')
-            query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'
-            params.extend([limit, offset])
-            rows = conn.execute(query, params).fetchall()
-            return [dict(r) for r in rows]
+        return self._repo.get_jobs(status, search, limit, offset)
 
     def count_jobs(self, status=None, search=None):
-        with sqlite3.connect(self.db_path) as conn:
-            query = 'SELECT COUNT(*) FROM jobs WHERE 1=1'
-            params = []
-            if status:
-                query += ' AND status = ?'
-                params.append(status)
-            if search:
-                query += ' AND filename LIKE ?'
-                params.append(f'%{search}%')
-            return conn.execute(query, params).fetchone()[0]
+        return self._repo.count_jobs(status, search)
 
     def get_jobs_by_status(self, status):
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            rows = conn.execute('SELECT * FROM jobs WHERE status = ?', (status,)).fetchall()
-            return [dict(r) for r in rows]
+        return self._repo.get_jobs_by_status(status)
 
     def get_stats(self):
-        with sqlite3.connect(self.db_path) as conn:
-            today = datetime.now().strftime('%Y-%m-%d')
-            queued = conn.execute("SELECT COUNT(*) FROM jobs WHERE status='queued'").fetchone()[0]
-            printing = conn.execute("SELECT COUNT(*) FROM jobs WHERE status='printing'").fetchone()[0]
-            today_completed = conn.execute(
-                "SELECT COUNT(*) FROM jobs WHERE status='completed' AND created_at >= ?", (today,)
-            ).fetchone()[0]
-            today_failed = conn.execute(
-                "SELECT COUNT(*) FROM jobs WHERE status='failed' AND created_at >= ?", (today,)
-            ).fetchone()[0]
-            total = conn.execute('SELECT COUNT(*) FROM jobs').fetchone()[0]
-            success_total = conn.execute("SELECT COUNT(*) FROM jobs WHERE status='completed'").fetchone()[0]
-            failed_total = conn.execute("SELECT COUNT(*) FROM jobs WHERE status='failed'").fetchone()[0]
-            success_rate = (success_total / (success_total + failed_total) * 100) if (success_total + failed_total) > 0 else 100
-            return {
-                'queued': queued,
-                'printing': printing,
-                'today_completed': today_completed,
-                'today_failed': today_failed,
-                'total': total,
-                'success_rate': success_rate
-            }
+        return self._repo.get_stats()
 
     def get_printers(self):
         """获取 Windows 可用打印机列表"""
@@ -269,9 +154,7 @@ class QueueManager:
             if attempt < max_retries and error_msg not in ('用户取消',):
                 logger.info(f'任务 {job_id} 第 {attempt + 1}/{max_retries} 次重试')
                 self.update_status(job_id, 'queued', f'重试 {attempt + 1}/{max_retries}')
-                with sqlite3.connect(self.db_path) as conn:
-                    conn.execute('UPDATE jobs SET retry_count = ? WHERE id = ?', (attempt + 1, job_id))
-                    conn.commit()
+                self._repo.increment_retry(job_id)
                 continue
             break
         # Final failure — emit notification
@@ -541,36 +424,19 @@ class QueueManager:
 
     def cleanup_old_jobs(self):
         """清理过期任务 + 恢复卡住的 printing 任务"""
-        now = datetime.now()
-
-        # 清理过期历史记录
-        cutoff = (now - timedelta(days=self.config.get('job_retention_days', 30))).isoformat()
-        with sqlite3.connect(self.db_path) as conn:
-            result = conn.execute('DELETE FROM jobs WHERE created_at < ?', (cutoff,))
-            deleted = result.rowcount
-            conn.commit()
-        if deleted > 0:
-            logger.info(f'已清理 {deleted} 条过期任务记录')
+        # 清理过期历史记录（委托给 repo）
+        retention_days = self.config.get('job_retention_days', 30)
+        self._repo.cleanup_old_jobs(retention_days)
 
         # 心跳检测：找回卡在 printing 超过 5 分钟的任务，重新入队
-        heartbeat = (now - timedelta(minutes=5)).isoformat()
-        with sqlite3.connect(self.db_path) as conn:
-            stuck = conn.execute(
-                "SELECT id FROM jobs WHERE status='printing' AND created_at < ?",
-                (heartbeat,)
-            ).fetchall()
-            if stuck:
-                ids = [row[0] for row in stuck]
-                conn.execute(
-                    "UPDATE jobs SET status='queued', error_message='心跳恢复' WHERE id IN ({})".format(
-                        ','.join('?' * len(ids))
-                    ),
-                    ids
-                )
-                conn.commit()
-                for jid in ids:
-                    self._queue.put(jid)
-                logger.warning(f'心跳检测: 已将 {len(ids)} 个卡住的打印任务恢复为排队状态')
+        heartbeat = (datetime.now() - timedelta(minutes=5)).isoformat()
+        stuck_jobs = self._repo.get_jobs_by_status('printing')
+        stuck_ids = [j['id'] for j in stuck_jobs if j['created_at'] < heartbeat]
+        if stuck_ids:
+            for jid in stuck_ids:
+                self._repo.update_status(jid, 'queued', '心跳恢复')
+                self._queue.put(jid)
+            logger.warning(f'心跳检测: 已将 {len(stuck_ids)} 个卡住的打印任务恢复为排队状态')
 
     def shutdown(self):
         self._stop_evt.set()
