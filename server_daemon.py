@@ -2,6 +2,7 @@
 import os
 import sys
 import json
+import ssl
 import atexit
 import argparse
 from pathlib import Path
@@ -55,8 +56,23 @@ def main():
     atexit.register(shutdown)
 
     port = config.get('port', 5000)
-    logger.info(f'守护进程运行在 http://0.0.0.0:{port}')
-    socketio.run(app, host='0.0.0.0', port=port, debug=False)
+
+    # 查找证书（开发模式在项目根目录，冻结模式在 EXE 同目录）
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    if getattr(sys, 'frozen', False):
+        script_dir = os.path.dirname(os.path.abspath(sys.executable))
+    cert_file = os.path.join(script_dir, 'certs', 'cert.pem')
+    key_file = os.path.join(script_dir, 'certs', 'key.pem')
+
+    if os.path.isfile(cert_file) and os.path.isfile(key_file):
+        ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        ssl_context.load_cert_chain(cert_file, key_file)
+        logger.info(f'守护进程运行在 https://0.0.0.0:{port} (SSL)')
+    else:
+        ssl_context = None
+        logger.info(f'守护进程运行在 http://0.0.0.0:{port} (无 SSL)')
+
+    socketio.run(app, host='0.0.0.0', port=port, ssl_context=ssl_context, debug=False)
 
 
 if __name__ == '__main__':

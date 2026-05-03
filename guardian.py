@@ -3,6 +3,7 @@ import os
 import sys
 import json
 import time
+import ssl
 import subprocess
 import urllib.request
 import atexit
@@ -67,14 +68,21 @@ def write_daemon_status(status, **extra):
 
 
 def http_health_check(port):
-    """HTTP 健康检查（服务运行在 HTTP，不用 HTTPS）"""
-    try:
-        req = urllib.request.Request(f'http://127.0.0.1:{port}/api/printers/status',
-                                     method='GET', headers={'Connection': 'close'})
-        urllib.request.urlopen(req, timeout=5)
-        return True
-    except Exception:
-        return False
+    """健康检查 — 先试 HTTP，失败则试 HTTPS"""
+    for proto in ('http', 'https'):
+        try:
+            ctx = None
+            if proto == 'https':
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+            req = urllib.request.Request(f'{proto}://127.0.0.1:{port}/api/printers/status',
+                                         method='GET', headers={'Connection': 'close'})
+            urllib.request.urlopen(req, timeout=5, context=ctx)
+            return True
+        except Exception:
+            continue
+    return False
 
 
 def log(msg, log_dir):

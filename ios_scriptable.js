@@ -3,13 +3,14 @@
 // icon-color: blue; icon-glyph: print;
 // iOS Cloud Print Server - Scriptable Script
 
-// ===== 配置（按需修改） =====
-const SERVER_URL = "https://192.168.1.100:5000";
-const API_KEY = "print-server-key-2026";
-const POLL_INTERVAL = 3; // 轮询间隔（秒）
-const POLL_MAX_RETRIES = 60; // 最大轮询次数（约3分钟）
+// ===== 配置（在 iPhone 上通过「分享表单」→ Scriptable 使用） =====
+// 首次使用前，请将下方 SERVER_URL 改为你的服务器地址
+const SERVER_URL = "https://192.168.1.100:5000";      // ← 改成你的服务器地址（支持 https:// 或 http://）
+const API_KEY = "print-server-key-2026";              // ← 改成你的 API Key（与 config.json 一致）
+const POLL_INTERVAL = 3;                               // 轮询间隔（秒）
+const POLL_MAX_RETRIES = 60;                           // 最大轮询次数（约3分钟）
 const ALLOWED_EXTENSIONS = [".doc", ".docx", ".pdf", ".xls", ".xlsx", ".ppt", ".pptx", ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif", ".heic", ".heif"];
-// ===========================
+// ==============================================================
 
 async function main() {
   const files = getFiles();
@@ -183,7 +184,10 @@ async function waitForCompletion(jobId) {
 
 function waitForCompletionWS(jobId) {
   return new Promise((resolve, reject) => {
-    const wsUrl = SERVER_URL.replace(/^http/, 'ws') + '/socket.io/?transport=websocket&EIO=4';
+    // WebSocket URL: 自动适配 http→ws / https→wss
+    const protocol = SERVER_URL.startsWith('https') ? 'wss' : 'ws';
+    const baseUrl = SERVER_URL.replace(/^https?:\/\//, '');
+    const wsUrl = `${protocol}://${baseUrl}/socket.io/?transport=websocket&EIO=4`;
     const ws = new WebSocket(wsUrl);
     const timeout = setTimeout(() => { ws.close(); reject(new Error('超时')); }, 180000);
 
