@@ -1,5 +1,8 @@
 import threading
 import logging
+import subprocess
+import os
+import sys
 from datetime import datetime
 
 logger = logging.getLogger('print_server')
@@ -9,6 +12,54 @@ class ServerState:
     STOPPED = 0
     RUNNING = 1
     CRASHED = 2
+
+
+def get_autostart_key():
+    """检查 HKCU\Run 是否已注册自启"""
+    try:
+        result = subprocess.run(
+            ['reg', 'query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run',
+             '/v', 'iOSPrintConsole'],
+            capture_output=True, text=True
+        )
+        return result.returncode == 0
+    except:
+        return False
+
+
+def install_autostart():
+    """注册当前 exe 到开机自启"""
+    exe_path = os.path.abspath(sys.argv[0])
+    if not exe_path.endswith('.exe'):
+        # 开发模式，注册控制台入口
+        exe_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'console_app.py')
+        exe_path = os.path.abspath(exe_path)
+        launcher = os.path.join(os.path.dirname(exe_path), 'run_console.bat')
+        if os.path.exists(launcher):
+            exe_path = launcher
+
+    try:
+        subprocess.run(
+            ['reg', 'add', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run',
+             '/v', 'iOSPrintConsole', '/t', 'REG_SZ', '/d', exe_path, '/f'],
+            capture_output=True, text=True, check=True
+        )
+        return True
+    except:
+        return False
+
+
+def uninstall_autostart():
+    """删除开机自启注册"""
+    try:
+        subprocess.run(
+            ['reg', 'delete', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run',
+             '/v', 'iOSPrintConsole', '/f'],
+            capture_output=True, text=True, check=True
+        )
+        return True
+    except:
+        return False
 
 
 class ServerController:

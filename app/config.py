@@ -80,7 +80,8 @@ class Config:
 
     def __init__(self, config_path=None):
         if config_path is None:
-            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.json')
+            from _paths import app_root
+            config_path = os.path.join(app_root(), 'config.json')
         self.config_path = config_path
         self._lock = threading.Lock()
         self._data = {}
@@ -156,10 +157,13 @@ class Config:
         return self.get('worker_count', 2)
 
 
-def setup_logging(log_dir='logs', level='INFO'):
+def setup_logging(log_dir=None, level='INFO'):
     import logging
     from logging.handlers import TimedRotatingFileHandler
+    from _paths import app_root
 
+    if log_dir is None:
+        log_dir = os.path.join(app_root(), 'logs')
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, 'print_server.log')
 

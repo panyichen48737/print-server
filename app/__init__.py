@@ -1,10 +1,15 @@
 import os
 import logging
 from flask import Flask
+from _paths import app_root, ensure_dir
 
 
 def create_app():
-    app = Flask(__name__)
+    from _paths import data_root
+    dr = data_root()
+    app = Flask(__name__,
+                static_folder=os.path.join(dr, 'app', 'static'),
+                template_folder=os.path.join(dr, 'app', 'templates'))
 
     # Register blueprints
     from app.routes.api import api_bp
@@ -14,8 +19,8 @@ def create_app():
     app.register_blueprint(admin_bp, url_prefix='/admin')
 
     # Ensure directories exist
-    os.makedirs(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'jobs'), exist_ok=True)
-    os.makedirs(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'logs'), exist_ok=True)
+    ensure_dir(app_root(), 'jobs')
+    ensure_dir(app_root(), 'logs')
 
     return app
 

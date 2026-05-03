@@ -58,11 +58,8 @@ def logs():
 def api_logs():
     """获取最新日志行"""
     lines = request.args.get('lines', 50, type=int)
-    log_file = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-        'logs',
-        'print_server.log'
-    )
+    from _paths import app_root
+    log_file = os.path.join(app_root(), 'logs', 'print_server.log')
     try:
         from collections import deque
         with open(log_file, 'r', encoding='utf-8') as f:

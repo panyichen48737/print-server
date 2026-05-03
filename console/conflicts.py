@@ -6,7 +6,14 @@ import time
 import logging
 from pathlib import Path
 
-PID_FILE = Path(__file__).parent.parent / 'logs' / 'console.pid'
+PID_FILE = None  # lazy init
+
+def _get_pid_file():
+    global PID_FILE
+    if PID_FILE is None:
+        from _paths import app_root
+        PID_FILE = Path(app_root()) / 'logs' / 'console.pid'
+    return PID_FILE
 
 
 def get_local_ips():
@@ -48,15 +55,17 @@ def check_port_available(port):
 
 def write_pid():
     """写入当前进程 PID 到文件"""
-    PID_FILE.parent.mkdir(parents=True, exist_ok=True)
-    PID_FILE.write_text(str(os.getpid()))
+    pf = _get_pid_file()
+    pf.parent.mkdir(parents=True, exist_ok=True)
+    pf.write_text(str(os.getpid()))
 
 
 def cleanup_pid():
     """删除 PID 文件"""
     try:
-        if PID_FILE.exists():
-            PID_FILE.unlink()
+        pf = _get_pid_file()
+        if pf.exists():
+            pf.unlink()
     except Exception:
         pass
 
@@ -67,9 +76,10 @@ def check_conflicts(config, logger):
 
     stale_pid = False
     old_pid = None
-    if PID_FILE.exists():
+    pf = _get_pid_file()
+    if pf.exists():
         try:
-            old_pid = int(PID_FILE.read_text().strip())
+            old_pid = int(pf.read_text().strip())
             PROCESS_QUERY_INFORMATION = 0x0400
             handle = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_INFORMATION, False, old_pid)
             if handle:

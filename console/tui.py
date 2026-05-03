@@ -12,7 +12,7 @@ from rich.text import Text
 
 from .conflicts import get_local_ips, cleanup_pid
 from .log_handler import LOG_BUFFER
-from .controller import ServerState
+from .controller import ServerState, get_autostart_key, install_autostart, uninstall_autostart
 
 
 class TUI:
@@ -39,6 +39,9 @@ class TUI:
     def _render_header(self):
         state = self.ctrl.status
         port = self.ctrl.port
+        autostart = get_autostart_key()
+        autostart_str = "✔ 已自启" if autostart else "✘ 未自启"
+        autostart_style = "green" if autostart else "red"
         if state == ServerState.RUNNING:
             status_style = "bold green"
             status_text = "● 运行中"
@@ -59,6 +62,7 @@ class TUI:
                 ("iOS 云打印服务器", "bold white"), "\n",
                 ("状态: ", "cyan"), (status_text, status_style),
                 ("  |  ", "dim"), extra,
+                ("  |  ", "dim"), (f"自启: {autostart_str}", autostart_style),
             ),
             title="控制台",
             border_style="bright_blue",
@@ -81,8 +85,11 @@ class TUI:
         return Panel("\n".join(lines), title="日志", border_style="dim")
 
     def _render_footer(self):
+        autostart = get_autostart_key()
+        u_label = "卸载自启" if autostart else "注册自启"
         return Panel(
-            "  [bold cyan]S[/bold cyan] 启动/停止    [bold cyan]R[/bold cyan] 重载配置    [bold cyan]Q[/bold cyan] 退出",
+            f"  [bold cyan]S[/bold cyan] 启动/停止    [bold cyan]R[/bold cyan] 重载配置    "
+            f"[bold cyan]U[/bold cyan] {u_label}    [bold cyan]Q[/bold cyan] 退出",
             title="操作", border_style="yellow",
         )
 
@@ -116,5 +123,12 @@ class TUI:
                             self.ctrl.start()
                     elif key == b'r':
                         self.ctrl.reload_config()
+                    elif key == b'u':
+                        if get_autostart_key():
+                            uninstall_autostart()
+                            LOG_BUFFER.append('已卸载开机自启')
+                        else:
+                            install_autostart()
+                            LOG_BUFFER.append('已注册开机自启')
 
                 threading.Event().wait(0.5)

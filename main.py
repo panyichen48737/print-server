@@ -1,9 +1,10 @@
 import os
 import sys
 import atexit
+from _paths import app_root, ensure_dir
 
 # Ensure project root is in path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, app_root())
 
 from app.config import Config, setup_logging
 from app import bootstrap
@@ -32,8 +33,9 @@ def main():
 
     # Check for SSL certs
     ssl_context = None
-    cert_file = os.path.join(os.path.dirname(__file__), 'cert.pem')
-    key_file = os.path.join(os.path.dirname(__file__), 'key.pem')
+    root = app_root()
+    cert_file = os.path.join(root, 'cert.pem')
+    key_file = os.path.join(root, 'key.pem')
     if os.path.exists(cert_file) and os.path.exists(key_file):
         ssl_context = (cert_file, key_file)
         logger.info('HTTPS 已启用')

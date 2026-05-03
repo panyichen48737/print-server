@@ -8,13 +8,15 @@ import os
 import logging
 from datetime import datetime
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from _paths import app_root, data_root
+
+sys.path.insert(0, app_root())
 
 from app.config import Config, setup_logging
 from app import bootstrap
 from .conflicts import check_conflicts, write_pid, cleanup_pid
 from .log_handler import LOG_BUFFER, TUILogHandler
-from .controller import ServerController, ServerState
+from .controller import ServerController, ServerState, get_autostart_key, install_autostart
 from .tui import TUI
 
 _global_ctrl = None
@@ -53,6 +55,14 @@ def main():
         sys.exit(1)
 
     write_pid()
+
+    # 开机自启检测：未注册则自动注册
+    if not get_autostart_key():
+        logger.info('检测到未设置开机自启，正在自动注册...')
+        if install_autostart():
+            logger.info('开机自启已自动注册')
+        else:
+            logger.warning('开机自启注册失败')
 
     # 控制器
     global _global_ctrl

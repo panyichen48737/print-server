@@ -161,11 +161,11 @@ class PrintEngine:
 
     def _print_pdf(self, filepath):
         """使用 Chromium (Chrome/Edge) headless 模式直接打印 PDF，质量最佳"""
+        import subprocess
         chrome_path = self._find_chromium()
         if not chrome_path:
             raise RuntimeError('未找到 Chromium 浏览器 (Chrome/Edge)')
 
-        import subprocess
         printer_name = self.config.get('default_printer', '')
         if not printer_name:
             import win32print

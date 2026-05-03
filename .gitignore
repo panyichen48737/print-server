@@ -4,3 +4,8 @@ logs/
 jobs/jobs.db
 venv/
 .venv/
+build/
+dist/
+*.spec
+cert.pem
+key.pem

@@ -44,8 +44,8 @@ def print_file():
 
     # Save file
     job_id = str(uuid.uuid4())
-    jobs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'jobs')
-    os.makedirs(jobs_dir, exist_ok=True)
+    from _paths import app_root, ensure_dir
+    jobs_dir = ensure_dir(app_root(), 'jobs')
     save_path = os.path.join(jobs_dir, f'{job_id}_{filename}')
     file.save(save_path)
     file_size = os.path.getsize(save_path)

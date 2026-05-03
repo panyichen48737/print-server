@@ -21,8 +21,8 @@ class QueueManager:
         self._ppt_lock = threading.Lock()
 
         if db_path is None:
-            db_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'jobs')
-            os.makedirs(db_dir, exist_ok=True)
+            from _paths import app_root, ensure_dir
+            db_dir = ensure_dir(app_root(), 'jobs')
             db_path = os.path.join(db_dir, 'jobs.db')
         self.db_path = db_path
 
