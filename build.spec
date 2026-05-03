@@ -9,7 +9,9 @@ root = Path('.').resolve()
 a = Analysis(
     ['console_app.py'],
     pathex=[str(root)],
-    binaries=[],
+    binaries=[
+        (str(root / 'bin' / 'nssm.exe'), '.'),
+    ],
     datas=[
         (str(root / 'app' / 'templates'), 'app/templates'),
         (str(root / 'app' / 'static'), 'app/static'),
