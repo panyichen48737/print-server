@@ -10,9 +10,6 @@ class DingTalk:
 
     def send_notification(self, title, message, level='error'):
         """发送钉钉通知"""
-        if not self.config.get('dingtalk_enabled', False):
-            return
-
         webhook = self.config.get('dingtalk_webhook', '')
         if not webhook:
             return
@@ -51,4 +48,12 @@ class DingTalk:
             '✅ 打印任务完成',
             f'文件: {filename}\n时间: {time_str}',
             level='info'
+        )
+
+    def notify_job_cancelled(self, filename, time_str):
+        """任务取消通知"""
+        self.send_notification(
+            '⏹ 打印已取消',
+            f'文件: {filename}\n时间: {time_str}',
+            level='warning'
         )
