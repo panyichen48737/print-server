@@ -409,7 +409,7 @@ class PrintEngine:
 
             payload = {
                 'serviceOption': 'scan',
-                'inputConfigs': '{"function_option":"auto_select","auto_crop":true,"auto_rotate":true}',
+                'inputConfigs': '{"function_option":"auto_select","auto_crop":"true","auto_rotate":"true"}',
                 'outputConfigs': '{"need_return_image":"True"}',
                 'dataType': 'image',
                 'dataBase64': img_b64,
