@@ -2,7 +2,9 @@ import os
 import logging
 from flask import Blueprint, render_template, request, jsonify, current_app
 from datetime import datetime
-from werkzeug.utils import secure_filename
+
+from app.auth import require_auth, check_auth
+from app.upload_helper import handle_file_upload
 
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger('print_server')
@@ -14,14 +16,6 @@ def get_queue_manager():
 
 def get_config():
     return current_app.config['app_config']
-
-
-def admin_auth():
-    """验证 Bearer Token（与 api.py check_auth 保持一致）"""
-    auth = request.headers.get('Authorization', '')
-    config = get_config()
-    expected = f'Bearer {config.api_key}'
-    return auth == expected
 
 
 @admin_bp.route('/')
@@ -85,7 +79,7 @@ def settings():
     config = get_config()
 
     if request.method == 'POST':
-        if not admin_auth():
+        if not check_auth():
             return jsonify({'error': 'Unauthorized'}), 401
         try:
             config.set('api_key', request.form.get('api_key', config.get('api_key', '')))
@@ -139,80 +133,21 @@ def upload_page():
 
 
 @admin_bp.route('/api/upload', methods=['POST'])
+@require_auth
 def upload_file():
     """Web 上传打印"""
-    if not admin_auth():
-        return jsonify({'error': 'Unauthorized'}), 401
-    if 'file' not in request.files:
-        return jsonify({'error': '未选择文件'}), 400
-
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': '文件名为空'}), 400
-
     config = get_config()
-    original_name = file.filename
-    ext = os.path.splitext(original_name)[1].lower()
-
-    # 校验扩展名
-    if ext not in config.allowed_extensions:
-        return jsonify({'error': f'文件类型 {ext} 不允许'}), 400
-
-    # 先检查 Content-Length 避免大文件写入
-    max_size = config.max_file_size_mb * 1024 * 1024
-    cl = request.headers.get('Content-Length')
-    if cl and int(cl) > max_size:
-        return jsonify({'error': f'文件过大，最大 {config.max_file_size_mb}MB'}), 400
-
-    # 保存文件
-    import uuid
-    from app._paths import app_root, ensure_dir
-    jobs_dir = ensure_dir(app_root(), 'jobs')
-    safe_name = f"{uuid.uuid4()}_{secure_filename(original_name) or f'file{ext}'}"
-    save_path = os.path.join(jobs_dir, safe_name)
-    file.save(save_path)
-    file_size = os.path.getsize(save_path)
-
-    # 校验大小（fallback）
-    if file_size > max_size:
-        os.remove(save_path)
-        return jsonify({'error': f'文件过大，最大 {config.max_file_size_mb}MB'}), 400
-
-    # 获取打印参数
-    printer = request.form.get('printer') or None
-    copies_s = request.form.get('copies')
-    copies = int(copies_s) if copies_s and copies_s.isdigit() else None
-    duplex_s = request.form.get('duplex')
-    duplex = int(duplex_s) if duplex_s in ('0', '1') else None
-    color_s = request.form.get('color')
-    color = int(color_s) if color_s in ('0', '1') else None
-    paper_size = request.form.get('paper_size') or None
-
-    if copies is not None and (copies < 1 or copies > 99):
-        return jsonify({'error': '份数必须在 1-99 之间'}), 400
-
     queue_mgr = get_queue_manager()
-    job_id = queue_mgr.add_job(
-        original_name, save_path, file_size, ext,
-        duplex=duplex, color=color, copies=copies,
-        paper_size=paper_size, printer_name=printer,
-        source='web'
-    )
-
-    logger.info(f'Web 上传成功: {original_name} -> job_id={job_id}')
-    return jsonify({
-        'success': True,
-        'job_id': job_id,
-        'filename': original_name,
-        'file_size': file_size,
-        'file_type': ext
-    })
+    job_id, error = handle_file_upload(request, config, queue_mgr, source='web')
+    if error:
+        return error
+    logger.info(f'Web 上传成功: job_id={job_id}')
+    return jsonify({'success': True, 'job_id': job_id})
 
 
 @admin_bp.route('/api/set_default_printer', methods=['POST'])
+@require_auth
 def set_default_printer():
-    if not admin_auth():
-        return jsonify({'error': 'Unauthorized'}), 401
     config = get_config()
     data = request.get_json()
     printer = data.get('printer', '')
@@ -223,9 +158,8 @@ def set_default_printer():
 
 
 @admin_bp.route('/api/retry/<job_id>', methods=['POST'])
+@require_auth
 def retry_job(job_id):
-    if not admin_auth():
-        return jsonify({'error': 'Unauthorized'}), 401
     queue_mgr = get_queue_manager()
     new_id, error = queue_mgr.retry_job(job_id)
     if error:
@@ -234,9 +168,8 @@ def retry_job(job_id):
 
 
 @admin_bp.route('/api/cancel/<job_id>', methods=['POST'])
+@require_auth
 def cancel_job(job_id):
-    if not admin_auth():
-        return jsonify({'error': 'Unauthorized'}), 401
     queue_mgr = get_queue_manager()
     success, error = queue_mgr.cancel_job(job_id)
     if not success:
@@ -245,9 +178,8 @@ def cancel_job(job_id):
 
 
 @admin_bp.route('/api/test_notification', methods=['POST'])
+@require_auth
 def test_notification():
-    if not admin_auth():
-        return jsonify({'error': 'Unauthorized'}), 401
     config = current_app.config['app_config']
     channel = config.get('notify_channel', 'disabled')
     time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -263,9 +195,8 @@ def test_notification():
 
 
 @admin_bp.route('/api/cancel_all_queued', methods=['POST'])
+@require_auth
 def cancel_all_queued():
-    if not admin_auth():
-        return jsonify({'error': 'Unauthorized'}), 401
     queue_mgr = get_queue_manager()
     count = queue_mgr.cancel_all_queued()
     return jsonify({'success': True, 'cancelled': count})
