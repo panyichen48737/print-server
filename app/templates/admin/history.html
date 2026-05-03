@@ -1,0 +1,159 @@
+{% extends "admin/base.html" %}
+{% set active_page = "history" %}
+{% block page_title %}历史任务{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <span>全部任务</span>
+        <span style="font-size: 13px; color: var(--text-muted);">共 {{ total }} 条</span>
+    </div>
+    <div class="card-body">
+        <!-- Filter Bar -->
+        <div class="filter-bar mb-3">
+            <select class="form-select" id="statusFilter" onchange="filterJobs()" style="width: 120px;">
+                <option value="">全部状态</option>
+                <option value="queued" {% if status_filter == 'queued' %}selected{% endif %}>排队中</option>
+                <option value="printing" {% if status_filter == 'printing' %}selected{% endif %}>打印中</option>
+                <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>已完成</option>
+                <option value="failed" {% if status_filter == 'failed' %}selected{% endif %}>失败</option>
+            </select>
+            <input type="text" class="form-input" id="searchInput" placeholder="搜索文件名..." value="{{ search }}" onkeyup="if(event.key==='Enter')filterJobs()">
+            <button class="btn btn-amber btn-sm" onclick="filterJobs()">搜索</button>
+            <button class="btn btn-outline btn-sm" onclick="resetFilter()">重置</button>
+        </div>
+
+        {% if jobs %}
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>文件名</th>
+                        <th>类型</th>
+                        <th>大小</th>
+                        <th>状态</th>
+                        <th>提交时间</th>
+                        <th>完成时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in jobs %}
+                    <tr>
+                        <td>
+                            <span style="font-size: 14px; margin-right: 6px;">
+                                {% if job.file_type in ['.doc','.docx'] %}📄{% elif job.file_type == '.pdf' %}📕{% elif job.file_type in ['.xls','.xlsx'] %}📊{% elif job.file_type in ['.ppt','.pptx'] %}📽{% elif job.file_type in ['.jpg','.jpeg','.png','.bmp','.gif','.webp','.tiff','.tif','.heic','.heif'] %}🖼{% else %}📎{% endif %}
+                            </span>
+                            {{ job.filename }}
+                        </td>
+                        <td style="color: var(--text-muted); font-size: 12px;">{{ job.file_type }}</td>
+                        <td style="color: var(--text-muted); font-size: 13px;">
+                            {% if job.file_size >= 1048576 %}
+                                {{ "%.1f"|format(job.file_size / 1048576) }} MB
+                            {% elif job.file_size >= 1024 %}
+                                {{ "%.0f"|format(job.file_size / 1024) }} KB
+                            {% else %}
+                                {{ job.file_size }} B
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ job.status }}">
+                                <span class="status-dot-sm {{ job.status }}"></span>
+                                {% if job.status == 'queued' %}排队中
+                                {% elif job.status == 'printing' %}打印中
+                                {% elif job.status == 'completed' %}已完成
+                                {% elif job.status == 'failed' %}失败
+                                {% else %}{{ job.status }}{% endif %}
+                            </span>
+                        </td>
+                        <td style="color: var(--text-muted); font-size: 13px;">{{ job.created_at }}</td>
+                        <td style="color: var(--text-muted); font-size: 13px;">{{ job.completed_at or '-' }}</td>
+                        <td>
+                            {% if job.status == 'failed' %}
+                            <button class="btn btn-amber btn-sm" onclick="retryJob('{{ job.id }}')">↻ 重试</button>
+                            {% elif job.status == 'queued' %}
+                            <button class="btn-danger-sm" onclick="cancelJob('{{ job.id }}')">✕ 取消</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if total_pages > 1 %}
+        <div class="pagination">
+            {% if page > 1 %}
+            <button class="page-btn" onclick="goToPage({{ page - 1 }})">‹</button>
+            {% endif %}
+            {% for p in range(1, total_pages + 1) %}
+            <button class="page-btn {% if p == page %}active{% endif %}" onclick="goToPage({{ p }})">{{ p }}</button>
+            {% endfor %}
+            {% if page < total_pages %}
+            <button class="page-btn" onclick="goToPage({{ page + 1 }})">›</button>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">☰</div>
+            <p>暂无任务记录</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterJobs() {
+    const status = document.getElementById('statusFilter').value;
+    const search = document.getElementById('searchInput').value;
+    window.location.href = '/admin/history?status=' + encodeURIComponent(status) + '&search=' + encodeURIComponent(search);
+}
+
+function resetFilter() {
+    window.location.href = '/admin/history';
+}
+
+function goToPage(p) {
+    const params = new URLSearchParams(window.location.search);
+    params.set('page', p);
+    window.location.href = '/admin/history?' + params.toString();
+}
+
+function retryJob(jobId) {
+    confirmAction('确定要重新打印这个任务吗？', function() {
+        fetch('/admin/api/retry/' + jobId, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('任务已重新加入队列', 'success');
+                    setTimeout(function() { location.reload(); }, 800);
+                } else {
+                    showToast('操作失败: ' + (data.error || '未知错误'), 'error');
+                }
+            })
+            .catch(function() { showToast('请求失败', 'error'); });
+    });
+}
+
+function cancelJob(jobId) {
+    confirmAction('确定要取消这个排队中的任务吗？', function() {
+        fetch('/admin/api/cancel/' + jobId, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('任务已取消', 'success');
+                    setTimeout(function() { location.reload(); }, 800);
+                } else {
+                    showToast('操作失败: ' + (data.error || '未知错误'), 'error');
+                }
+            })
+            .catch(function() { showToast('请求失败', 'error'); });
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}打印服务器{% endblock %} | iOS Print Server</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='admin/style.css') }}">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="brand-icon">⧉</div>
+                    <div>
+                        <div class="brand-text">Print Server</div>
+                        <div class="brand-sub">iOS Cloud Print</div>
+                    </div>
+                </div>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="{{ url_for('admin.dashboard') }}" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
+                    <span class="nav-icon">◉</span>
+                    仪表盘
+                </a>
+                <a href="{{ url_for('admin.history') }}" class="nav-item {% if active_page == 'history' %}active{% endif %}">
+                    <span class="nav-icon">☰</span>
+                    历史任务
+                </a>
+                <a href="{{ url_for('admin.logs') }}" class="nav-item {% if active_page == 'logs' %}active{% endif %}">
+                    <span class="nav-icon">☷</span>
+                    实时日志
+                </a>
+                <a href="{{ url_for('admin.settings') }}" class="nav-item {% if active_page == 'settings' %}active{% endif %}">
+                    <span class="nav-icon">⚙</span>
+                    配置管理
+                </a>
+                <a href="{{ url_for('admin.printers') }}" class="nav-item {% if active_page == 'printers' %}active{% endif %}">
+                    <span class="nav-icon">⎙</span>
+                    打印机管理
+                </a>
+            </nav>
+            <div style="padding: 12px 16px; border-top: 1px solid var(--border-color); font-size: 12px; color: var(--text-muted);">
+                v1.0.0
+            </div>
+        </aside>
+
+        <!-- Main -->
+        <main class="main-content">
+            <header class="top-bar">
+                <div class="d-flex align-items-center gap-3">
+                    <button class="sidebar-toggle" id="sidebarToggle">☰</button>
+                    <div class="page-title-area">
+                        <h1>{% block page_title %}仪表盘{% endblock %}</h1>
+                    </div>
+                </div>
+                <div class="server-status">
+                    <span class="status-dot"></span>
+                    <span>运行中</span>
+                </div>
+            </header>
+
+            <div class="content-area">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Confirm modal -->
+    <div class="modal-overlay" id="confirmModal">
+        <div class="modal-box">
+            <h3>确认操作</h3>
+            <p class="modal-message"></p>
+            <div class="modal-actions">
+                <button class="btn btn-outline btn-cancel">取消</button>
+                <button class="btn btn-amber btn-confirm">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='admin/script.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,76 @@
+{% extends "admin/base.html" %}
+{% set active_page = "printers" %}
+{% block page_title %}打印机管理{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <span>可用打印机</span>
+        <span style="font-size: 13px; color: var(--text-muted);">{{ printers|length }} 台</span>
+    </div>
+    <div class="card-body">
+        {% if printers %}
+        <div class="printer-grid">
+            {% for printer in printers %}
+            <div class="printer-card {% if config.default_printer == printer %}default{% endif %}" id="printer-{{ loop.index }}">
+                <div class="printer-icon">⎙</div>
+                <div class="printer-info">
+                    <div class="printer-name">{{ printer }}</div>
+                    <div class="printer-status">
+                        {% if config.default_printer == printer %}
+                        <span style="color: var(--accent-green);">● 默认打印机</span>
+                        {% else %}
+                        <span>可用</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if config.default_printer != printer %}
+                <button class="btn btn-outline btn-sm" onclick="setDefault('{{ printer }}')">设为默认</button>
+                {% else %}
+                <span class="printer-badge">默认</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">⎙</div>
+            <p>未检测到可用打印机</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- System Printers Note -->
+<div class="card mt-3">
+    <div class="card-header">说明</div>
+    <div class="card-body" style="font-size: 13px; color: var(--text-secondary);">
+        <p style="margin: 0 0 8px;">此列表显示 Windows 系统中已安装的所有打印机。包含物理打印机、Microsoft Print to PDF、Fax 等虚拟打印机。</p>
+        <p style="margin: 0;">选择默认打印机后，iOS 端提交的打印任务将默认发送到此打印机。可在发送时通过 API 指定其他打印机。</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function setDefault(printerName) {
+    confirmAction('将「' + printerName + '」设为默认打印机？', function() {
+        fetch('/admin/api/set_default_printer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ printer: printerName })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                showToast('默认打印机已更新', 'success');
+                setTimeout(function() { location.reload(); }, 800);
+            } else {
+                showToast('操作失败: ' + (data.error || '未知错误'), 'error');
+            }
+        })
+        .catch(function() { showToast('请求失败', 'error'); });
+    });
+}
+</script>
+{% endblock %}

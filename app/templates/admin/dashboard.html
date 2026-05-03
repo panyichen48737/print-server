@@ -1,0 +1,128 @@
+{% extends "admin/base.html" %}
+{% set active_page = "dashboard" %}
+{% block page_title %}仪表盘{% endblock %}
+
+{% block content %}
+<div class="row g-3 mb-4" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+    <div class="stat-card">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="stat-label">排队中</div>
+                <div class="stat-value">{{ stats.queued }}</div>
+            </div>
+            <div class="stat-icon amber">◷</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="stat-label">打印中</div>
+                <div class="stat-value">{{ stats.printing }}</div>
+            </div>
+            <div class="stat-icon blue">◉</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="stat-label">今日完成</div>
+                <div class="stat-value">{{ stats.today_completed }}</div>
+            </div>
+            <div class="stat-icon green">✓</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="stat-label">今日失败</div>
+                <div class="stat-value" style="color: var(--accent-red);">{{ stats.today_failed }}</div>
+            </div>
+            <div class="stat-icon red">✕</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+    <div class="stat-card">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="stat-label">成功率</div>
+                <div class="stat-value">{{ "%.1f"|format(stats.success_rate) }}%</div>
+            </div>
+            <div class="stat-icon green">↗</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="stat-label">总计任务</div>
+                <div class="stat-value">{{ stats.total }}</div>
+            </div>
+            <div class="stat-icon blue">#</div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent tasks -->
+<div class="card">
+    <div class="card-header">
+        <span>最近任务</span>
+        <a href="{{ url_for('admin.history') }}" style="font-size: 13px; color: var(--accent-blue); text-decoration: none;">查看全部 →</a>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        {% if recent_jobs %}
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>文件名</th>
+                        <th>类型</th>
+                        <th>大小</th>
+                        <th>状态</th>
+                        <th>提交时间</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in recent_jobs %}
+                    <tr>
+                        <td>
+                            <span style="font-size: 14px; margin-right: 6px;">
+                                {% if job.file_type in ['.doc','.docx'] %}📄{% elif job.file_type == '.pdf' %}📕{% elif job.file_type in ['.xls','.xlsx'] %}📊{% elif job.file_type in ['.ppt','.pptx'] %}📽{% elif job.file_type in ['.jpg','.jpeg','.png','.bmp','.gif','.webp','.tiff','.tif','.heic','.heif'] %}🖼{% else %}📎{% endif %}
+                            </span>
+                            {{ job.filename }}
+                        </td>
+                        <td style="color: var(--text-muted); font-size: 12px;">{{ job.file_type }}</td>
+                        <td style="color: var(--text-muted); font-size: 13px;">
+                            {% if job.file_size >= 1048576 %}
+                                {{ "%.1f"|format(job.file_size / 1048576) }} MB
+                            {% elif job.file_size >= 1024 %}
+                                {{ "%.0f"|format(job.file_size / 1024) }} KB
+                            {% else %}
+                                {{ job.file_size }} B
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ job.status }}">
+                                <span class="status-dot-sm {{ job.status }}"></span>
+                                {% if job.status == 'queued' %}排队中
+                                {% elif job.status == 'printing' %}打印中
+                                {% elif job.status == 'completed' %}已完成
+                                {% elif job.status == 'failed' %}失败
+                                {% else %}{{ job.status }}{% endif %}
+                            </span>
+                        </td>
+                        <td style="color: var(--text-muted); font-size: 13px;">{{ job.created_at }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">⎙</div>
+            <p>暂无打印任务</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

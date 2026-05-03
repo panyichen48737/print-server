@@ -1,0 +1,54 @@
+import logging
+import requests
+
+logger = logging.getLogger('print_server')
+
+
+class DingTalk:
+    def __init__(self, config):
+        self.config = config
+
+    def send_notification(self, title, message, level='error'):
+        """发送钉钉通知"""
+        if not self.config.get('dingtalk_enabled', False):
+            return
+
+        webhook = self.config.get('dingtalk_webhook', '')
+        if not webhook:
+            return
+
+        notify_level = self.config.get('dingtalk_level', 'error')
+        if notify_level == 'error' and level != 'error':
+            return
+
+        try:
+            content = f'{title}\n\n{message}'
+            payload = {
+                'msgtype': 'text',
+                'text': {
+                    'content': content
+                }
+            }
+            resp = requests.post(webhook, json=payload, timeout=10)
+            if resp.status_code == 200:
+                logger.info('钉钉通知发送成功')
+            else:
+                logger.warning(f'钉钉通知发送失败: {resp.status_code}')
+        except Exception as e:
+            logger.warning(f'钉钉通知异常: {e}')
+
+    def notify_job_failed(self, filename, error, time_str):
+        """任务失败通知"""
+        self.send_notification(
+            '❌ 打印任务失败',
+            f'文件: {filename}\n错误: {error}\n时间: {time_str}',
+            level='error'
+        )
+
+    def notify_job_completed(self, filename, time_str):
+        """任务完成通知"""
+        self.send_notification(
+            '✅ 打印任务完成',
+            f'文件: {filename}\n时间: {time_str}',
+            level='info'
+        )

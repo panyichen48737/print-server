@@ -1,0 +1,185 @@
+{% extends "admin/base.html" %}
+{% set active_page = "settings" %}
+{% block page_title %}配置管理{% endblock %}
+
+{% block content %}
+<form method="POST" action="{{ url_for('admin.settings') }}" onsubmit="return saveSettings(this)">
+<div class="row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+    <!-- Left Column -->
+    <div>
+        <!-- Security -->
+        <div class="card mb-3">
+            <div class="card-header">安全</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label for="api_key">API Key</label>
+                    <input type="text" class="form-input" id="api_key" name="api_key" value="{{ config.api_key }}" style="width: 100%; font-family: monospace;">
+                    <div class="help-text">iOS 脚本连接时使用的鉴权密钥</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Print Defaults -->
+        <div class="card mb-3">
+            <div class="card-header">打印默认值</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label for="default_printer">默认打印机</label>
+                    <select class="form-select" id="default_printer" name="default_printer" style="width: 100%;">
+                        <option value="">系统默认打印机</option>
+                        {% for printer in printers %}
+                        <option value="{{ printer }}" {% if config.default_printer == printer %}selected{% endif %}>{{ printer }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="help-text">未指定打印机时使用此选项</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="default_copies">默认份数</label>
+                    <input type="number" class="form-input" id="default_copies" name="default_copies" value="{{ config.default_copies }}" min="1" max="99" style="width: 80px;">
+                </div>
+
+                <div class="form-group">
+                    <div class="form-check">
+                        <input type="checkbox" id="default_duplex" name="default_duplex" value="1" {% if config.default_duplex %}checked{% endif %}>
+                        <label for="default_duplex" style="margin: 0;">默认双面打印</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <div class="form-check">
+                        <input type="checkbox" id="default_color" name="default_color" value="1" {% if config.default_color %}checked{% endif %}>
+                        <label for="default_color" style="margin: 0;">默认彩色打印</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="paper_size">纸张大小</label>
+                    <select class="form-select" id="paper_size" name="paper_size" style="width: 120px;">
+                        <option value="A4" {% if config.paper_size == 'A4' %}selected{% endif %}>A4</option>
+                        <option value="Letter" {% if config.paper_size == 'Letter' %}selected{% endif %}>Letter</option>
+                        <option value="A3" {% if config.paper_size == 'A3' %}selected{% endif %}>A3</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="excel_print_all_sheets">Excel 打印范围</label>
+                    <select class="form-select" id="excel_print_all_sheets" name="excel_print_all_sheets" style="width: 160px;">
+                        <option value="1" {% if config.get('excel_print_all_sheets', True) %}selected{% endif %}>全部工作表</option>
+                        <option value="0" {% if not config.get('excel_print_all_sheets', True) %}selected{% endif %}>仅活动工作表</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="ppt_output_type">PPT 打印模式</label>
+                    <select class="form-select" id="ppt_output_type" name="ppt_output_type" style="width: 160px;">
+                        <option value="slides" {% if config.get('ppt_output_type', 'slides') == 'slides' %}selected{% endif %}>每页1张幻灯片</option>
+                        <option value="handout2" {% if config.get('ppt_output_type', 'slides') == 'handout2' %}selected{% endif %}>每页2张讲义</option>
+                        <option value="handout3" {% if config.get('ppt_output_type', 'slides') == 'handout3' %}selected{% endif %}>每页3张讲义</option>
+                        <option value="handout6" {% if config.get('ppt_output_type', 'slides') == 'handout6' %}selected{% endif %}>每页6张讲义</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column -->
+    <div>
+        <!-- Quark API -->
+        <div class="card mb-3">
+            <div class="card-header">Quark 扫描 API</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label for="quark_api_key_id">API Key ID</label>
+                    <input type="text" class="form-input" id="quark_api_key_id" name="quark_api_key_id" value="{{ config.quark_api_key_id }}" style="width: 100%; font-family: monospace;">
+                </div>
+                <div class="form-group">
+                    <label for="quark_api_key">API Key</label>
+                    <input type="password" class="form-input" id="quark_api_key" name="quark_api_key" value="{{ config.quark_api_key }}" style="width: 100%; font-family: monospace;">
+                    <div class="help-text">用于图片预处理（文档矫正、去阴影、增强）</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DingTalk -->
+        <div class="card mb-3">
+            <div class="card-header">钉钉通知</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <div class="form-check">
+                        <input type="checkbox" id="dingtalk_enabled" name="dingtalk_enabled" value="1" onchange="toggleDingtalk()" {% if config.dingtalk_enabled %}checked{% endif %}>
+                        <label for="dingtalk_enabled" style="margin: 0;">启用钉钉通知</label>
+                    </div>
+                </div>
+                <div id="dingtalkFields" {% if not config.dingtalk_enabled %}style="display:none"{% endif %}>
+                    <div class="form-group">
+                        <label for="dingtalk_webhook">Webhook URL</label>
+                        <input type="url" class="form-input" id="dingtalk_webhook" name="dingtalk_webhook" value="{{ config.dingtalk_webhook }}" style="width: 100%;" placeholder="https://oapi.dingtalk.com/robot/send?access_token=...">
+                    </div>
+                    <div class="form-group">
+                        <label for="dingtalk_level">通知级别</label>
+                        <select class="form-select" id="dingtalk_level" name="dingtalk_level" style="width: 160px;">
+                            <option value="error" {% if config.dingtalk_level == 'error' %}selected{% endif %}>仅错误</option>
+                            <option value="all" {% if config.dingtalk_level == 'all' %}selected{% endif %}>所有状态变更</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Server -->
+        <div class="card">
+            <div class="card-header">服务器</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label for="port">监听端口</label>
+                    <input type="number" class="form-input" id="port" name="port" value="{{ config.port }}" min="1" max="65535" style="width: 100px;">
+                    <div class="help-text">修改后需重启服务生效</div>
+                </div>
+                <div class="form-group">
+                    <label for="log_level">日志级别</label>
+                    <select class="form-select" id="log_level" name="log_level" style="width: 140px;">
+                        <option value="DEBUG" {% if config.log_level == 'DEBUG' %}selected{% endif %}>DEBUG</option>
+                        <option value="INFO" {% if config.log_level == 'INFO' %}selected{% endif %}>INFO</option>
+                        <option value="WARNING" {% if config.log_level == 'WARNING' %}selected{% endif %}>WARNING</option>
+                        <option value="ERROR" {% if config.log_level == 'ERROR' %}selected{% endif %}>ERROR</option>
+                    </select>
+                    <div class="help-text">修改后需重启服务生效</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div style="margin-top: 20px; display: flex; gap: 10px; align-items: center;">
+    <button type="submit" class="btn btn-amber">保存配置</button>
+    <span style="font-size: 13px; color: var(--text-muted);" id="saveHint">部分配置修改后需重启服务才能生效</span>
+</div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleDingtalk() {
+    var checked = document.getElementById('dingtalk_enabled').checked;
+    document.getElementById('dingtalkFields').style.display = checked ? 'block' : 'none';
+}
+
+function saveSettings(form) {
+    var formData = new FormData(form);
+    fetch(form.action, { method: 'POST', body: formData })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                showToast('配置已保存', 'success');
+            } else {
+                showToast('保存失败: ' + (data.error || '未知错误'), 'error');
+            }
+        })
+        .catch(function() {
+            showToast('保存失败', 'error');
+        });
+    return false;
+}
+</script>
+{% endblock %}

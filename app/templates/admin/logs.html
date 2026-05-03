@@ -1,0 +1,109 @@
+{% extends "admin/base.html" %}
+{% set active_page = "logs" %}
+{% block page_title %}实时日志{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <span>系统日志</span>
+        <div class="log-controls">
+            <div class="log-auto-scroll">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="autoScrollToggle" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+                <span>自动滚动</span>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="clearLogs()">清除</button>
+        </div>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <div class="log-viewer" id="logViewer">
+            <div style="color: var(--text-muted); text-align: center; padding: 40px 0;">
+                <div class="spinner"></div>
+                <div style="margin-top: 12px;">加载日志中...</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const logViewer = document.getElementById('logViewer');
+    const autoScrollToggle = document.getElementById('autoScrollToggle');
+    let autoScroll = true;
+    let lastLogLength = 0;
+    let paused = false;
+
+    if (autoScrollToggle) {
+        autoScrollToggle.addEventListener('change', function() {
+            autoScroll = this.checked;
+        });
+    }
+
+    // Pause on manual scroll up
+    logViewer.addEventListener('scroll', function() {
+        if (!autoScrollToggle) return;
+        const atBottom = logViewer.scrollTop + logViewer.clientHeight >= logViewer.scrollHeight - 40;
+        if (!atBottom && autoScrollToggle.checked) {
+            autoScroll = false;
+            autoScrollToggle.checked = false;
+        }
+    });
+
+    function fetchLogs() {
+        fetch('/admin/api/logs?lines=100')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.lines || data.lines.length === 0) {
+                    if (lastLogLength === 0) {
+                        logViewer.innerHTML = '<div class="empty-state"><div class="empty-icon">☷</div><p>暂无日志</p></div>';
+                    }
+                    return;
+                }
+
+                if (data.lines.length === lastLogLength) return;
+                lastLogLength = data.lines.length;
+
+                var html = '';
+                data.lines.forEach(function(line) {
+                    var levelClass = 'INFO';
+                    var displayLevel = 'INFO';
+                    if (line.indexOf('ERROR') > -1) { levelClass = 'ERROR'; displayLevel = 'ERROR'; }
+                    else if (line.indexOf('WARNING') > -1 || line.indexOf('WARN') > -1) { levelClass = 'WARNING'; displayLevel = 'WARN'; }
+                    else if (line.indexOf('DEBUG') > -1) { levelClass = 'DEBUG'; displayLevel = 'DEBUG'; }
+
+                    html += '<div class="log-entry">';
+                    html += '<span class="log-level ' + levelClass + '">' + displayLevel + '</span>';
+                    html += escapeHtml(line);
+                    html += '</div>';
+                });
+                logViewer.innerHTML = html;
+
+                if (autoScroll) {
+                    logViewer.scrollTop = logViewer.scrollHeight;
+                }
+            })
+            .catch(function() {});
+    }
+
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(text));
+        return div.innerHTML;
+    }
+
+    // Initial fetch
+    fetchLogs();
+    // Poll every 3 seconds
+    setInterval(fetchLogs, 3000);
+})();
+
+function clearLogs() {
+    document.getElementById('logViewer').innerHTML = '<div class="empty-state"><div class="empty-icon">☷</div><p>日志已清除（新日志将在 3 秒后自动显示）</p></div>';
+    lastLogLength = 0;
+}
+</script>
+{% endblock %}
