@@ -87,7 +87,7 @@ class ConfigSchema(BaseModel):
 
 
 class Config:
-    """配置管理，支持热加载 + Pydantic 校验"""
+    """配置管理，基于 Pydantic + 线程安全的热加载"""
 
     def __init__(self, config_path=None):
         if config_path is None:
@@ -95,81 +95,50 @@ class Config:
             config_path = os.path.join(app_root(), 'config.json')
         self.config_path = config_path
         self._lock = threading.Lock()
-        self._data = {}
-        self._errors = []  # 上次校验的警告/错误
+        self._schema = ConfigSchema()
+        self._errors = []
         self.load()
+
+    def __getattr__(self, name):
+        """将未知属性访问代理到 ConfigSchema 字段"""
+        if '_schema' in self.__dict__:
+            schema = self.__dict__['_schema']
+            if hasattr(schema, name):
+                return getattr(schema, name)
+        raise AttributeError(f"'Config' object has no attribute '{name}'")
 
     def load(self):
         with self._lock:
             with open(self.config_path, 'r', encoding='utf-8') as f:
-                self._data = json.load(f)
-        self._validate()
-
-    def _validate(self):
-        """Pydantic 校验，校验失败记录但不阻止启动"""
-        self._errors = []
-        try:
-            ConfigSchema(**self._data)
-        except Exception as e:
-            self._errors.append(str(e))
-            import logging
-            logger = logging.getLogger('print_server')
-            for err in self._errors:
-                logger.warning(f'配置校验警告: {err}')
+                data = json.load(f)
+            try:
+                self._schema = ConfigSchema(**data)
+                self._errors = []
+            except Exception as e:
+                self._errors.append(str(e))
+                import logging
+                logger = logging.getLogger('print_server')
+                logger.warning(f'配置校验警告: {e}')
 
     def save(self):
         with self._lock:
             with open(self.config_path, 'w', encoding='utf-8') as f:
-                json.dump(self._data, f, indent=4, ensure_ascii=False)
+                f.write(self._schema.model_dump_json(indent=4, ensure_ascii=False))
 
     def reload(self):
-        """热加载配置"""
         self.load()
 
     def get(self, key, default=None):
-        """安全读取，缺失键返回 default 而非 KeyError"""
         with self._lock:
-            return self._data.get(key, default)
+            return getattr(self._schema, key, default)
 
     def set(self, key, value):
         with self._lock:
-            self._data[key] = value
+            self._schema = self._schema.model_copy(update={key: value})
 
     def set_many(self, kwargs):
         with self._lock:
-            self._data.update(kwargs)
-
-    @property
-    def allowed_extensions(self):
-        return self.get('allowed_extensions', [])
-
-    @property
-    def max_file_size_mb(self):
-        return self.get('max_file_size_mb', 50)
-
-    @property
-    def api_key(self):
-        return self.get('api_key', '')
-
-    @property
-    def quark_api_key_id(self):
-        return self.get('quark_api_key_id', '')
-
-    @property
-    def quark_api_key(self):
-        return self.get('quark_api_key', '')
-
-    @property
-    def log_level(self):
-        return self.get('log_level', 'INFO')
-
-    @property
-    def worker_count(self):
-        return self.get('worker_count', 2)
-
-    @property
-    def auto_rotate(self):
-        return self.get('auto_rotate', True)
+            self._schema = self._schema.model_copy(update=kwargs)
 
 
 def setup_logging(log_dir=None, level='INFO'):
