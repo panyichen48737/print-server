@@ -41,6 +41,11 @@ def bootstrap(config):
 
     dingtalk = DingTalk(config)
     bark = BarkNotifier(config)
+
+    # 日志实时推送
+    from app.services.log_broadcaster import LogBroadcaster
+    logging.getLogger('print_server').addHandler(LogBroadcaster())
+
     queue_mgr = QueueManager(config, socketio=socketio, dingtalk=dingtalk, bark=bark)
     print_engine = PrintEngine(
         config,

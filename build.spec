@@ -46,6 +46,7 @@ a = Analysis(
         'eventlet',
         'app.services.printer_monitor',
         'app.services.bark',
+        'app.services.log_broadcaster',
     ],
     hookspath=[],
     runtime_hooks=[],
