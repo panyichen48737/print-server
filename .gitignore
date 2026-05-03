@@ -7,5 +7,4 @@ venv/
 build/
 dist/
 *.spec
-cert.pem
-key.pem
+certs/

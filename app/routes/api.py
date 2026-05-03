@@ -44,7 +44,7 @@ def print_file():
 
     # Save file
     job_id = str(uuid.uuid4())
-    from _paths import app_root, ensure_dir
+    from app._paths import app_root, ensure_dir
     jobs_dir = ensure_dir(app_root(), 'jobs')
     save_path = os.path.join(jobs_dir, f'{job_id}_{filename}')
     file.save(save_path)

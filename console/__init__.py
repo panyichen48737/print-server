@@ -8,7 +8,7 @@ import os
 import logging
 from datetime import datetime
 
-from _paths import app_root, data_root
+from app._paths import app_root, data_root
 
 sys.path.insert(0, app_root())
 

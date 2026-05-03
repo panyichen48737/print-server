@@ -1,11 +1,11 @@
 import os
 import logging
 from flask import Flask
-from _paths import app_root, ensure_dir
+from app._paths import app_root, ensure_dir
 
 
 def create_app():
-    from _paths import data_root
+    from app._paths import data_root
     dr = data_root()
     app = Flask(__name__,
                 static_folder=os.path.join(dr, 'app', 'static'),
