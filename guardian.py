@@ -1,24 +1,37 @@
-"""守护进程看门狗 — 启动并监控 server_daemon.py，崩溃时自动重启
+"""守护进程看门狗 — 启动并监控 server_daemon.py，定时健康检查 + 崩溃自动重启
 
 工作方式:
   1. guardian 启动 server_daemon.py 作为子进程
-  2. 子进程退出时，判断是主动关闭还是崩溃
-  3. 崩溃 → 5秒后自动重启
-  4. 主动关闭 → guardian 退出
+  2. 每 15 秒健康检查（进程存活 + HTTP 响应）
+  3. 子进程退出时，判断是主动关闭还是崩溃
+  4. 崩溃 → 5秒后自动重启（最多 10 次）
+  5. 主动关闭 → guardian 退出
 """
 import os
 import sys
 import json
 import time
+import ssl
 import subprocess
+import urllib.request
 import atexit
 from pathlib import Path
 
-# 确保在项目根目录
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 DAEMON_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'server_daemon.py')
+CHECK_INTERVAL = 15  # 健康检查间隔（秒）
+MAX_HTTP_FAIL = 3    # HTTP 连续失败次数触发重启
+
+
+def _config_port():
+    """从 config.json 读取端口"""
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')) as f:
+            return json.load(f).get('port', 5000)
+    except Exception:
+        return 5000
 
 
 def _status_path():
@@ -27,7 +40,6 @@ def _status_path():
 
 
 def write_guardian_pid(pid):
-    """写入 guardian PID"""
     f = _status_path()
     try:
         f.parent.mkdir(parents=True, exist_ok=True)
@@ -46,7 +58,6 @@ def cleanup_guardian_pid():
 
 
 def read_daemon_status():
-    """读取 server_daemon.py 的状态文件"""
     from app._paths import app_root
     f = Path(app_root()) / 'logs' / 'daemon.json'
     if not f.exists():
@@ -57,18 +68,42 @@ def read_daemon_status():
         return {'status': 'stopped'}
 
 
+def http_health_check(port):
+    """HTTP 健康检查，成功返回 True"""
+    try:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        req = urllib.request.Request(f'https://127.0.0.1:{port}/api/printers/status',
+                                     method='GET', headers={'Connection': 'close'})
+        urllib.request.urlopen(req, timeout=5, context=ctx)
+        return True
+    except Exception:
+        return False
+
+
+def log(msg, log_dir):
+    try:
+        with open(log_dir / 'daemon_stdout.log', 'a') as f:
+            f.write(f'[guardian] {msg}\n')
+    except Exception:
+        pass
+
+
 def main():
     write_guardian_pid(os.getpid())
     atexit.register(cleanup_guardian_pid)
 
+    from app._paths import app_root
+    log_dir = Path(app_root()) / 'logs'
+    log_dir.mkdir(parents=True, exist_ok=True)
+
     restart_count = 0
-    max_restarts = 10  # 防止无限崩溃循环
+    max_restarts = 10
+    port = _config_port()
+    http_fail_count = 0
 
     while restart_count < max_restarts:
-        from app._paths import app_root
-        log_dir = Path(app_root()) / 'logs'
-        log_dir.mkdir(parents=True, exist_ok=True)
-
         stdout_f = open(log_dir / 'daemon_stdout.log', 'a')
         stderr_f = open(log_dir / 'daemon_stderr.log', 'a')
 
@@ -82,32 +117,54 @@ def main():
         )
 
         daemon_pid = proc.pid
-        # 等待退出
-        proc.wait()
+        log(f'守护进程已启动 (PID: {daemon_pid})', log_dir)
+        http_fail_count = 0
+
+        # 健康检查循环
+        while True:
+            time.sleep(CHECK_INTERVAL)
+
+            # 1. 检查进程是否退出
+            ret = proc.poll()
+            if ret is not None:
+                log(f'守护进程已退出 (PID: {daemon_pid}, 返回码: {ret})', log_dir)
+                break
+
+            # 2. HTTP 健康检查
+            if http_health_check(port):
+                http_fail_count = 0
+            else:
+                http_fail_count += 1
+                if http_fail_count >= MAX_HTTP_FAIL:
+                    log(f'健康检查连续失败 {MAX_HTTP_FAIL} 次，终止进程', log_dir)
+                    try:
+                        proc.terminate()
+                        proc.wait(timeout=5)
+                    except Exception:
+                        subprocess.run(['taskkill', '/F', '/PID', str(daemon_pid)],
+                                       capture_output=True)
+                    break
 
         stdout_f.close()
         stderr_f.close()
 
-        # 读 daemon.json 判断是主动关闭还是崩溃
+        # 判断是主动关闭还是崩溃
         status = read_daemon_status()
         is_intentional = status.get('status') == 'stopped'
 
         if is_intentional:
-            with open(log_dir / 'daemon_stdout.log', 'a') as f:
-                f.write(f'[guardian] 守护进程正常退出 (PID: {daemon_pid})\n')
+            log(f'守护进程正常关闭，退出监控', log_dir)
             break
 
         # 崩溃了，重启
         restart_count += 1
-        with open(log_dir / 'daemon_stdout.log', 'a') as f:
-            f.write(f'[guardian] 守护进程异常退出 (PID: {daemon_pid}, 第{restart_count}次重启)\n')
+        log(f'守护进程异常退出，第 {restart_count}/{max_restarts} 次重启', log_dir)
 
         if restart_count >= max_restarts:
-            with open(log_dir / 'daemon_stdout.log', 'a') as f:
-                f.write(f'[guardian] 达到最大重启次数 ({max_restarts})，停止监控\n')
+            log(f'达到最大重启次数 ({max_restarts})，停止监控', log_dir)
             break
 
-        time.sleep(3)  # 等待3秒后重启
+        time.sleep(5)
 
     cleanup_guardian_pid()
 
