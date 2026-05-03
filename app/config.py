@@ -18,9 +18,11 @@ class ConfigSchema(BaseModel):
     paper_size: str = 'A4'
     quark_api_key_id: str = ''
     quark_api_key: str = ''
-    dingtalk_enabled: bool = False
+    notify_channel: str = 'disabled'
     dingtalk_webhook: str = ''
     dingtalk_level: str = 'error'
+    bark_key: str = ''
+    bark_server: str = 'https://api.day.app'
     port: int = Field(default=5000, ge=1024, le=65535)
     log_level: str = 'INFO'
     worker_count: int = Field(default=2, ge=1, le=16)
@@ -34,6 +36,7 @@ class ConfigSchema(BaseModel):
         '.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif', '.heic', '.heif'
     ])
     job_timeout: int = Field(default=300, ge=30, le=3600)
+    auto_retry_count: int = Field(default=0, ge=0, le=10)
 
     @field_validator('ppt_output_type')
     @classmethod
@@ -49,6 +52,14 @@ class ConfigSchema(BaseModel):
         allowed = ('A3', 'A4', 'Letter')
         if v not in allowed:
             raise ValueError(f'paper_size 必须为 {allowed} 之一')
+        return v
+
+    @field_validator('notify_channel')
+    @classmethod
+    def validate_notify_channel(cls, v):
+        allowed = ('disabled', 'dingtalk', 'bark')
+        if v not in allowed:
+            raise ValueError(f'notify_channel 必须为 {allowed} 之一')
         return v
 
     @field_validator('dingtalk_level')
