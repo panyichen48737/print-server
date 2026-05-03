@@ -40,14 +40,22 @@ def bootstrap(config):
 
     broadcaster = app.extensions['sse']
 
-    dingtalk = DingTalk(config)
-    bark = BarkNotifier(config)
+    channel = config.get('notify_channel', 'disabled')
+    dingtalk = None
+    bark = None
+    notifier = None
+    if channel == 'dingtalk':
+        dingtalk = DingTalk(config)
+        notifier = dingtalk
+    elif channel == 'bark':
+        bark = BarkNotifier(config)
+        notifier = bark
 
     # 日志实时推送
     from app.services.log_broadcaster import LogBroadcaster
     logging.getLogger('print_server').addHandler(LogBroadcaster())
 
-    queue_mgr = QueueManager(config, broadcaster=broadcaster, dingtalk=dingtalk, bark=bark)
+    queue_mgr = QueueManager(config, broadcaster=broadcaster, notifier=notifier)
     print_engine = PrintEngine(
         config,
         dingtalk=dingtalk,

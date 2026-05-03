@@ -5,16 +5,16 @@ import logging
 from datetime import datetime, timedelta
 
 from app.services.job_repository import JobRepository
+from app.services.notifier import Notifier
 
 logger = logging.getLogger('print_server')
 
 
 class QueueManager:
-    def __init__(self, config, broadcaster=None, db_path=None, dingtalk=None, bark=None):
+    def __init__(self, config, broadcaster=None, db_path=None, notifier: Notifier | None = None):
         self.config = config
         self._broadcaster = broadcaster
-        self._dingtalk = dingtalk
-        self._bark = bark
+        self._notifier = notifier
         self._print_engine = None
         self._lock = threading.Lock()
         self._queue = queue.Queue()
@@ -401,26 +401,18 @@ class QueueManager:
         if source == 'ios':
             logger.debug(f'iOS 来源任务不发送通知: {filename}')
             return
+        if not self._notifier:
+            return
         time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        channel = self.config.get('notify_channel', 'disabled')
-        if channel == 'dingtalk' and self._dingtalk:
-            try:
-                if event_type == 'completed':
-                    self._dingtalk.notify_job_completed(filename, time_str)
-                elif event_type in ('failed', 'cancelled'):
-                    self._dingtalk.notify_job_failed(filename, kwargs.get('error', ''), time_str)
-            except Exception:
-                pass
-        elif channel == 'bark' and self._bark:
-            try:
-                if event_type == 'completed':
-                    self._bark.notify_job_completed(filename, time_str)
-                elif event_type == 'failed':
-                    self._bark.notify_job_failed(filename, kwargs.get('error', ''), time_str)
-                elif event_type == 'cancelled':
-                    self._bark.notify_job_cancelled(filename, time_str)
-            except Exception:
-                pass
+        try:
+            if event_type == 'completed':
+                self._notifier.notify_job_completed(filename, time_str)
+            elif event_type == 'failed':
+                self._notifier.notify_job_failed(filename, kwargs.get('error', ''), time_str)
+            elif event_type == 'cancelled':
+                self._notifier.notify_job_cancelled(filename, time_str)
+        except Exception:
+            pass
 
     def cleanup_old_jobs(self):
         """清理过期任务 + 恢复卡住的 printing 任务"""

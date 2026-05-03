@@ -1,10 +1,12 @@
 import logging
 import requests
 
+from app.services.notifier import Notifier
+
 logger = logging.getLogger('print_server')
 
 
-class BarkNotifier:
+class BarkNotifier(Notifier):
     def __init__(self, config):
         self.config = config
 
