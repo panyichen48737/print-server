@@ -31,11 +31,11 @@
 {% block scripts %}
 <script>
 (function() {
-    const logViewer = document.getElementById('logViewer');
-    const autoScrollToggle = document.getElementById('autoScrollToggle');
-    let autoScroll = true;
-    let lastLogLength = 0;
-    let paused = false;
+    var logViewer = document.getElementById('logViewer');
+    var autoScrollToggle = document.getElementById('autoScrollToggle');
+    var autoScroll = true;
+    var lastLogLength = 0;
+    var paused = false;
 
     if (autoScrollToggle) {
         autoScrollToggle.addEventListener('change', function() {
@@ -46,7 +46,7 @@
     // Pause on manual scroll up
     logViewer.addEventListener('scroll', function() {
         if (!autoScrollToggle) return;
-        const atBottom = logViewer.scrollTop + logViewer.clientHeight >= logViewer.scrollHeight - 40;
+        var atBottom = logViewer.scrollTop + logViewer.clientHeight >= logViewer.scrollHeight - 40;
         if (!atBottom && autoScrollToggle.checked) {
             autoScroll = false;
             autoScrollToggle.checked = false;

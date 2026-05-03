@@ -120,7 +120,8 @@
                         <label for="dingtalk_level">通知级别</label>
                         <select class="form-select" id="dingtalk_level" name="dingtalk_level" style="width: 160px;">
                             <option value="error" {% if config.dingtalk_level == 'error' %}selected{% endif %}>仅错误</option>
-                            <option value="all" {% if config.dingtalk_level == 'all' %}selected{% endif %}>所有状态变更</option>
+                            <option value="warning" {% if config.dingtalk_level == 'warning' %}selected{% endif %}>警告及以上</option>
+                            <option value="info" {% if config.dingtalk_level == 'info' %}selected{% endif %}>所有状态变更</option>
                         </select>
                     </div>
                 </div>

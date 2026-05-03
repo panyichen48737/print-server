@@ -109,8 +109,8 @@
 {% block scripts %}
 <script>
 function filterJobs() {
-    const status = document.getElementById('statusFilter').value;
-    const search = document.getElementById('searchInput').value;
+    var status = document.getElementById('statusFilter').value;
+    var search = document.getElementById('searchInput').value;
     window.location.href = '/admin/history?status=' + encodeURIComponent(status) + '&search=' + encodeURIComponent(search);
 }
 
@@ -119,7 +119,7 @@ function resetFilter() {
 }
 
 function goToPage(p) {
-    const params = new URLSearchParams(window.location.search);
+    var params = new URLSearchParams(window.location.search);
     params.set('page', p);
     window.location.href = '/admin/history?' + params.toString();
 }

@@ -15,7 +15,7 @@
                     <div id="uploadDefault">
                         <div class="upload-icon">↑</div>
                         <p>拖拽文件到此处，或点击选择</p>
-                        <p class="upload-hint">支持 {{ allowed_extensions | join(', ') }} 格式，最大 {{ config.max_file_size_mb or 50 }}MB</p>
+                        <p class="upload-hint">支持 {{ allowed_extensions | join(', ') }} 格式，最大 {{ config.max_file_size_mb }}MB</p>
                     </div>
                     <div id="uploadPreview" style="display: none;">
                         <div class="upload-preview">
@@ -387,9 +387,9 @@ function validateFile(file) {
     if (allowed.indexOf(ext) === -1) {
         return '不支持的文件格式: ' + ext;
     }
-    var maxSize = ({{ config.max_file_size_mb or 50 }}) * 1048576;
+    var maxSize = ({{ config.max_file_size_mb }}) * 1048576;
     if (file.size > maxSize) {
-        return '文件过大，最大支持 ' + ({{ config.max_file_size_mb or 50 }}) + 'MB';
+        return '文件过大，最大支持 ' + ({{ config.max_file_size_mb }}) + 'MB';
     }
     return null;
 }
