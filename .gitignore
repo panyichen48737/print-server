@@ -6,5 +6,5 @@ venv/
 .venv/
 build/
 dist/
-*.spec
 certs/
+!build.spec
