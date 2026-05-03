@@ -17,6 +17,6 @@ def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not check_auth():
-            return jsonify({'error': 'Unauthorized'}), 401
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
         return f(*args, **kwargs)
     return decorated
