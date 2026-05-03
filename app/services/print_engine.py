@@ -372,52 +372,26 @@ class PrintEngine:
                 return None
 
             ext = os.path.splitext(filepath)[1].lower()
-
-            # API 支持的格式：PNG/JPG/JPEG/BMP/GIF/TIFF/WebP
-            # 不支持的格式（HEIC/HEIF 等）用 PIL 转成 JPG
-            supported_exts = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif'}
-            ext_map = {
-                '.jpg': 'jpg', '.jpeg': 'jpg', '.png': 'png',
-                '.bmp': 'bmp', '.gif': 'gif', '.webp': 'webp',
-                '.tiff': 'tiff', '.tif': 'tiff',
-            }
             max_api_size = 10 * 1024 * 1024
 
-            if ext in supported_exts:
-                data_type = ext_map[ext]
-                if os.path.getsize(filepath) <= max_api_size:
-                    with open(filepath, 'rb') as f:
-                        img_data = f.read()
-                else:
-                    # 超过 10MB 压缩到限额内
-                    img = Image.open(filepath)
-                    if img.mode in ('RGBA', 'P', 'LA'):
-                        img = img.convert('RGB')
-                    quality = 85
-                    buf = io.BytesIO()
-                    img.save(buf, format='JPEG', quality=quality)
-                    while buf.tell() > max_api_size and quality > 20:
-                        quality -= 10
-                        buf = io.BytesIO()
-                        img.save(buf, format='JPEG', quality=quality)
-                    img_data = buf.getvalue()
-                    data_type = 'jpg'
-                    logger.info(f'Quark API: 图片超过 10MB，已压缩至 {len(img_data)//1024}KB (quality={quality})')
-            else:
-                # 不支持的格式（如 HEIC/HEIF）转 JPG
-                img = Image.open(filepath)
-                if img.mode in ('RGBA', 'P', 'LA'):
-                    img = img.convert('RGB')
-                quality = 95
+            # 统一转 JPG：PIL 打开后转 RGB，按需压缩
+            img = Image.open(filepath)
+            if img.mode in ('RGBA', 'P', 'LA'):
+                img = img.convert('RGB')
+
+            quality = 95
+            buf = io.BytesIO()
+            img.save(buf, format='JPEG', quality=quality)
+
+            # 超过 10MB 才逐步降质量压缩
+            while buf.tell() > max_api_size and quality > 20:
+                quality -= 10
                 buf = io.BytesIO()
                 img.save(buf, format='JPEG', quality=quality)
-                while buf.tell() > max_api_size and quality > 20:
-                    quality -= 10
-                    buf = io.BytesIO()
-                    img.save(buf, format='JPEG', quality=quality)
-                img_data = buf.getvalue()
-                data_type = 'jpg'
-                logger.info(f'Quark API: {ext} 已转换为 JPG ({len(img_data)//1024}KB)')
+
+            img_data = buf.getvalue()
+            data_type = 'jpg'
+            logger.info(f'Quark API: {ext} → JPG ({len(img_data)//1024}KB, quality={quality})')
 
             img_b64 = base64.b64encode(img_data).decode('utf-8')
 
