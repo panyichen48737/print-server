@@ -24,7 +24,6 @@ a = Analysis(
     hiddenimports=[
         'win32ui', 'win32print', 'win32gui', 'win32com.client',
         'pythoncom',
-        'fitz',
         'PIL', 'PIL.ImageWin', 'PIL.ImageDraw',
         'pillow_heif',
         'rich', 'rich.layout', 'rich.live', 'rich.panel',
