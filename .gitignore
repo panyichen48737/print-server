@@ -8,3 +8,6 @@ build/
 dist/
 certs/
 !build.spec
+.claude/
+docs/superpowers/
+*.md
