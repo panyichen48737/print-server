@@ -1,26 +1,41 @@
-"""开机自启管理 — 使用 Windows Task Scheduler（优于注册表 Run 键）"""
+"""开机自启管理 — 优先 nssm Windows Service，回退 schtasks"""
 import os
 import sys
+import shutil
 import subprocess
 import logging
 
 logger = logging.getLogger('print_server')
 
+SERVICE_NAME = 'iOSPrintServer'
 TASK_NAME = 'iOSPrintServer'
 
 
+def _nssm_available():
+    return shutil.which('nssm') is not None
+
+
 def _get_python_cmd():
-    """获取启动命令 — 直接启动 guardian 看门狗"""
+    """获取 schtasks 用启动命令"""
     this_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if getattr(sys, 'frozen', False):
-        # 冻结模式走主程序 --start（内部 daemon_manager 启动 guardian）
         return f'"{sys.executable}" --start'
     else:
         return f'"{sys.executable}" "{this_dir}\\guardian.py"'
 
 
 def is_autostart_installed():
-    """检查任务计划是否存在"""
+    """检查是否已注册自启（nssm 服务优先）"""
+    if _nssm_available():
+        try:
+            r = subprocess.run(['nssm', 'status', SERVICE_NAME],
+                               capture_output=True, timeout=5)
+            if 'SERVICE_RUNNING' in r.stdout.decode('utf-8', errors='ignore') or \
+               'SERVICE_STOPPED' in r.stdout.decode('utf-8', errors='ignore') or \
+               'SERVICE_PAUSED' in r.stdout.decode('utf-8', errors='ignore'):
+                return True
+        except Exception:
+            pass
     try:
         r = subprocess.run(
             ['schtasks', '/Query', '/TN', TASK_NAME, '/V', '/FO', 'CSV'],
@@ -32,10 +47,60 @@ def is_autostart_installed():
 
 
 def install_autostart():
-    """注册开机自启（用户登录时启动守护进程，无窗口，延迟30s）"""
+    """注册开机自启 — 优先 nssm Windows Service，回退 schtasks"""
     if is_autostart_installed():
         return True, '开机自启已注册'
 
+    if _nssm_available() and not getattr(sys, 'frozen', False):
+        return _install_nssm()
+    else:
+        return _install_schtasks()
+
+
+def _install_nssm():
+    """通过 nssm 注册为 Windows Service（系统级，开机自启，崩溃自动重启）"""
+    try:
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        python_exe = sys.executable
+        guardian_script = os.path.join(project_root, 'guardian.py')
+
+        r = subprocess.run(
+            ['nssm', 'install', SERVICE_NAME, python_exe, guardian_script],
+            capture_output=True, timeout=15
+        )
+        if r.returncode != 0:
+            return False, f'nssm 安装失败: {r.stderr.decode("utf-8", errors="ignore").strip()}'
+
+        subprocess.run(['nssm', 'set', SERVICE_NAME, 'AppDirectory', project_root],
+                       capture_output=True, timeout=5)
+        subprocess.run(['nssm', 'set', SERVICE_NAME, 'DisplayName', 'iOS 云打印服务器'],
+                       capture_output=True, timeout=5)
+        subprocess.run(['nssm', 'set', SERVICE_NAME, 'Description',
+                       'iOS 云打印服务器后台守护进程，崩溃自动重启'],
+                       capture_output=True, timeout=5)
+        subprocess.run(['nssm', 'set', SERVICE_NAME, 'Start', 'SERVICE_AUTO_START'],
+                       capture_output=True, timeout=5)
+        subprocess.run(['nssm', 'set', SERVICE_NAME, 'AppRotateFiles', '1'],
+                       capture_output=True, timeout=5)
+        subprocess.run(['nssm', 'set', SERVICE_NAME, 'AppRotateOnline', '1'],
+                       capture_output=True, timeout=5)
+        # 退出码 0/1/2 触发服务重启（nssm 层兜底）
+        subprocess.run(['nssm', 'set', SERVICE_NAME, 'AppExit', 'Default', 'Exit'],
+                       capture_output=True, timeout=5)
+        for code in ('0', '1', '2'):
+            subprocess.run(['nssm', 'set', SERVICE_NAME, 'AppExit', code, 'Restart'],
+                           capture_output=True, timeout=5)
+
+        subprocess.run(['nssm', 'start', SERVICE_NAME], capture_output=True, timeout=15)
+
+        logger.info('Windows Service 已注册并启动（nssm）')
+        return True, '开机自启注册成功（Windows Service）'
+    except Exception as e:
+        return False, f'nssm 注册异常: {e}'
+
+
+def _install_schtasks():
+    """回退方案：通过 schtasks 注册开机自启"""
     cmd = _get_python_cmd()
     task_cmd = f'cmd /c start /b "" {cmd}'
 
@@ -45,24 +110,34 @@ def install_autostart():
             '/TR', task_cmd,
             '/SC', 'ONLOGON',
             '/DELAY', '0000:30',
-            '/IT',           # 仅在用户登录时运行
-            '/RL', 'LIMITED', # 普通权限
-            '/F',             # 强制覆盖
+            '/IT',
+            '/RL', 'LIMITED',
+            '/F',
         ], capture_output=True, text=True, timeout=15)
         if r.returncode == 0:
-            logger.info('开机自启已注册（延迟30秒）')
-            return True, '开机自启注册成功'
+            logger.info('开机自启已注册（schtasks，延迟30秒）')
+            return True, '开机自启注册成功（schtasks）'
         else:
-            logger.warning(f'schtasks 失败: {r.stderr.strip()}')
-            return False, f'注册失败: {r.stderr.strip()}'
+            return False, f'schtasks 失败: {r.stderr.strip()}'
     except Exception as e:
-        return False, f'注册异常: {e}'
+        return False, f'schtasks 异常: {e}'
 
 
 def uninstall_autostart():
     """卸载开机自启"""
-    if not is_autostart_installed():
-        return True, '开机自启未注册'
+    removed = False
+
+    if _nssm_available():
+        try:
+            subprocess.run(['nssm', 'stop', SERVICE_NAME],
+                           capture_output=True, timeout=10)
+            r = subprocess.run(['nssm', 'remove', SERVICE_NAME, 'confirm'],
+                               capture_output=True, timeout=10)
+            if r.returncode == 0:
+                removed = True
+                logger.info('Windows Service 已卸载')
+        except Exception:
+            pass
 
     try:
         r = subprocess.run(
@@ -70,9 +145,9 @@ def uninstall_autostart():
             capture_output=True, text=True, timeout=10
         )
         if r.returncode == 0:
-            logger.info('开机自启已卸载')
-            return True, '开机自启卸载成功'
-        else:
-            return False, f'卸载失败: {r.stderr.strip()}'
-    except Exception as e:
-        return False, f'卸载异常: {e}'
+            removed = True
+            logger.info('schtasks 自启已卸载')
+    except Exception:
+        pass
+
+    return (True, '开机自启已卸载') if removed else (True, '开机自启未注册')
