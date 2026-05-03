@@ -373,6 +373,23 @@ class PrintEngine:
                 img_data = f.read()
             img_b64 = base64.b64encode(img_data).decode('utf-8')
 
+            # 图片格式映射
+            ext_map = {
+                '.jpg': 'jpg', '.jpeg': 'jpg', '.png': 'png',
+                '.bmp': 'bmp', '.gif': 'gif', '.webp': 'webp',
+                '.tiff': 'tiff', '.tif': 'tiff',
+            }
+            ext = os.path.splitext(filepath)[1].lower()
+            data_type = ext_map.get(ext, 'jpg')
+            if data_type not in ('jpg', 'png', 'bmp', 'gif', 'webp', 'tiff'):
+                logger.warning(f'Quark API 不支持 {ext} 格式，使用 jpg')
+                data_type = 'jpg'
+
+            # API 限制：图片不超过 10MB
+            if os.path.getsize(filepath) > 10 * 1024 * 1024:
+                logger.warning(f'Quark API 图片超过 10MB 限制，跳过增强')
+                return None
+
             # 构建签名参数
             business = 'vision'
             sign_method = 'SHA3-256'
@@ -398,7 +415,7 @@ class PrintEngine:
                 'serviceOption': 'scan',
                 'inputConfigs': '{"function_option":"auto_select"}',
                 'outputConfigs': '{"need_return_image":"True"}',
-                'dataType': 'jpg',
+                'dataType': data_type,
                 'data': {
                     'base64': img_b64,
                 }
