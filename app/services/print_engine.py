@@ -390,40 +390,35 @@ class PrintEngine:
                 img.save(buf, format='JPEG', quality=quality)
 
             img_data = buf.getvalue()
-            data_type = 'jpg'
             logger.info(f'Quark API: {ext} → JPG ({len(img_data)//1024}KB, quality={quality})')
 
             img_b64 = base64.b64encode(img_data).decode('utf-8')
 
-            # 构建签名参数
+            # 构建签名参数（官方示例：所有参数放 JSON body）
             business = 'vision'
             sign_method = 'SHA3-256'
             sign_nonce = uuid.uuid4().hex
-            timestamp = str(int(time.time() * 1000))
+            timestamp = int(time.time() * 1000)
 
-            # 签名字符串: clientId_business_signMethod_signNonce_timestamp_clientSecret
             sign_str = f'{client_id}_{business}_{sign_method}_{sign_nonce}_{timestamp}_{client_secret}'
             signature = hashlib.sha3_256(sign_str.encode('utf-8')).hexdigest().lower()
 
-            # 请求头
             headers = {
                 'Content-Type': 'application/json',
-                'X-QiYe-Api-Client-Id': client_id,
-                'X-QiYe-Api-Sign': signature,
-                'X-QiYe-Api-Sign-Method': sign_method,
-                'X-QiYe-Api-Sign-Nonce': sign_nonce,
-                'X-QiYe-Api-Timestamp': timestamp,
             }
 
-            # 请求体
             payload = {
                 'serviceOption': 'scan',
                 'inputConfigs': '{"function_option":"auto_select","auto_crop":true,"auto_rotate":true}',
                 'outputConfigs': '{"need_return_image":"True"}',
-                'dataType': data_type,
-                'data': {
-                    'base64': img_b64,
-                }
+                'dataType': 'image',
+                'dataBase64': img_b64,
+                'reqId': uuid.uuid4().hex,
+                'clientId': client_id,
+                'signMethod': sign_method,
+                'signNonce': sign_nonce,
+                'timestamp': timestamp,
+                'signature': signature,
             }
 
             resp = requests.post(
