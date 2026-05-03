@@ -1,11 +1,15 @@
-"""iOS 云打印服务器 — 控制台捆绑体
+"""iOS 云打印服务器 — 控制台捆绑体（管理后台守护进程）
 
 用法:
-    python -m console
+    python -m console         启动控制台（自动启动后台服务）
+    python -m console --start 仅启动后台服务（无界面）
+    python -m console --stop  停止后台服务
+    python -m console --status 查看后台服务状态
 """
 import sys
 import os
 import logging
+import argparse
 from datetime import datetime
 
 from app._paths import app_root, data_root
@@ -13,75 +17,70 @@ from app._paths import app_root, data_root
 sys.path.insert(0, app_root())
 
 from app.config import Config, setup_logging
-from app import bootstrap
-from .conflicts import check_conflicts, write_pid, cleanup_pid
 from .log_handler import LOG_BUFFER, TUILogHandler
-from .controller import ServerController, ServerState, get_autostart_key, install_autostart
+from .daemon_manager import start_daemon, stop_daemon, read_daemon_status, is_daemon_alive, restart_daemon
 from .tui import TUI
-
-_global_ctrl = None
-
-
-def _console_ctrl_handler(dwCtrlType):
-    """捕获控制台关闭事件（点 X），执行优雅关闭后强制退出"""
-    if dwCtrlType in (0, 1, 2):
-        if _global_ctrl:
-            if _global_ctrl.status == ServerState.RUNNING:
-                _global_ctrl.stop()
-            _global_ctrl.queue_mgr.shutdown()
-            cleanup_pid()
-        os._exit(0)
-    return False
 
 
 def main():
+    parser = argparse.ArgumentParser(description='iOS 云打印服务器控制台')
+    parser.add_argument('--start', action='store_true', help='启动后台服务（无界面）')
+    parser.add_argument('--stop', action='store_true', help='停止后台服务')
+    parser.add_argument('--restart', action='store_true', help='重启后台服务')
+    parser.add_argument('--status', action='store_true', help='查看后台服务状态')
+    args = parser.parse_args()
+
+    if args.start:
+        config = Config()
+        logger = setup_logging(level=config.log_level)
+        ok, msg = start_daemon()
+        print(msg)
+        return 0 if ok else 1
+
+    if args.stop:
+        ok, msg = stop_daemon()
+        print(msg)
+        return 0 if ok else 1
+
+    if args.restart:
+        ok, msg = restart_daemon()
+        print(msg)
+        return 0 if ok else 1
+
+    if args.status:
+        status = read_daemon_status()
+        alive = is_daemon_alive()
+        print(f'状态: {"● 运行中" if alive else "○ 已停止"}')
+        print(f'PID: {status.get("pid", "-")}')
+        print(f'端口: {status.get("port", "-")}')
+        return 0
+
+    # 默认：启动控制台 TUI
     config = Config()
     logger = setup_logging(level=config.log_level)
 
-    # TUI 日志处理器
     tui_handler = TUILogHandler()
     tui_handler.setFormatter(
         logging.Formatter('%(asctime)s  %(levelname)s  %(message)s', datefmt='%H:%M:%S')
     )
     logging.getLogger('print_server').addHandler(tui_handler)
 
-    # 初始化服务组件
-    app, queue_mgr, print_engine, printer_monitor, socketio = bootstrap(config)
+    # 自动启动后台守护进程
+    ok, msg = start_daemon()
+    logger.info(msg)
 
-    # 冲突检测
-    if not check_conflicts(config, logger):
-        logger.error('检测到冲突，控制台退出')
-        input('\n按 Enter 键退出...')
-        sys.exit(1)
-
-    write_pid()
-
-    # 开机自启检测：未注册则自动注册
-    if not get_autostart_key():
-        logger.info('检测到未设置开机自启，正在自动注册...')
-        if install_autostart():
-            logger.info('开机自启已自动注册')
-        else:
-            logger.warning('开机自启注册失败')
-
-    # 控制器
-    global _global_ctrl
-    ctrl = ServerController(config, app, queue_mgr, print_engine,
-                            printer_monitor=printer_monitor)
-    _global_ctrl = ctrl
     try:
-        import win32api
-        win32api.SetConsoleCtrlHandler(_console_ctrl_handler, True)
-    except ImportError:
+        TUI().run()
+    except KeyboardInterrupt:
         pass
 
-    ctrl.start()
-
-    try:
-        TUI(ctrl).run()
-    finally:
-        ctrl.stop()
-        cleanup_pid()
+    # 退出控制台时询问是否保持后台运行
+    if is_daemon_alive():
+        print('\n后台服务仍在运行，可通过以下方式管理:')
+        print('  python -m console --status    查看状态')
+        print('  python -m console --stop      停止服务')
+        print('  python -m console --start     启动服务')
+        print('  或重新打开控制台管理')
 
 
 if __name__ == '__main__':

@@ -9,16 +9,15 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from .conflicts import get_local_ips, cleanup_pid
+from .conflicts import get_local_ips
 from .log_handler import LOG_BUFFER
-from .controller import ServerState, get_autostart_key, install_autostart, uninstall_autostart
+from .daemon_manager import start_daemon, stop_daemon, restart_daemon, read_daemon_status, is_daemon_alive
 
 
 class TUI:
-    """控制台 TUI 渲染 + 键盘循环 + 保活"""
+    """控制台监控面板 — 管理后台守护进程"""
 
-    def __init__(self, controller):
-        self.ctrl = controller
+    def __init__(self):
         self.console = Console()
         self.layout = self._build_layout()
 
@@ -40,105 +39,65 @@ class TUI:
         return layout
 
     def _render_header(self):
-        state = self.ctrl.status
-        port = self.ctrl.port
-        autostart = get_autostart_key()
-        autostart_str = "✔ 已自启" if autostart else "✘ 未自启"
-        autostart_style = "green" if autostart else "red"
-        if state == ServerState.RUNNING:
+        alive = is_daemon_alive()
+        status = read_daemon_status()
+        port = status.get('port', '-')
+        pid = status.get('pid', '-')
+
+        if alive:
             status_style = "bold green"
             status_text = "● 运行中"
             ips = get_local_ips()
             ip_str = ips[0] if ips else "0.0.0.0"
             extra = f" 管理地址: [bold yellow]http://{ip_str}:{port}[/bold yellow]"
-        elif state == ServerState.CRASHED:
-            status_style = "bold yellow"
-            status_text = "● 已崩溃 (自动恢复中...)"
-            extra = f" 端口: {port}"
         else:
             status_style = "bold red"
-            status_text = "● 已停止"
+            status_text = "○ 已停止"
             extra = f" 端口: {port}"
-
-        printer_count = 0
-        if self.ctrl.printer_monitor:
-            printer_count = len(self.ctrl.printer_monitor.get_all_statuses() or {})
 
         return Panel(
             Text.assemble(
                 ("iOS 云打印服务器", "bold white"), "\n",
                 ("状态: ", "cyan"), (status_text, status_style),
                 ("  |  ", "dim"), extra,
-                ("  |  ", "dim"), (f"自启: {autostart_str}", autostart_style),
-                ("  |  ", "dim"),
-                (f"打印机: {printer_count} 台", "cyan"),
+                ("  |  ", "dim"), (f"PID: {pid}", "cyan"),
             ),
             title="控制台",
             border_style="bright_blue",
         )
 
     def _render_stats(self):
-        stats = self.ctrl.stats
+        status = read_daemon_status()
+        alive = is_daemon_alive()
         t = Table(show_header=False, border_style="blue", box=None, padding=(0, 2))
-        t.add_column("指标", style="cyan")
+        t.add_column("项目", style="cyan")
         t.add_column("值", style="white")
-        t.add_row("队列中", str(stats.get('queued', 0)))
-        t.add_row("打印中", str(stats.get('printing', 0)))
-        t.add_row("今日成功", str(stats.get('today_completed', 0)))
-        t.add_row("今日失败", str(stats.get('today_failed', 0)))
-        t.add_row("成功率", f"{stats.get('success_rate', 100):.0f}%")
-        return Panel(t, title="运行统计", border_style="green")
+        t.add_row("守护进程", "● 运行中" if alive else "○ 已停止")
+        t.add_row("PID", str(status.get('pid', '-')))
+        t.add_row("端口", str(status.get('port', '-')))
+        return Panel(t, title="服务状态", border_style="green")
 
     def _render_printer_status(self):
-        if not self.ctrl.printer_monitor:
-            return Panel("", title="打印机状态")
-        statuses = self.ctrl.printer_monitor.get_all_statuses()
-        if not statuses:
-            return Panel("无打印机", title="打印机状态")
-
-        t = Table(show_header=False, box=None, padding=(0, 1))
-        t.add_column("打印机", style="cyan")
-        t.add_column("状态", style="white")
-        t.add_column("详细信息", style="dim")
-
-        for name, info in statuses.items():
-            overall = info['overall']
-            if overall == 'ready':
-                icon = "🟢"
-                status_text = "就绪"
-                status_style = "green"
-            elif overall == 'error':
-                icon = "🔴"
-                status_text = "错误"
-                status_style = "red"
-            elif overall == 'warning':
-                icon = "🟡"
-                status_text = "警告"
-                status_style = "yellow"
-            elif overall == 'busy':
-                icon = "🔄"
-                status_text = "忙"
-                status_style = "blue"
-            else:
-                icon = "⚪"
-                status_text = overall
-                status_style = "dim"
-
-            detail = ", ".join(s['label'] for s in info.get('statuses', [])) if info.get('statuses') else ""
-            t.add_row(f"{icon} {name}", f"[{status_style}]{status_text}[/]", detail)
-
-        return Panel(t, title="打印机状态")
+        t = Table(show_header=False, border_style="blue", box=None, padding=(0, 2))
+        t.add_column("项目", style="cyan")
+        t.add_column("值", style="white")
+        t.add_row("打印机", "请访问 Web 管理页面查看")
+        t.add_row("运行统计", "请访问 Web 管理页面查看")
+        t.add_row("", "")
+        t.add_row("管理地址", f"[bold yellow]http://{get_local_ips()[0] if get_local_ips() else 'localhost'}:{read_daemon_status().get('port', '')}[/bold yellow]")
+        return Panel(t, title="快速入口", border_style="cyan")
 
     def _render_log(self):
-        lines = LOG_BUFFER[-50:] if LOG_BUFFER else ["等待日志..."]
+        lines = LOG_BUFFER[-30:] if LOG_BUFFER else ["等待日志..."]
         return Panel("\n".join(lines), title="日志", border_style="dim")
 
     def _render_footer(self):
-        autostart = get_autostart_key()
-        u_label = "卸载自启" if autostart else "注册自启"
+        alive = is_daemon_alive()
         return Panel(
-            f"  [bold cyan]S[/bold cyan] 启动/停止    [bold cyan]R[/bold cyan] 重载配置    "
-            f"[bold cyan]U[/bold cyan] {u_label}    [bold cyan]Q[/bold cyan] 退出",
+            f"  [bold cyan]S[/bold cyan] 启动    "
+            f"[bold cyan]T[/bold cyan] 停止    "
+            f"[bold cyan]R[/bold cyan] 重启    "
+            f"[bold cyan]Q[/bold cyan] 退出（后台服务继续运行）",
             title="操作", border_style="yellow",
         )
 
@@ -150,35 +109,22 @@ class TUI:
         self.layout["footer"].update(self._render_footer())
 
     def run(self):
-        """主循环：渲染 + 键盘处理 + 保活"""
         with Live(self.layout, console=self.console, refresh_per_second=2, screen=True):
             while True:
-                # 保活：检测到崩溃自动重启
-                if self.ctrl.status == ServerState.CRASHED:
-                    self.ctrl.restart()
-
                 self._update()
 
                 if msvcrt.kbhit():
                     key = msvcrt.getch().lower()
                     if key == b'q':
-                        self.ctrl.stop()
-                        self.ctrl.queue_mgr.shutdown()
-                        cleanup_pid()
-                        sys.exit(0)
+                        break
                     elif key == b's':
-                        if self.ctrl.status == ServerState.RUNNING:
-                            self.ctrl.stop()
-                        else:
-                            self.ctrl.start()
+                        ok, msg = start_daemon()
+                        LOG_BUFFER.append(msg)
+                    elif key == b't':
+                        ok, msg = stop_daemon()
+                        LOG_BUFFER.append(msg)
                     elif key == b'r':
-                        self.ctrl.reload_config()
-                    elif key == b'u':
-                        if get_autostart_key():
-                            uninstall_autostart()
-                            LOG_BUFFER.append('已卸载开机自启')
-                        else:
-                            install_autostart()
-                            LOG_BUFFER.append('已注册开机自启')
+                        ok, msg = restart_daemon()
+                        LOG_BUFFER.append(msg)
 
                 threading.Event().wait(0.5)
