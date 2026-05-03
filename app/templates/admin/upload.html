@@ -54,9 +54,9 @@
                         <label for="paper_size">纸张大小</label>
                         <select class="form-select" id="paper_size" name="paper_size" style="width: 120px;">
                             <option value="">默认</option>
-                            <option value="A4">A4</option>
-                            <option value="Letter">Letter</option>
-                            <option value="A3">A3</option>
+                            <option value="A4" {% if config.paper_size == 'A4' %}selected{% endif %}>A4</option>
+                            <option value="Letter" {% if config.paper_size == 'Letter' %}selected{% endif %}>Letter</option>
+                            <option value="A3" {% if config.paper_size == 'A3' %}selected{% endif %}>A3</option>
                         </select>
                     </div>
                     <div class="form-group">
