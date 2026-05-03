@@ -94,16 +94,17 @@
     <div>
         <!-- Quark API -->
         <div class="card mb-3">
-            <div class="card-header">Quark 扫描 API</div>
+            <div class="card-header">夸克扫描王 API</div>
             <div class="card-body">
                 <div class="form-group">
-                    <label for="quark_api_key_id">API Key ID</label>
+                    <label for="quark_api_key_id">Client ID</label>
                     <input type="text" class="form-input" id="quark_api_key_id" name="quark_api_key_id" value="{{ config.quark_api_key_id }}" style="width: 100%; font-family: monospace;">
+                    <div class="help-text">夸克扫描王开发者后台的 clientId</div>
                 </div>
                 <div class="form-group">
-                    <label for="quark_api_key">API Key</label>
+                    <label for="quark_api_key">Client Secret</label>
                     <input type="password" class="form-input" id="quark_api_key" name="quark_api_key" value="{{ config.quark_api_key }}" style="width: 100%; font-family: monospace;">
-                    <div class="help-text">用于图片预处理（文档矫正、去阴影、增强）</div>
+                    <div class="help-text">用于图片增强（文档矫正、去阴影、去屏纹、画质增强），SHA3-256 签名认证</div>
                 </div>
             </div>
         </div>

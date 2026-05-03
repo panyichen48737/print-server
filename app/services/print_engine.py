@@ -354,45 +354,80 @@ class PrintEngine:
             raise
 
     def _quark_enhance(self, filepath):
-        """调用 Quark 扫描 API 进行图片增强"""
+        """调用夸克扫描王 API 进行图片增强（扫描文件接口）"""
         try:
+            import hashlib
+            import uuid
+            import time
+            import base64
             import requests
-            api_key_id = self.config.quark_api_key_id
-            api_key = self.config.quark_api_key
-            if not api_key_id or not api_key:
+
+            client_id = self.config.quark_api_key_id  # 开发者后台的 clientId
+            client_secret = self.config.quark_api_key  # 开发者后台的 clientSecret
+            if not client_id or not client_secret:
                 logger.warning('Quark API 未配置，跳过图片增强')
                 return None
 
-            url = 'https://scan.quark.cn/blm/scank-business-docs-703/docs-v2'
-            params = {
-                'type': 'ability',
-                'name_en': 'auto_select',
-                'referenceId': '29',
-                'tab': 'api'
+            # 读取图片并 base64
+            with open(filepath, 'rb') as f:
+                img_data = f.read()
+            img_b64 = base64.b64encode(img_data).decode('utf-8')
+
+            # 构建签名参数
+            business = 'vision'
+            sign_method = 'SHA3-256'
+            sign_nonce = uuid.uuid4().hex
+            timestamp = str(int(time.time() * 1000))
+
+            # 签名字符串: clientId_business_signMethod_signNonce_timestamp_clientSecret
+            sign_str = f'{client_id}_{business}_{sign_method}_{sign_nonce}_{timestamp}_{client_secret}'
+            signature = hashlib.sha3_256(sign_str.encode('utf-8')).hexdigest().lower()
+
+            # 请求头
+            headers = {
+                'Content-Type': 'application/json',
+                'X-QiYe-Api-Client-Id': client_id,
+                'X-QiYe-Api-Sign': signature,
+                'X-QiYe-Api-Sign-Method': sign_method,
+                'X-QiYe-Api-Sign-Nonce': sign_nonce,
+                'X-QiYe-Api-Timestamp': timestamp,
             }
 
-            with open(filepath, 'rb') as f:
-                files = {'file': f}
-                headers = {
-                    'Authorization': f'Bearer {api_key}',
-                    'X-Api-Key-Id': api_key_id
+            # 请求体
+            payload = {
+                'serviceOption': 'scan',
+                'inputConfigs': '{"function_option":"auto_select"}',
+                'outputConfigs': '{"need_return_image":"True"}',
+                'dataType': 'jpg',
+                'data': {
+                    'base64': img_b64,
                 }
-                resp = requests.post(url, params=params, files=files, headers=headers, timeout=60)
+            }
 
-            if resp.status_code == 200:
-                data = resp.json()
-                if 'data' in data and 'image' in data['data']:
-                    import base64
-                    img_data = base64.b64decode(data['data']['image'])
-                    logger.info('Quark API 图片增强成功')
-                    return img_data
+            resp = requests.post(
+                'https://scan-business.quark.cn/vision',
+                json=payload,
+                headers=headers,
+                timeout=60,
+            )
 
-            content_type = resp.headers.get('Content-Type', '')
-            if 'image' in content_type:
-                logger.info('Quark API 返回图片数据')
-                return resp.content
+            if resp.status_code != 200:
+                logger.warning(f'Quark API HTTP {resp.status_code}: {resp.text[:200]}')
+                return None
 
-            logger.warning(f'Quark API 返回非预期格式: {resp.status_code}')
+            result = resp.json()
+            code = result.get('code', '')
+            if code and code != '00000':
+                logger.warning(f'Quark API 返回错误: code={code} msg={result.get("msg", "")}')
+                return None
+
+            image_info = result.get('ImageInfo', [])
+            if image_info and image_info[0].get('ImageBase64'):
+                enhanced = base64.b64decode(image_info[0]['ImageBase64'])
+                logger.info('Quark API 图片增强成功')
+                return enhanced
+
+            logger.warning('Quark API 返回无图片数据')
             return None
 
         except Exception as e:
