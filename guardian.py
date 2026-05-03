@@ -85,9 +85,26 @@ def http_health_check(port):
     return False
 
 
+MAX_LOG_BYTES = 5 * 1024 * 1024  # 5MB
+
+
+def _rotate_log(path):
+    """如果日志文件超过大小限制则轮转"""
+    try:
+        if path.exists() and path.stat().st_size > MAX_LOG_BYTES:
+            bak = path.with_suffix('.log.1')
+            if bak.exists():
+                bak.unlink()
+            path.rename(bak)
+    except Exception:
+        pass
+
+
 def log(msg, log_dir):
     try:
-        with open(log_dir / 'daemon_stdout.log', 'a') as f:
+        f_path = log_dir / 'daemon_stdout.log'
+        _rotate_log(f_path)
+        with open(f_path, 'a') as f:
             f.write(f'[guardian] {msg}\n')
     except Exception:
         pass
@@ -117,8 +134,12 @@ def main():
     http_fail_count = 0
 
     while restart_count < max_restarts:
-        stdout_f = open(log_dir / 'daemon_stdout.log', 'a')
-        stderr_f = open(log_dir / 'daemon_stderr.log', 'a')
+        stdout_path = log_dir / 'daemon_stdout.log'
+        stderr_path = log_dir / 'daemon_stderr.log'
+        _rotate_log(stdout_path)
+        _rotate_log(stderr_path)
+        stdout_f = open(stdout_path, 'a')
+        stderr_f = open(stderr_path, 'a')
 
         CREATE_NO_WINDOW = 0x08000000
         proc = subprocess.Popen(

@@ -83,12 +83,12 @@ def start_daemon():
             stdout=open(log_dir / 'daemon_stdout.log', 'a'),
             stderr=open(log_dir / 'daemon_stderr.log', 'a'),
         )
-        # 等待几秒让 guardian 启动并写入 PID
-        time.sleep(3)
-        if is_daemon_alive():
-            return True, f'守护进程已启动 (guardian PID: {proc.pid})'
-        else:
-            return False, '守护进程启动失败'
+        # 轮询等待 guardian 启动并写入 PID，替代固定 sleep
+        for _ in range(12):
+            if is_daemon_alive():
+                return True, f'守护进程已启动 (guardian PID: {proc.pid})'
+            time.sleep(0.5)
+        return False, '守护进程启动超时'
     except Exception as e:
         return False, f'启动失败: {e}'
 

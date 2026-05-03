@@ -10,6 +10,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from app.version import __version__
 from .conflicts import get_local_ips
 from .log_handler import LOG_BUFFER
 from .daemon_manager import start_daemon, stop_daemon, restart_daemon, read_daemon_status, is_daemon_alive
@@ -59,7 +60,7 @@ class TUI:
 
         return Panel(
             Text.assemble(
-                ("iOS 云打印服务器", "bold white"), "\n",
+                ("iOS 云打印服务器  ", "bold white"), (f"v{__version__}", "dim"), "\n",
                 ("状态: ", "cyan"), (status_text, status_style),
                 ("  |  ", "dim"), extra,
                 ("  |  ", "dim"), (f"PID: {pid}", "cyan"),
