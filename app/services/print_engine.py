@@ -12,27 +12,38 @@ class PrintEngine:
         self.dingtalk = dingtalk
         self.excel_lock = excel_lock or threading.Lock()
         self.ppt_lock = ppt_lock or threading.Lock()
+        self._active_jobs = {}
+        self._active_jobs_lock = threading.Lock()
 
     def print_file(self, filepath, file_type, job_id, word_lock, print_params=None):
         """根据文件类型分发到对应的打印方法"""
         ext = file_type.lower()
         if ext in ('.doc', '.docx'):
-            return self._print_word(filepath, word_lock, print_params)
+            return self._print_word(filepath, job_id, word_lock, print_params)
         elif ext == '.pdf':
-            return self._print_pdf(filepath, print_params)
+            return self._print_pdf(filepath, job_id, print_params)
         elif ext in ('.xls', '.xlsx'):
-            return self._print_excel(filepath, print_params)
+            return self._print_excel(filepath, job_id, print_params)
         elif ext in ('.ppt', '.pptx'):
-            return self._print_ppt(filepath, print_params)
+            return self._print_ppt(filepath, job_id, print_params)
         elif ext in ('.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif', '.heic', '.heif'):
             return self._print_image(filepath, job_id, print_params)
         else:
             raise ValueError(f'不支持的文件类型: {ext}')
 
-    def _print_word(self, filepath, word_lock, print_params=None):
+    def _print_word(self, filepath, job_id, word_lock, print_params=None):
         """通过 win32com 调用 Word 打印"""
         if print_params is None:
             print_params = {}
+        # Get printer name for tracking
+        _printer_com = print_params.get('printer_name') if print_params else None
+        if not _printer_com:
+            _printer_com = self.config.get('default_printer', '')
+        with self._active_jobs_lock:
+            self._active_jobs[job_id] = {
+                'printer': _printer_com,
+                'method': 'com'
+            }
         with word_lock:
             import win32com.client
             import pythoncom
@@ -70,11 +81,22 @@ class PrintEngine:
                     pythoncom.CoUninitialize()
                 except:
                     pass
+                with self._active_jobs_lock:
+                    self._active_jobs.pop(job_id, None)
 
-    def _print_excel(self, filepath, print_params=None):
+    def _print_excel(self, filepath, job_id, print_params=None):
         """通过 win32com 调用 Excel 打印"""
         if print_params is None:
             print_params = {}
+        # Get printer name for tracking
+        _printer_com = print_params.get('printer_name') if print_params else None
+        if not _printer_com:
+            _printer_com = self.config.get('default_printer', '')
+        with self._active_jobs_lock:
+            self._active_jobs[job_id] = {
+                'printer': _printer_com,
+                'method': 'com'
+            }
         with self.excel_lock:
             import win32com.client
             import pythoncom
@@ -116,11 +138,22 @@ class PrintEngine:
                     pythoncom.CoUninitialize()
                 except:
                     pass
+                with self._active_jobs_lock:
+                    self._active_jobs.pop(job_id, None)
 
-    def _print_ppt(self, filepath, print_params=None):
+    def _print_ppt(self, filepath, job_id, print_params=None):
         """通过 win32com 调用 PowerPoint 打印"""
         if print_params is None:
             print_params = {}
+        # Get printer name for tracking
+        _printer_com = print_params.get('printer_name') if print_params else None
+        if not _printer_com:
+            _printer_com = self.config.get('default_printer', '')
+        with self._active_jobs_lock:
+            self._active_jobs[job_id] = {
+                'printer': _printer_com,
+                'method': 'com'
+            }
         with self.ppt_lock:
             import win32com.client
             import pythoncom
@@ -165,8 +198,10 @@ class PrintEngine:
                     pythoncom.CoUninitialize()
                 except:
                     pass
+                with self._active_jobs_lock:
+                    self._active_jobs.pop(job_id, None)
 
-    def _print_pdf(self, filepath, print_params=None):
+    def _print_pdf(self, filepath, job_id, print_params=None):
         """使用 Chromium (Chrome/Edge) headless 模式直接打印 PDF，质量最佳"""
         if print_params is None:
             print_params = {}
@@ -180,18 +215,24 @@ class PrintEngine:
             import win32print
             printer_name = win32print.GetDefaultPrinter()
 
-        result = subprocess.run(
+        proc = subprocess.Popen(
             [chrome_path, '--headless', '--disable-gpu',
              f'--print-to-printer="{printer_name}"',
              '--no-margins', '--no-pdf-header-footer',
              os.path.abspath(filepath)],
-            capture_output=True, text=True, timeout=self.config.get('job_timeout', 300)
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-
-        if result.returncode != 0:
-            error_msg = f'Chrome 打印失败: {result.returncode}\n{result.stderr[:500]}'
-            logger.error(error_msg)
-            raise RuntimeError(error_msg)
+        with self._active_jobs_lock:
+            self._active_jobs[job_id] = {
+                'printer': printer_name,
+                'pid': proc.pid,
+                'method': 'chromium'
+            }
+        stdout, stderr = proc.communicate(timeout=self.config.get('job_timeout', 300))
+        if proc.returncode != 0:
+            raise RuntimeError(f'Chrome 打印失败: {proc.returncode}\n{stderr[:500]}')
+        with self._active_jobs_lock:
+            self._active_jobs.pop(job_id, None)
 
         logger.info(f'Chromium PDF 打印成功: {filepath}')
         return True
@@ -304,7 +345,7 @@ class PrintEngine:
                 canvas.paste(img_resized, (x, y))
 
             # Step 4: Print via win32print
-            self._send_to_printer(canvas, print_params)
+            self._send_to_printer(canvas, job_id, print_params)
 
             return True
 
@@ -358,7 +399,7 @@ class PrintEngine:
             logger.warning(f'Quark API 调用失败，使用原图: {e}')
             return None
 
-    def _send_to_printer(self, pil_image, print_params=None):
+    def _send_to_printer(self, pil_image, job_id, print_params=None):
         """使用 Windows GDI 将 PIL Image 渲染到打印机（兼容 Epson/HP/Canon 等）"""
         if print_params is None:
             print_params = {}
@@ -404,39 +445,104 @@ class PrintEngine:
         hdc = win32ui.CreateDCFromHandle(dc_handle)
 
         try:
-            hdc.StartDoc('Print Job')
-            hdc.StartPage()
+            spool_job_id = hdc.StartDoc('Print Job')
+            with self._active_jobs_lock:
+                self._active_jobs[job_id] = {
+                    'printer': printer_name,
+                    'spool_job_id': spool_job_id,
+                    'method': 'gdi'
+                }
+            try:
+                hdc.StartPage()
 
-            page_width = hdc.GetDeviceCaps(110)   # HORZRES
-            page_height = hdc.GetDeviceCaps(111)  # VERTRES
+                page_width = hdc.GetDeviceCaps(110)   # HORZRES
+                page_height = hdc.GetDeviceCaps(111)  # VERTRES
 
-            # Color handling — use per-job value if set
-            color_val = print_params.get('color')
-            if color_val is not None:
-                use_color = bool(color_val)
-            else:
-                use_color = self.config.get('default_color', True)
+                # Color handling — use per-job value if set
+                color_val = print_params.get('color')
+                if color_val is not None:
+                    use_color = bool(color_val)
+                else:
+                    use_color = self.config.get('default_color', True)
 
-            if use_color:
-                img = pil_image.convert('RGB')
-            else:
-                img = pil_image.convert('L')
+                if use_color:
+                    img = pil_image.convert('RGB')
+                else:
+                    img = pil_image.convert('L')
 
-            img_w, img_h = img.size
+                img_w, img_h = img.size
 
-            # Scale to fit printable area, maintain aspect ratio
-            scale = min(page_width / img_w, page_height / img_h)
-            draw_w = int(img_w * scale)
-            draw_h = int(img_h * scale)
-            x = (page_width - draw_w) // 2
-            y = (page_height - draw_h) // 2
+                # Scale to fit printable area, maintain aspect ratio
+                scale = min(page_width / img_w, page_height / img_h)
+                draw_w = int(img_w * scale)
+                draw_h = int(img_h * scale)
+                x = (page_width - draw_w) // 2
+                y = (page_height - draw_h) // 2
 
-            # Draw image onto printer DC via GDI
-            dib = ImageWin.Dib(img)
-            dib.draw(hdc.GetHandleOutput(), (x, y, x + draw_w, y + draw_h))
+                # Draw image onto printer DC via GDI
+                dib = ImageWin.Dib(img)
+                dib.draw(hdc.GetHandleOutput(), (x, y, x + draw_w, y + draw_h))
 
-            hdc.EndPage()
-            hdc.EndDoc()
-            logger.info(f'GDI 打印发送成功: 页面 {page_width}x{page_height}, 图片 {draw_w}x{draw_h}')
+                hdc.EndPage()
+                hdc.EndDoc()
+                with self._active_jobs_lock:
+                    self._active_jobs.pop(job_id, None)
+                logger.info(f'GDI 打印发送成功: 页面 {page_width}x{page_height}, 图片 {draw_w}x{draw_h}')
+            except:
+                with self._active_jobs_lock:
+                    self._active_jobs.pop(job_id, None)
+                raise
         finally:
             hdc.DeleteDC()
+            with self._active_jobs_lock:
+                self._active_jobs.pop(job_id, None)
+
+    def cancel_active_job(self, job_id):
+        with self._active_jobs_lock:
+            info = self._active_jobs.get(job_id)
+            if not info:
+                return False
+            del self._active_jobs[job_id]
+
+        import win32print
+        import subprocess
+        printer = info['printer']
+
+        if info['method'] == 'gdi':
+            handle = win32print.OpenPrinter(printer)
+            try:
+                win32print.SetJob(handle, info['spool_job_id'], 0, win32print.JOB_CONTROL_DELETE)
+                logger.info(f'GDI Spooler 作业 #{info["spool_job_id"]} 已取消')
+            finally:
+                win32print.ClosePrinter(handle)
+            return True
+
+        elif info['method'] == 'chromium':
+            pid = info.get('pid')
+            if pid:
+                try:
+                    subprocess.run(['taskkill', '/F', '/PID', str(pid)], capture_output=True, timeout=5)
+                except Exception:
+                    pass
+            _cancel_all_spooler_jobs(printer)
+            return True
+
+        elif info['method'] == 'com':
+            _cancel_all_spooler_jobs(printer)
+            return True
+
+        return False
+
+
+def _cancel_all_spooler_jobs(printer_name):
+    import win32print
+    try:
+        handle = win32print.OpenPrinter(printer_name)
+        try:
+            info = win32print.GetPrinter(handle, 2)
+            for job in info.get('cJobs', []):
+                win32print.SetJob(handle, job['JobId'], 0, win32print.JOB_CONTROL_DELETE)
+        finally:
+            win32print.ClosePrinter(handle)
+    except Exception as e:
+        logger.warning(f'取消 Spooler 作业失败: {e}')
