@@ -4,9 +4,10 @@
 // iOS Cloud Print Server - Scriptable Script
 
 // ===== 配置（按需修改） =====
-const SERVER_URL = "http://192.168.1.100:5000";
+const SERVER_URL = "https://192.168.1.100:5000";
 const API_KEY = "print-server-key-2026";
 const POLL_INTERVAL = 3; // 轮询间隔（秒）
+const POLL_MAX_RETRIES = 60; // 最大轮询次数（约3分钟）
 const ALLOWED_EXTENSIONS = [".doc", ".docx", ".pdf", ".xls", ".xlsx", ".ppt", ".pptx", ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif", ".heic", ".heif"];
 // ===========================
 
@@ -58,6 +59,7 @@ async function uploadFile(file) {
   // Create form data
   const req = new Request(url);
   req.method = "POST";
+  req.allowInsecureRequest = true; // 自签名 HTTPS 证书
   req.headers = {
     "Authorization": `Bearer ${API_KEY}`,
     "Content-Type": "multipart/form-data; boundary=----FormBoundary123"
@@ -126,18 +128,31 @@ async function uploadFile(file) {
 
 async function pollStatus(jobId) {
   let running = true;
+  let retries = 0;
 
   while (running) {
     await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL * 1000));
+    retries++;
 
     const url = `${SERVER_URL}/api/status/${jobId}`;
     const req = new Request(url);
     req.method = "GET";
+    req.allowInsecureRequest = true;
 
     try {
       const response = await req.loadJSON();
 
-      if (!response || !response.status) continue;
+      if (!response || !response.status) {
+        if (retries >= POLL_MAX_RETRIES) {
+          const notification = new Notification();
+          notification.title = "⏱ 轮询超时";
+          notification.body = "打印任务状态查询超时，请检查服务器";
+          notification.sound = "default";
+          await notification.schedule();
+          running = false;
+        }
+        continue;
+      }
 
       console.log(`任务状态: ${response.status}`);
 
