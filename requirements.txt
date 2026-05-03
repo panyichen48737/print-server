@@ -1,7 +1,6 @@
 flask>=3.0
 flask-socketio>=5.3
 eventlet>=0.33
-waitress>=3.0
 pywin32>=306
 pillow>=10.0
 pillow-heif>=0.15

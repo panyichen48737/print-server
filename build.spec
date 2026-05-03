@@ -25,7 +25,6 @@ a = Analysis(
         'pillow_heif',
         'rich', 'rich.layout', 'rich.live', 'rich.panel',
         'rich.table', 'rich.text',
-        'waitress',
         'flask',
         'requests',
         'pydantic',

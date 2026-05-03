@@ -67,8 +67,7 @@ def main():
     # 控制器
     global _global_ctrl
     ctrl = ServerController(config, app, queue_mgr, print_engine,
-                            printer_monitor=printer_monitor,
-                            socketio=None)  # 控制台模式不使用 SocketIO
+                            printer_monitor=printer_monitor)
     _global_ctrl = ctrl
     try:
         import win32api
