@@ -438,7 +438,8 @@ class PrintEngine:
                 logger.warning(f'Quark API 返回错误: code={code} msg={result.get("msg", "")}')
                 return None
 
-            image_info = result.get('ImageInfo', [])
+            data = result.get('data', {})
+            image_info = data.get('ImageInfo', []) if data else result.get('ImageInfo', [])
             if image_info and image_info[0].get('ImageBase64'):
                 enhanced = base64.b64decode(image_info[0]['ImageBase64'])
                 logger.info('Quark API 图片增强成功')
