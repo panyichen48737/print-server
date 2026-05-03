@@ -50,13 +50,34 @@ class QueueManager:
             conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at)')
             conn.commit()
+        self._migrate_db()
 
-    def add_job(self, filename, filepath, file_size=0, file_type=''):
+    def _migrate_db(self):
+        """向后兼容的列添加（已有列跳过）"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("PRAGMA table_info(jobs)")
+            existing = {row[1] for row in cursor.fetchall()}
+            additions = {
+                'duplex': 'INTEGER DEFAULT 0',
+                'color': 'INTEGER DEFAULT 1',
+                'paper_size': "TEXT DEFAULT 'A4'",
+            }
+            for col, dtype in additions.items():
+                if col not in existing:
+                    conn.execute(f'ALTER TABLE jobs ADD COLUMN {col} {dtype}')
+            conn.commit()
+
+    def add_job(self, filename, filepath, file_size=0, file_type='',
+                duplex=None, color=None, copies=None, paper_size=None, printer_name=None):
         job_id = str(uuid.uuid4())
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
-                'INSERT INTO jobs (id, filename, filepath, file_size, file_type, status) VALUES (?, ?, ?, ?, ?, ?)',
-                (job_id, filename, filepath, file_size, file_type, 'queued')
+                '''INSERT INTO jobs
+                   (id, filename, filepath, file_size, file_type, status,
+                    duplex, color, copies, paper_size, printer_name)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (job_id, filename, filepath, file_size, file_type, 'queued',
+                 duplex, color, copies, paper_size, printer_name)
             )
             conn.commit()
         self._queue.put(job_id)
@@ -357,7 +378,15 @@ class QueueManager:
             return None, '任务不存在'
         if job['status'] != 'failed':
             return None, '只能重试失败的任务'
-        new_job_id = self.add_job(job['filename'], job['filepath'], job['file_size'], job['file_type'])
+        new_job_id = self.add_job(
+            job['filename'], job['filepath'],
+            job['file_size'], job['file_type'],
+            duplex=job.get('duplex'),
+            color=job.get('color'),
+            copies=job.get('copies'),
+            paper_size=job.get('paper_size'),
+            printer_name=job.get('printer_name')
+        )
         logger.info(f'任务重试: {job_id} -> {new_job_id}')
         return new_job_id, None
 
