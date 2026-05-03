@@ -120,7 +120,6 @@ def upload_page():
     return render_template('admin/upload.html',
         config=config,
         printers=printers,
-        max_size_mb=config.max_file_size_mb,
         allowed_extensions=config.allowed_extensions
     )
 
@@ -143,6 +142,12 @@ def upload_file():
     if ext not in config.allowed_extensions:
         return jsonify({'error': f'文件类型 {ext} 不允许'}), 400
 
+    # 先检查 Content-Length 避免大文件写入
+    max_size = config.max_file_size_mb * 1024 * 1024
+    cl = request.headers.get('Content-Length')
+    if cl and int(cl) > max_size:
+        return jsonify({'error': f'文件过大，最大 {config.max_file_size_mb}MB'}), 400
+
     # 保存文件
     import uuid
     from app._paths import app_root, ensure_dir
@@ -152,8 +157,7 @@ def upload_file():
     file.save(save_path)
     file_size = os.path.getsize(save_path)
 
-    # 校验大小
-    max_size = config.max_file_size_mb * 1024 * 1024
+    # 校验大小（fallback）
     if file_size > max_size:
         os.remove(save_path)
         return jsonify({'error': f'文件过大，最大 {config.max_file_size_mb}MB'}), 400
