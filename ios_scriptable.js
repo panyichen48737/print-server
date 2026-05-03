@@ -12,45 +12,133 @@ const ALLOWED_EXTENSIONS = [".doc", ".docx", ".pdf", ".xls", ".xlsx", ".ppt", ".
 // ===========================
 
 async function main() {
-  const file = getFile();
-  if (!file) {
+  const files = getFiles();
+  if (!files || files.length === 0) {
     // 手动运行时显示使用说明
     const alert = new Alert();
     alert.title = "iOS 云打印";
-    alert.message = "请通过分享表单使用此脚本：\n\n1. 在文件 App 或 Safari 中打开文件\n2. 点击分享按钮\n3. 选择「共享」→ Scriptable\n4. 选择此脚本";
+    alert.message = "请通过分享表单使用此脚本：\n\n1. 在文件 App 或 Safari 中选择一个或多个文件\n2. 点击分享按钮\n3. 选择「共享」→ Scriptable\n4. 选择此脚本";
     alert.addOKButton("知道了");
     await alert.present();
     return;
   }
 
-  // Check file type
-  const ext = getExtension(file.name);
-  if (!ALLOWED_EXTENSIONS.includes(ext)) {
+  // Filter supported files
+  const validFiles = [];
+  const errors = [];
+  for (const file of files) {
+    const ext = getExtension(file.name);
+    if (ALLOWED_EXTENSIONS.includes(ext)) {
+      validFiles.push(file);
+    } else {
+      errors.push(`"${file.name}" (${ext}) 不支持`);
+    }
+  }
+
+  if (validFiles.length === 0) {
     const alert = new Alert();
-    alert.title = "不支持的文件类型";
-    alert.message = `文件 "${file.name}" 的类型 (${ext}) 不在允许列表中。\n\n允许的类型: ${ALLOWED_EXTENSIONS.join(", ")}`;
+    alert.title = "没有可打印的文件";
+    alert.message = `所选文件类型均不在允许列表中。\n\n允许的类型: ${ALLOWED_EXTENSIONS.join(", ")}`;
+    if (errors.length > 0) alert.message += `\n\n${errors.join("\n")}`;
     alert.addOKButton();
     await alert.present();
     return;
   }
 
-  // Upload file
-  const jobId = await uploadFile(file);
-  if (!jobId) return;
+  if (errors.length > 0) {
+    const alert = new Alert();
+    alert.title = `${errors.length} 个文件被跳过`;
+    alert.message = errors.join("\n") + "\n\n继续打印其余文件？";
+    alert.addAction("继续");
+    alert.addCancelAction("取消");
+    const btn = await alert.present();
+    if (btn === -1) return;
+  }
 
-  // Cancel-aware wait flow
-  await waitForCompletion(jobId);
+  // Show progress
+  const total = validFiles.length;
+  const alert = new Alert();
+  alert.title = total > 1 ? `打印 ${total} 个文件` : "正在打印...";
+  alert.message = `正在上传 (0/${total})...`;
+  alert.addCancelAction("取消全部");
+
+  const btnPromise = alert.present();
+
+  // Upload files sequentially
+  const jobIds = [];
+  for (let i = 0; i < total; i++) {
+    // Check cancel
+    const race = await Promise.race([
+      btnPromise.then(b => ({ type: 'cancel', btn: b })),
+      Promise.resolve({ type: 'continue' })
+    ]);
+    if (race.type === 'cancel' && race.btn === -1) {
+      alert.dismiss();
+      // Cancel already submitted jobs
+      for (const jid of jobIds) {
+        try { await cancelJob(jid); } catch(e) {}
+      }
+      const n = new Notification();
+      n.title = "⏹ 打印已取消";
+      n.body = `已取消 ${total} 个打印任务`;
+      n.sound = "default";
+      await n.schedule();
+      return;
+    }
+
+    alert.message = `正在上传 (${i + 1}/${total}): ${validFiles[i].name}`;
+
+    // Upload single file
+    const jobId = await uploadFile(validFiles[i]);
+    if (jobId) {
+      jobIds.push(jobId);
+    }
+  }
+
+  // Dismiss the alert — files are submitted
+  alert.dismiss();
+
+  // Wait for completion
+  if (total === 1 && jobIds.length === 1) {
+    await waitForCompletion(jobIds[0]);
+  } else if (jobIds.length > 0) {
+    // Multi-file: wait via polling in background, notify summary
+    let completed = 0;
+    let failed = 0;
+    for (const jid of jobIds) {
+      try {
+        await waitForCompletionWS(jid);
+        completed++;
+      } catch (e) {
+        if (e.message === 'cancelled') return;
+        failed++;
+      }
+    }
+    const n = new Notification();
+    if (failed === 0) {
+      n.title = `✅ ${completed} 个文件打印完成`;
+      n.body = "所有文件已成功发送到打印机";
+    } else {
+      n.title = `⚠ ${completed} 完成, ${failed} 失败`;
+      n.body = "部分文件打印失败，请检查服务器日志";
+    }
+    n.sound = "default";
+    await n.schedule();
+  }
 }
 
-function getFile() {
+function getFiles() {
   if (args.fileURLs && args.fileURLs.length > 0) {
-    const url = args.fileURLs[0];
     const fm = FileManager.local();
-    const data = fm.read(url);
-    const name = decodeURIComponent(url.split("/").pop().split("?")[0]);
-    return { data, name };
+    const files = [];
+    for (const url of args.fileURLs) {
+      const data = fm.read(url);
+      const name = decodeURIComponent(url.split("/").pop().split("?")[0]);
+      files.push({ data, name });
+    }
+    return files;
   }
-  return null;
+  return [];
 }
 
 function getExtension(filename) {
