@@ -10,9 +10,12 @@ logger = logging.getLogger('print_server')
 
 
 class QueueManager:
-    def __init__(self, config, socketio=None, db_path=None):
+    def __init__(self, config, socketio=None, db_path=None, dingtalk=None, bark=None):
         self.config = config
         self._socketio = socketio
+        self._dingtalk = dingtalk
+        self._bark = bark
+        self._print_engine = None
         self._lock = threading.Lock()
         self._queue = queue.Queue()
         self._workers = []
@@ -61,6 +64,8 @@ class QueueManager:
                 'duplex': 'INTEGER DEFAULT 0',
                 'color': 'INTEGER DEFAULT 1',
                 'paper_size': "TEXT DEFAULT 'A4'",
+                'source': "TEXT DEFAULT 'api'",
+                'retry_count': 'INTEGER DEFAULT 0',
             }
             for col, dtype in additions.items():
                 if col not in existing:
@@ -68,16 +73,17 @@ class QueueManager:
             conn.commit()
 
     def add_job(self, filename, filepath, file_size=0, file_type='',
-                duplex=None, color=None, copies=None, paper_size=None, printer_name=None):
+                duplex=None, color=None, copies=None, paper_size=None, printer_name=None,
+                source='api'):
         job_id = str(uuid.uuid4())
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 '''INSERT INTO jobs
                    (id, filename, filepath, file_size, file_type, status,
-                    duplex, color, copies, paper_size, printer_name)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                    duplex, color, copies, paper_size, printer_name, source)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                 (job_id, filename, filepath, file_size, file_type, 'queued',
-                 duplex, color, copies, paper_size, printer_name)
+                 duplex, color, copies, paper_size, printer_name, source)
             )
             conn.commit()
         self._queue.put(job_id)
@@ -135,6 +141,12 @@ class QueueManager:
                 params.append(f'%{search}%')
             return conn.execute(query, params).fetchone()[0]
 
+    def get_jobs_by_status(self, status):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute('SELECT * FROM jobs WHERE status = ?', (status,)).fetchall()
+            return [dict(r) for r in rows]
+
     def get_stats(self):
         with sqlite3.connect(self.db_path) as conn:
             today = datetime.now().strftime('%Y-%m-%d')
@@ -179,6 +191,7 @@ class QueueManager:
         return self._ppt_lock
 
     def start_workers(self, print_engine):
+        self._print_engine = print_engine
         self._stop_evt.clear()
         count = self.config.worker_count
         self._workers = []
@@ -231,16 +244,45 @@ class QueueManager:
         logger.info(f'工作线程 {worker_id} 已停止')
 
     def _process_job(self, job_id, print_engine, worker_id):
+        max_retries = self.config.get('auto_retry_count', 0)
+        for attempt in range(max_retries + 1):
+            job = self.get_job(job_id)
+            if not job or job_id in self._cancelled_ids:
+                return
+            success, error_msg = self._do_print(job_id, print_engine, worker_id, attempt)
+            if success:
+                return
+            if attempt < max_retries and error_msg not in ('用户取消',):
+                logger.info(f'任务 {job_id} 第 {attempt + 1}/{max_retries} 次重试')
+                self.update_status(job_id, 'queued', f'重试 {attempt + 1}/{max_retries}')
+                with sqlite3.connect(self.db_path) as conn:
+                    conn.execute('UPDATE jobs SET retry_count = ? WHERE id = ?', (attempt + 1, job_id))
+                    conn.commit()
+                continue
+            break
+        # Final failure — emit notification
+        job = self.get_job(job_id)
+        if job:
+            self._notify_all('failed', job['filename'], source=job.get('source', 'api'), error=error_msg)
+
+    def _do_print(self, job_id, print_engine, worker_id, attempt=0):
         import tempfile
         import shutil
         from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 
         job = self.get_job(job_id)
         if not job:
-            logger.warning(f'任务不存在: {job_id}')
-            return
+            return False, '任务不存在'
 
-        logger.info(f'[{worker_id}] 开始打印: {job["filename"]}')
+        if job_id in self._cancelled_ids:
+            self._cancelled_ids.discard(job_id)
+            return True, None
+
+        if attempt == 0:
+            logger.info(f'[{worker_id}] 开始打印: {job["filename"]}')
+        else:
+            logger.info(f'[{worker_id}] 第 {attempt} 次重试: {job["filename"]}')
+
         self.update_status(job_id, 'printing')
 
         original_path = job['filepath']
@@ -252,7 +294,6 @@ class QueueManager:
                 shutil.copy2(original_path, tmp.name)
                 temp_path = tmp.name
 
-            # 超时保护：用独立线程 + timeout 执行打印，防止 COM 调用卡死
             timeout = self.config.get('job_timeout', 300)
             with ThreadPoolExecutor(max_workers=1) as pool:
                 print_params = {
@@ -266,7 +307,40 @@ class QueueManager:
                     print_engine.print_file,
                     temp_path, job['file_type'], job_id, self._word_lock, print_params
                 )
-                success = fut.result(timeout=timeout)
+
+                # Determine lock for COM cancel detection
+                lock = None
+                if job.get('file_type') in ('.doc', '.docx'):
+                    lock = self._word_lock
+                elif job.get('file_type') in ('.xls', '.xlsx'):
+                    lock = self._excel_lock
+                elif job.get('file_type') in ('.ppt', '.pptx'):
+                    lock = self._ppt_lock
+
+                if lock:
+                    # COM job — poll for cancel every 1s
+                    while not self._stop_evt.is_set():
+                        try:
+                            success = fut.result(timeout=1)
+                            break
+                        except FuturesTimeout:
+                            if job_id in self._cancelled_ids:
+                                logger.info(f'任务 {job_id} 已被取消，终止等待')
+                                if self._print_engine:
+                                    self._print_engine.cancel_active_job(job_id)
+                                if lock and lock.locked():
+                                    try:
+                                        lock.release()
+                                    except:
+                                        pass
+                                return True, None
+                else:
+                    success = fut.result(timeout=timeout)
+
+            if job_id in self._cancelled_ids:
+                logger.info(f'任务 {job_id} 已被外部取消，跳过后续处理')
+                self._cancelled_ids.discard(job_id)
+                return True, None
 
             if success:
                 self.update_status(job_id, 'completed')
@@ -276,38 +350,26 @@ class QueueManager:
                         'job_id': job_id,
                         'filename': job['filename'],
                         'status': 'completed',
+                        'source': job.get('source', 'api'),
                         'ts': datetime.now().isoformat()
                     }, namespace='/')
-                # Notify DingTalk
-                if hasattr(print_engine, 'dingtalk') and print_engine.dingtalk:
-                    try:
-                        print_engine.dingtalk.notify_job_completed(
-                            job['filename'],
-                            datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                        )
-                    except Exception:
-                        pass
+                self._notify_all('completed', job['filename'], source=job.get('source', 'api'))
+                return True, None
             else:
-                self.update_status(job_id, 'failed', '打印引擎返回失败')
+                error_msg = '打印引擎返回失败'
+                self.update_status(job_id, 'failed', error_msg)
                 logger.error(f'打印失败: {job["filename"]}')
                 if self._socketio:
                     self._socketio.emit('job_status', {
                         'job_id': job_id,
                         'filename': job['filename'],
                         'status': 'failed',
-                        'error': '打印引擎返回失败',
+                        'error': error_msg,
+                        'source': job.get('source', 'api'),
                         'ts': datetime.now().isoformat()
                     }, namespace='/')
-                # Notify DingTalk
-                if hasattr(print_engine, 'dingtalk') and print_engine.dingtalk:
-                    try:
-                        print_engine.dingtalk.notify_job_failed(
-                            job['filename'],
-                            '打印引擎返回失败',
-                            datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                        )
-                    except Exception:
-                        pass
+                return False, error_msg
+
         except FuturesTimeout:
             error_msg = f'打印超时 ({timeout}s)'
             self.update_status(job_id, 'failed', error_msg)
@@ -318,18 +380,11 @@ class QueueManager:
                     'filename': job['filename'],
                     'status': 'failed',
                     'error': error_msg,
+                    'source': job.get('source', 'api'),
                     'ts': datetime.now().isoformat()
                 }, namespace='/')
-            # Notify DingTalk
-            if hasattr(print_engine, 'dingtalk') and print_engine.dingtalk:
-                try:
-                    print_engine.dingtalk.notify_job_failed(
-                        job['filename'],
-                        error_msg,
-                        datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    )
-                except Exception:
-                    pass
+            return False, error_msg
+
         except Exception as e:
             error_msg = str(e)
             self.update_status(job_id, 'failed', error_msg)
@@ -340,18 +395,11 @@ class QueueManager:
                     'filename': job['filename'],
                     'status': 'failed',
                     'error': error_msg,
+                    'source': job.get('source', 'api'),
                     'ts': datetime.now().isoformat()
                 }, namespace='/')
-            # Notify DingTalk
-            if hasattr(print_engine, 'dingtalk') and print_engine.dingtalk:
-                try:
-                    print_engine.dingtalk.notify_job_failed(
-                        job['filename'],
-                        error_msg,
-                        datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    )
-                except Exception:
-                    pass
+            return False, error_msg
+
         finally:
             try:
                 if os.path.exists(original_path):
@@ -366,17 +414,67 @@ class QueueManager:
                     logger.warning(f'删除临时文件失败: {temp_path} - {e}')
 
     def cancel_job(self, job_id):
-        """取消排队中的任务"""
         job = self.get_job(job_id)
         if not job:
             return False, '任务不存在'
-        if job['status'] != 'queued':
-            return False, '只能取消排队中的任务'
-        self.update_status(job_id, 'failed', '用户取消')
-        # Track cancelled ID so worker skips it if still in queue
+        if job['status'] not in ('queued', 'printing'):
+            return False, '只能取消排队或打印中的任务'
+
         self._cancelled_ids.add(job_id)
+
+        if job['status'] == 'queued':
+            self.update_status(job_id, 'failed', '用户取消')
+            if self._socketio:
+                self._socketio.emit('job_status', {
+                    'job_id': job_id, 'filename': job['filename'],
+                    'status': 'failed', 'error': '用户取消',
+                    'source': job.get('source', 'api')
+                }, namespace='/')
+        else:
+            # printing — send cancel to PrintEngine
+            if self._print_engine:
+                self._print_engine.cancel_active_job(job_id)
+            self.update_status(job_id, 'failed', '用户取消')
+            if self._socketio:
+                self._socketio.emit('job_status', {
+                    'job_id': job_id, 'filename': job['filename'],
+                    'status': 'failed', 'error': '用户取消',
+                    'source': job.get('source', 'api')
+                }, namespace='/')
+            self._notify_all('cancelled', job['filename'], source=job.get('source', 'api'))
+
+        # Delete job file
+        try:
+            filepath = job.get('filepath')
+            if filepath and os.path.exists(filepath):
+                os.remove(filepath)
+        except Exception as e:
+            logger.warning(f'删除取消任务文件失败: {e}')
+
         logger.info(f'任务已取消: {job_id}')
         return True, None
+
+    def cancel_all_queued(self):
+        jobs = self.get_jobs_by_status('queued')
+        count = 0
+        for job in jobs:
+            if job['id'] not in self._cancelled_ids:
+                self._cancelled_ids.add(job['id'])
+                self.update_status(job['id'], 'failed', '用户取消')
+                if self._socketio:
+                    self._socketio.emit('job_status', {
+                        'job_id': job['id'], 'filename': job['filename'],
+                        'status': 'failed', 'error': '用户取消',
+                        'source': job.get('source', 'api')
+                    }, namespace='/')
+                try:
+                    if job.get('filepath') and os.path.exists(job['filepath']):
+                        os.remove(job['filepath'])
+                except Exception as e:
+                    logger.warning(f'删除取消任务文件失败: {e}')
+                count += 1
+        logger.info(f'批量取消完成: {count} 个任务')
+        return count
 
     def retry_job(self, job_id):
         """重试失败的任务"""
@@ -396,6 +494,30 @@ class QueueManager:
         )
         logger.info(f'任务重试: {job_id} -> {new_job_id}')
         return new_job_id, None
+
+    def _notify_all(self, event_type, filename, source='api', **kwargs):
+        if source == 'ios':
+            return
+        time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        channel = self.config.get('notify_channel', 'disabled')
+        if channel == 'dingtalk' and self._dingtalk:
+            try:
+                if event_type == 'completed':
+                    self._dingtalk.notify_job_completed(filename, time_str)
+                elif event_type in ('failed', 'cancelled'):
+                    self._dingtalk.notify_job_failed(filename, kwargs.get('error', ''), time_str)
+            except Exception:
+                pass
+        elif channel == 'bark' and self._bark:
+            try:
+                if event_type == 'completed':
+                    self._bark.notify_job_completed(filename, time_str)
+                elif event_type == 'failed':
+                    self._bark.notify_job_failed(filename, kwargs.get('error', ''), time_str)
+                elif event_type == 'cancelled':
+                    self._bark.notify_job_cancelled(filename, time_str)
+            except Exception:
+                pass
 
     def cleanup_old_jobs(self):
         """清理过期任务 + 恢复卡住的 printing 任务"""
