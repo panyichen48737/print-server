@@ -66,7 +66,6 @@ class PrintEngine:
                 doc.Close(SaveChanges=0)  # wdDoNotSaveChanges
                 word.Quit(SaveChanges=0)  # wdDoNotSaveChanges
                 word = None
-                pythoncom.CoUninitialize()
                 return True
             except Exception as e:
                 logger.error(f'Word 打印失败: {e}')
@@ -75,11 +74,11 @@ class PrintEngine:
                 try:
                     if word:
                         word.Quit(SaveChanges=0)
-                except:
+                except Exception:
                     pass
                 try:
                     pythoncom.CoUninitialize()
-                except:
+                except Exception:
                     pass
                 with self._active_jobs_lock:
                     self._active_jobs.pop(job_id, None)
@@ -123,7 +122,6 @@ class PrintEngine:
                 workbook.Close(SaveChanges=False)
                 excel.Quit()
                 excel = None
-                pythoncom.CoUninitialize()
                 return True
             except Exception as e:
                 logger.error(f'Excel 打印失败: {e}')
@@ -132,11 +130,11 @@ class PrintEngine:
                 try:
                     if excel:
                         excel.Quit()
-                except:
+                except Exception:
                     pass
                 try:
                     pythoncom.CoUninitialize()
-                except:
+                except Exception:
                     pass
                 with self._active_jobs_lock:
                     self._active_jobs.pop(job_id, None)
@@ -183,7 +181,6 @@ class PrintEngine:
                 presentation.Close(SaveChanges=0)
                 ppt.Quit()
                 ppt = None
-                pythoncom.CoUninitialize()
                 return True
             except Exception as e:
                 logger.error(f'PPT 打印失败: {e}')
@@ -192,11 +189,11 @@ class PrintEngine:
                 try:
                     if ppt:
                         ppt.Quit()
-                except:
+                except Exception:
                     pass
                 try:
                     pythoncom.CoUninitialize()
-                except:
+                except Exception:
                     pass
                 with self._active_jobs_lock:
                     self._active_jobs.pop(job_id, None)
@@ -247,7 +244,7 @@ class PrintEngine:
                 path = result.stdout.strip().split('\n')[0]
                 if os.path.exists(path):
                     return path
-        except:
+        except Exception:
             pass
         try:
             result = subprocess.run(['where', 'chrome.exe'], capture_output=True, text=True)
@@ -255,7 +252,7 @@ class PrintEngine:
                 path = result.stdout.strip().split('\n')[0]
                 if os.path.exists(path):
                     return path
-        except:
+        except Exception:
             pass
 
         # 常见安装路径 — Edge 优先
@@ -388,6 +385,10 @@ class PrintEngine:
                 quality -= 10
                 buf = io.BytesIO()
                 img.save(buf, format='JPEG', quality=quality)
+
+            if buf.tell() > max_api_size:
+                logger.warning(f'图片压缩至 quality={quality} 仍超过 {max_api_size//1024//1024}MB，跳过 Quark API')
+                return None
 
             img_data = buf.getvalue()
             logger.info(f'Quark API: {ext} → JPG ({len(img_data)//1024}KB, quality={quality})')
