@@ -3,7 +3,6 @@ flask-socketio>=5.3
 eventlet>=0.33
 pywin32>=306
 pillow>=10.0
-pillow-heif>=0.15
 requests>=2.31
 rich>=13.0
 pydantic>=2.0
