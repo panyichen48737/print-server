@@ -1,10 +1,12 @@
 import os
 import logging
+from collections import deque
 from flask import Blueprint, render_template, request, jsonify, current_app
 from datetime import datetime
 
 from app.auth import require_auth, check_auth
 from app.upload_helper import handle_file_upload
+from app._paths import app_root
 
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger('print_server')
@@ -61,10 +63,8 @@ def logs():
 def api_logs():
     """获取最新日志行"""
     lines = request.args.get('lines', 50, type=int)
-    from app._paths import app_root
     log_file = os.path.join(app_root(), 'logs', 'print_server.log')
     try:
-        from collections import deque
         with open(log_file, 'r', encoding='utf-8') as f:
             last_lines = deque(f, maxlen=lines)
         return jsonify({'lines': list(last_lines)})
@@ -82,9 +82,16 @@ def settings():
         if not check_auth():
             return jsonify({'success': False, 'error': 'Unauthorized'}), 401
         try:
+            # 安全转换数值字段，防止用户输入非法值
+            def safe_int(val, default):
+                try:
+                    return int(val)
+                except (ValueError, TypeError):
+                    return default
+
             config.set('api_key', request.form.get('api_key', config.get('api_key', '')))
             config.set('default_printer', request.form.get('default_printer', ''))
-            config.set('default_copies', int(request.form.get('default_copies', 1)))
+            config.set('default_copies', safe_int(request.form.get('default_copies'), 1))
             config.set('default_duplex', request.form.get('default_duplex') == '1')
             config.set('default_color', request.form.get('default_color') == '1')
             config.set('excel_print_all_sheets', request.form.get('excel_print_all_sheets') == '1')
@@ -97,8 +104,8 @@ def settings():
             config.set('dingtalk_level', request.form.get('dingtalk_level', 'error'))
             config.set('bark_key', request.form.get('bark_key', ''))
             config.set('bark_server', request.form.get('bark_server', 'https://api.day.app'))
-            config.set('auto_retry_count', int(request.form.get('auto_retry_count', 0)))
-            config.set('port', int(request.form.get('port', 5000)))
+            config.set('auto_retry_count', safe_int(request.form.get('auto_retry_count'), 0))
+            config.set('port', safe_int(request.form.get('port'), 5000))
             config.set('log_level', request.form.get('log_level', 'INFO'))
             config.save()
             logger.info('配置已保存')
@@ -183,14 +190,18 @@ def test_notification():
     config = current_app.config['app_config']
     channel = config.get('notify_channel', 'disabled')
     time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    if channel == 'dingtalk':
-        dt = current_app.config['dingtalk']
-        if dt:
-            dt.send_notification('🔔 测试通知', f'这是一条测试消息\n时间: {time_str}', level='info')
-    elif channel == 'bark':
-        bk = current_app.config['bark']
-        if bk:
-            bk.send_notification('🔔 测试通知', f'这是一条测试消息\n时间: {time_str}')
+    try:
+        if channel == 'dingtalk':
+            dt = current_app.config['dingtalk']
+            if dt:
+                dt.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}', level='info')
+        elif channel == 'bark':
+            bk = current_app.config['bark']
+            if bk:
+                bk.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}')
+    except Exception as e:
+        logger.warning(f'发送测试通知失败: {e}')
+        return jsonify({'success': False, 'error': f'发送失败: {e}'}), 500
     return jsonify({'success': True, 'channel': channel})
 
 

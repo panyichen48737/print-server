@@ -2,7 +2,10 @@
 import queue
 import threading
 import uuid
+import logging
 from typing import Any
+
+logger = logging.getLogger('print_server')
 
 
 class SSEBroadcaster:
@@ -38,6 +41,7 @@ class SSEBroadcaster:
                 try:
                     q.get_nowait()
                     q.put_nowait((event_type, data))
+                    logger.warning(f'SSE 订阅者 {sub_id[:8]} 队列已满，丢弃旧事件')
                 except queue.Empty:
                     pass
 

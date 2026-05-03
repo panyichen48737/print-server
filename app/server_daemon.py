@@ -4,6 +4,7 @@ import sys
 import json
 import ssl
 import atexit
+import signal
 import argparse
 import threading
 from pathlib import Path
@@ -95,6 +96,19 @@ def main():
         write_status('stopped')
 
     atexit.register(shutdown)
+
+    # Windows 信号处理：确保优雅关闭
+    def _signal_handler(signum, frame):
+        logger.info(f'收到信号 {signum}，执行关闭')
+        shutdown()
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, _signal_handler)
+    signal.signal(signal.SIGINT, _signal_handler)
+    try:
+        signal.signal(signal.SIGBREAK, _signal_handler)
+    except AttributeError:
+        pass  # SIGBREAK 仅 Windows 可用
 
     port = config.get('port', 5000)
 

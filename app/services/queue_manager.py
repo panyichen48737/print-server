@@ -22,7 +22,6 @@ class QueueManager:
         self._stop_evt = threading.Event()
         self._cancelled_ids = set()
         self._cancelled_lock = threading.Lock()
-        self._cancel_evt = threading.Event()
         self._word_lock = threading.Lock()
         self._excel_lock = threading.Lock()
         self._ppt_lock = threading.Lock()
@@ -112,7 +111,7 @@ class QueueManager:
                 self.cleanup_old_jobs()
             except Exception as e:
                 logger.error(f'心跳检测异常: {e}')
-            threading.Event().wait(30)
+            self._stop_evt.wait(30)
 
     def stop_workers(self):
         self._stop_evt.set()
@@ -192,7 +191,6 @@ class QueueManager:
                 temp_path = tmp.name
 
             timeout = self.config.get('job_timeout', 300)
-            self._cancel_evt.clear()
             pool = ThreadPoolExecutor(max_workers=1)
             try:
                 print_params = {
@@ -225,7 +223,6 @@ class QueueManager:
                         except FuturesTimeout:
                             if self._is_cancelled(job_id):
                                 logger.info(f'任务 {job_id} 已被取消，终止等待')
-                                self._cancel_evt.set()
                                 if self._print_engine:
                                     self._print_engine.cancel_active_job(job_id)
                                 return True, None
@@ -321,7 +318,6 @@ class QueueManager:
             return False, '只能取消排队或打印中的任务'
 
         self._mark_cancelled(job_id)
-        self._cancel_evt.set()
 
         if job['status'] == 'queued':
             self.update_status(job_id, 'failed', '用户取消')
@@ -361,7 +357,6 @@ class QueueManager:
         for job in jobs:
             if not self._is_cancelled(job['id']):
                 self._mark_cancelled(job['id'])
-                self._cancel_evt.set()
                 self.update_status(job['id'], 'failed', '用户取消')
                 if self._broadcaster:
                     self._broadcaster.publish('job_status', {

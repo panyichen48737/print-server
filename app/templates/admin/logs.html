@@ -7,8 +7,17 @@
     <div class="card-header">
         <span>系统日志</span>
         <div class="log-controls">
+            <div class="log-search-wrapper">
+                <span class="search-icon" aria-hidden="true">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </span>
+                <input type="text" class="form-input" id="logSearchInput" placeholder="搜索日志内容..." oninput="debouncedFilterLogs()" style="min-width:160px;">
+            </div>
             <div class="log-level-filter">
-                <select id="levelFilter" style="width: 110px;">
+                <select id="levelFilter" style="width: 110px;" aria-label="日志级别筛选">
                     <option value="ALL">全部</option>
                     <option value="ERROR">ERROR</option>
                     <option value="WARNING">WARNING</option>
@@ -16,6 +25,20 @@
                     <option value="DEBUG">DEBUG</option>
                 </select>
             </div>
+            <button class="btn btn-ghost btn-sm" id="pauseBtn" onclick="togglePause()" title="暂停/继续实时日志" aria-label="暂停/继续实时日志">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="6" y="4" width="4" height="16" rx="1"></rect>
+                    <rect x="14" y="4" width="4" height="16" rx="1"></rect>
+                </svg>
+                <span id="pauseLabel">暂停</span>
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="clearLogs()" aria-label="清除日志">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                清除
+            </button>
             <div class="log-auto-scroll">
                 <label class="toggle-switch">
                     <input type="checkbox" id="autoScrollToggle" checked>
@@ -23,7 +46,6 @@
                 </label>
                 <span>自动滚动</span>
             </div>
-            <button class="btn btn-ghost btn-sm" onclick="clearLogs()">清除</button>
         </div>
     </div>
     <div class="card-body" style="padding: 0;">
@@ -35,6 +57,17 @@
         </div>
     </div>
 </div>
+
+<!-- Context menu / copy hint -->
+<div style="position: fixed; bottom: 16px; right: 16px; z-index: 100;">
+    <button class="btn btn-ghost btn-sm" onclick="copyAllLogs()" title="复制全部日志" aria-label="复制全部日志" style="background: var(--bg-elevated); border: 1px solid var(--border-color);">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+        复制日志
+    </button>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -43,9 +76,13 @@
     var logViewer = document.getElementById('logViewer');
     var autoScrollToggle = document.getElementById('autoScrollToggle');
     var levelFilter = document.getElementById('levelFilter');
+    var logSearchInput = document.getElementById('logSearchInput');
+    var pauseBtn = document.getElementById('pauseBtn');
+    var pauseLabel = document.getElementById('pauseLabel');
     var autoScroll = true;
-    var allLogs = [];       // all received logs
-    var filteredCount = 0;  // count of currently displayed logs
+    var paused = false;
+    var allLogs = [];       // raw logs received
+    var pausedLogs = [];    // logs received while paused
 
     if (autoScrollToggle) {
         autoScrollToggle.addEventListener('change', function() {
@@ -75,29 +112,43 @@
         return 'INFO';
     }
 
+    function extractTimestamp(line) {
+        var match = line.match(/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/);
+        return match ? match[1] : '';
+    }
+
     function renderLogs() {
         var filterVal = levelFilter ? levelFilter.value : 'ALL';
+        var searchVal = logSearchInput ? logSearchInput.value.toLowerCase() : '';
+        var source = paused ? pausedLogs : allLogs;
         var html = '';
-        filteredCount = 0;
+        var lineNum = 0;
 
         // Show latest 500 matching logs
-        var start = Math.max(0, allLogs.length - 500);
-        for (var i = start; i < allLogs.length; i++) {
-            var line = allLogs[i];
+        var start = Math.max(0, source.length - 500);
+        for (var i = start; i < source.length; i++) {
+            var line = source[i];
             var levelClass = getLevelClass(line);
             if (filterVal !== 'ALL' && levelClass !== filterVal) continue;
-            filteredCount++;
-            html += '<div class="log-entry">';
+            if (searchVal && line.toLowerCase().indexOf(searchVal) === -1) continue;
+            lineNum++;
+
+            var ts = extractTimestamp(line);
+            var msg = ts ? line.substring(ts.length).trim() : line;
+            var lineForAttr = escapeHtml(line);
+
+            html += '<div class="log-entry" data-line="' + lineNum + '" data-full="' + escapeHtml(line) + '" onclick="copyLogLine(this)" title="点击复制此行">';
             html += '<span class="log-level ' + levelClass + '">' + levelClass + '</span>';
-            html += escapeHtml(line);
+            if (ts) html += '<span class="log-timestamp">' + escapeHtml(ts) + '</span>';
+            html += '<span class="log-message">' + escapeHtml(msg) + '</span>';
             html += '</div>';
         }
 
         if (html === '') {
             if (allLogs.length === 0) {
-                logViewer.innerHTML = '<div class="empty-state"><div class="empty-icon">☷</div><p>暂无日志</p></div>';
+                logViewer.innerHTML = '<div class="empty-state"><svg class="empty-icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg><p>暂无日志</p></div>';
             } else {
-                logViewer.innerHTML = '<div class="empty-state"><div class="empty-icon">☷</div><p>没有匹配的日志（' + filterVal + '）</p></div>';
+                logViewer.innerHTML = '<div class="empty-state"><svg class="empty-icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg><p>没有匹配的日志（' + filterVal + '）</p></div>';
             }
             return;
         }
@@ -109,27 +160,82 @@
         }
     }
 
+    // ── Debounced search ──
+    var filterTimeout = null;
+    window.debouncedFilterLogs = function() {
+        clearTimeout(filterTimeout);
+        filterTimeout = setTimeout(renderLogs, 250);
+    };
+
+    // ── Toggle pause/resume ──
+    function togglePause() {
+        paused = !paused;
+        if (paused) {
+            pausedLogs = allLogs.slice(); // snapshot
+            pauseLabel.textContent = '继续';
+            pauseBtn.innerHTML =
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+                '<polygon points="5 3 19 12 5 21 5 3"></polygon></svg> <span id="pauseLabel">继续</span>';
+        } else {
+            // Merge paused logs back
+            if (pausedLogs.length > 0) {
+                allLogs = pausedLogs;
+            }
+            pausedLogs = [];
+            pauseLabel.textContent = '暂停';
+            pauseBtn.innerHTML =
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+                '<rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect></svg> <span id="pauseLabel">暂停</span>';
+            renderLogs();
+        }
+    }
+
+    // ── Copy single log line ──
+    window.copyLogLine = function(el) {
+        var text = el.getAttribute('data-full') || el.textContent;
+        copyToClipboard(text);
+    };
+
+    // ── Copy all logs ──
+    window.copyAllLogs = function() {
+        var text = allLogs.join('\n');
+        if (!text) {
+            showToast('无日志可复制', 'error');
+            return;
+        }
+        copyToClipboard(text);
+    };
+
+    // ── Clear logs ──
+    window.clearLogs = function() {
+        allLogs = [];
+        pausedLogs = [];
+        renderLogs();
+        showToast('日志已清除', 'success');
+    };
+
     // Level filter change
     levelFilter.addEventListener('change', renderLogs);
 
-    // Listen for SSE log events (from script.js global dispatchWS)
+    // Listen for SSE log events
     onWSMessage('log', function(data) {
         if (!data || !data.message) return;
         allLogs.push(data.message);
-        // Keep buffer bounded
         if (allLogs.length > 2000) {
             allLogs = allLogs.slice(-1000);
+        }
+        if (paused) {
+            pausedLogs = allLogs.slice();
         }
         renderLogs();
     });
 
-    // Fallback: initial load from REST API, then poll if SocketIO fails
+    // Initial load from REST API
     function fetchLogs() {
         fetch('/admin/api/logs?lines=200')
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (!data.lines || data.lines.length === 0) return;
-                // Only fill if socket hasn't pushed yet
                 if (allLogs.length === 0) {
                     allLogs = data.lines;
                     renderLogs();
@@ -138,10 +244,9 @@
             .catch(function() {});
     }
 
-    // Initial load
     setTimeout(fetchLogs, 500);
 
-    // If no SSE events arrive within 5s, fall back to polling
+    // Fallback polling
     var pollTimer = setTimeout(function() {
         if (allLogs.length === 0) {
             setInterval(fetchLogs, 3000);

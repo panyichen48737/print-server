@@ -109,11 +109,22 @@ class Config:
 
     def load(self):
         with self._lock:
-            with open(self.config_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
             try:
+                with open(self.config_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
                 self._schema = ConfigSchema(**data)
                 self._errors = []
+            except FileNotFoundError:
+                # 配置文件不存在，使用默认值
+                self._schema = ConfigSchema()
+                self._errors = []
+                logger = logging.getLogger('print_server')
+                logger.info(f'配置文件不存在，使用默认配置: {self.config_path}')
+            except json.JSONDecodeError as e:
+                self._errors.append(str(e))
+                logger = logging.getLogger('print_server')
+                logger.warning(f'配置文件解析失败，使用默认配置: {e}')
+                self._schema = ConfigSchema()
             except Exception as e:
                 self._errors.append(str(e))
                 import logging

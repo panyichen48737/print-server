@@ -27,11 +27,11 @@ def handle_file_upload(request, config, queue_mgr, *, source: str = 'api') -> tu
         失败时返回 (None, (json_response, status_code))
     """
     if 'file' not in request.files:
-        return None, (jsonify({'success': False, 'error': 'No file provided'}), 400)
+        return None, (jsonify({'success': False, 'error': '未提供文件'}), 400)
 
     file = request.files['file']
     if not file.filename:
-        return None, (jsonify({'success': False, 'error': 'Empty filename'}), 400)
+        return None, (jsonify({'success': False, 'error': '文件名为空'}), 400)
 
     config_obj = config
     original_name = file.filename
@@ -39,13 +39,13 @@ def handle_file_upload(request, config, queue_mgr, *, source: str = 'api') -> tu
 
     # 校验扩展名
     if ext not in config_obj.allowed_extensions:
-        return None, (jsonify({'success': False, 'error': f'File type {ext} not allowed'}), 400)
+        return None, (jsonify({'success': False, 'error': f'不支持的文件类型: {ext}'}), 400)
 
     # 先检查 Content-Length 避免大文件写入
     max_size = config_obj.max_file_size_mb * 1024 * 1024
     content_length = request.headers.get('Content-Length')
     if content_length and int(content_length) > max_size:
-        return None, (jsonify({'success': False, 'error': f'File too large, max {config_obj.max_file_size_mb}MB'}), 400)
+        return None, (jsonify({'success': False, 'error': f'文件过大，最大 {config_obj.max_file_size_mb}MB'}), 400)
 
     # 安全化文件名 + UUID 前缀保唯一
     safe_name = secure_filename(original_name) or f"file{ext}"
@@ -58,7 +58,7 @@ def handle_file_upload(request, config, queue_mgr, *, source: str = 'api') -> tu
     # 校验文件大小
     if file_size > max_size:
         os.remove(save_path)
-        return None, (jsonify({'success': False, 'error': f'File too large, max {config_obj.max_file_size_mb}MB'}), 400)
+        return None, (jsonify({'success': False, 'error': f'文件过大，最大 {config_obj.max_file_size_mb}MB'}), 400)
 
     # 获取打印参数（可选，来自表单）
     printer = request.form.get('printer') or None
@@ -72,7 +72,7 @@ def handle_file_upload(request, config, queue_mgr, *, source: str = 'api') -> tu
 
     if copies is not None and (copies < 1 or copies > 99):
         os.remove(save_path)
-        return None, (jsonify({'success': False, 'error': 'Copies must be between 1 and 99'}), 400)
+        return None, (jsonify({'success': False, 'error': '打印份数必须在 1-99 之间'}), 400)
 
     # 入队
     actual_job_id = queue_mgr.add_job(

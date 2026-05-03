@@ -6,26 +6,47 @@
 <div class="card">
     <div class="card-header">
         <span>可用打印机</span>
-        <span class="status-indicator" style="font-size: 11px; color: var(--text-muted);">{{ printers|length }} 台</span>
+        <div class="d-flex align-items-center gap-2">
+            <span class="status-indicator" style="font-size: 11px; color: var(--text-muted);" id="printerCountHeader">{{ printers|length }} 台</span>
+            <button class="btn btn-ghost btn-sm" onclick="refreshPrinters()" title="刷新打印机列表" aria-label="刷新打印机列表">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <polyline points="1 20 1 14 7 14"></polyline>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+                刷新
+            </button>
+        </div>
     </div>
     <div class="card-body">
         {% if printers %}
-        <div class="printer-grid">
+        <div class="printer-grid" id="printerGrid">
             {% for printer in printers %}
-            <div class="printer-card {% if config.default_printer == printer %}default{% endif %}" id="printer-{{ loop.index }}">
-                <div class="printer-icon">⎙</div>
+            <div class="printer-card {% if config.default_printer == printer %}default{% endif %} status-ready" id="printer-{{ loop.index }}">
+                <div class="printer-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                        <rect x="6" y="14" width="12" height="8"></rect>
+                    </svg>
+                </div>
                 <div class="printer-info">
                     <div class="printer-name">{{ printer }}</div>
                     <div class="printer-status">
                         {% if config.default_printer == printer %}
                         <span class="status-indicator"><span class="dot ready"></span>默认打印机</span>
                         {% else %}
-                        <span class="status-indicator"><span class="dot ready"></span>可用</span>
+                        <span class="printer-status-text" id="status-{{ loop.index }}">检查中...</span>
                         {% endif %}
                     </div>
                 </div>
                 {% if config.default_printer != printer %}
-                <button class="btn btn-ghost btn-sm" onclick="setDefault('{{ printer }}')">设为默认</button>
+                <button class="btn btn-ghost btn-sm" onclick="setDefault('{{ printer }}')" aria-label="将 {{ printer }} 设为默认打印机">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    设为默认
+                </button>
                 {% else %}
                 <span class="printer-badge">默认</span>
                 {% endif %}
@@ -34,15 +55,27 @@
         </div>
         {% else %}
         <div class="empty-state">
-            <div class="empty-icon">⎙</div>
+            <svg class="empty-icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                <rect x="6" y="14" width="12" height="8"></rect>
+            </svg>
             <p>未检测到可用打印机</p>
+            <p style="font-size: 12px; margin-top: 8px; color: var(--text-muted);">请确保 Windows 系统中已安装打印机驱动</p>
         </div>
         {% endif %}
     </div>
 </div>
 
 <div class="card mt-3">
-    <div class="card-header">说明</div>
+    <div class="card-header">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right:6px;">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+        说明
+    </div>
     <div class="card-body" style="font-size: 12px; color: var(--text-secondary); font-family: var(--font-mono);">
         <p style="margin: 0 0 6px;">此列表显示 Windows 系统中已安装的所有打印机。</p>
         <p style="margin: 0;">包含物理打印机、Microsoft Print to PDF、Fax 等虚拟打印机。</p>
@@ -54,8 +87,11 @@
 {% block scripts %}
 <script>
 function setDefault(printerName) {
+    // Capture button reference before modal opens
+    var btn = event && event.target;
+    if (btn && btn.tagName !== 'BUTTON') btn = btn.closest('button');
     confirmAction('将 [' + printerName + '] 设为默认打印机？', function() {
-        fetch('/admin/api/set_default_printer', {
+        withLoading(btn, fetch('/admin/api/set_default_printer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ printer: printerName })
@@ -69,8 +105,57 @@ function setDefault(printerName) {
                 showToast('操作失败: ' + (data.error || '未知错误'), 'error');
             }
         })
-        .catch(function() { showToast('请求失败', 'error'); });
+        .catch(function() { showToast('请求失败', 'error'); })
+        );
     });
+}
+
+// Real-time status polling
+(function() {
+    var statusTextMap = {
+        'ready': '就绪', 'offline': '离线', 'error': '错误',
+        'paper_jam': '卡纸', 'paper_out': '缺纸',
+        'no_toner': '缺墨', 'door_open': '盖板打开',
+        'toner_low': '墨量低', 'busy': '忙碌',
+        'printing': '打印中', 'paused': '已暂停',
+        'power_save': '节能', 'warning': '警告', 'removed': '已移除'
+    };
+
+    function pollPrinterStatus() {
+        fetch('/api/printers/status').then(function(r) { return r.json(); }).then(function(data) {
+            var printers = data.printers || {};
+            // Try to match by printer name
+            Object.keys(printers).forEach(function(key) {
+                var p = printers[key];
+                if (!p.name) return;
+                // Find matching card by name
+                var cards = document.querySelectorAll('.printer-card');
+                for (var i = 0; i < cards.length; i++) {
+                    var nameEl = cards[i].querySelector('.printer-name');
+                    if (nameEl && nameEl.textContent.trim() === p.name) {
+                        var statusEl = cards[i].querySelector('.printer-status-text') ||
+                                       cards[i].querySelector('.printer-status');
+                        if (statusEl) {
+                            var overall = p.overall || 'ready';
+                            var label = statusTextMap[overall] || overall;
+                            statusEl.innerHTML = '<span class="status-indicator"><span class="dot ' + overall + '"></span>' + label + '</span>';
+                        }
+                        cards[i].className = cards[i].className.replace(/status-\w+/g, '').trim() + ' status-' + (p.overall || 'ready');
+                        break;
+                    }
+                }
+            });
+        }).catch(function() {});
+    }
+
+    // Initial poll
+    setTimeout(pollPrinterStatus, 500);
+    // Poll every 10 seconds
+    setInterval(pollPrinterStatus, 10000);
+})();
+
+function refreshPrinters() {
+    setTimeout(function() { location.reload(); }, 200);
 }
 </script>
 {% endblock %}

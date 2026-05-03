@@ -438,12 +438,8 @@ class PrintEngine:
 
                 hdc.EndPage()
                 hdc.EndDoc()
-                with self._active_jobs_lock:
-                    self._active_jobs.pop(job_id, None)
                 logger.info(f'GDI 打印发送成功: 页面 {page_width}x{page_height}, 图片 {draw_w}x{draw_h}')
             except Exception:
-                with self._active_jobs_lock:
-                    self._active_jobs.pop(job_id, None)
                 raise
         finally:
             hdc.DeleteDC()

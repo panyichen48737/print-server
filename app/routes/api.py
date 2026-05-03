@@ -1,4 +1,5 @@
-from flask import Blueprint, request, jsonify, current_app, Response
+from flask import Blueprint, request, jsonify, current_app, Response, stream_with_context
+import json
 
 from app.auth import require_auth
 from app.upload_helper import handle_file_upload
@@ -32,7 +33,7 @@ def get_status(job_id):
     queue_mgr = get_queue_manager()
     job = queue_mgr.get_job(job_id)
     if not job:
-        return jsonify({'success': False, 'error': 'Job not found'}), 404
+        return jsonify({'success': False, 'error': '任务不存在'}), 404
 
     response = {
         'success': True,
@@ -56,7 +57,6 @@ def list_printers():
 @api_bp.route('/printers/status', methods=['GET'])
 def printer_status():
     """获取全部打印机实时状态"""
-    from flask import current_app
     pm = current_app.config.get('printer_monitor')
     if not pm:
         return jsonify({'printers': {}})
@@ -77,9 +77,6 @@ def cancel_job_api(job_id):
 @api_bp.route('/events')
 def sse_events():
     """Server-Sent Events endpoint — multiplexes all real-time event types."""
-    from flask import Response, stream_with_context, current_app
-    import json
-
     broadcaster = current_app.extensions['sse']
     sub_id, q = broadcaster.subscribe()
 

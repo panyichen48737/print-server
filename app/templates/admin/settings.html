@@ -11,6 +11,7 @@
         <div class="card mb-3">
             <div class="card-header">安全</div>
             <div class="card-body">
+                <p class="section-desc">iOS 客户端连接本服务时使用的鉴权密钥，修改后需要同步更新 iOS 脚本中的配置。</p>
                 <div class="form-group">
                     <label for="api_key">API Key</label>
                     <input type="text" class="form-input" id="api_key" name="api_key" value="{{ config.api_key }}" style="width: 100%; font-family: monospace;">
@@ -23,6 +24,7 @@
         <div class="card mb-3">
             <div class="card-header">打印默认值</div>
             <div class="card-body">
+                <p class="section-desc">设置打印任务未指定选项时的默认行为，部分配置会在修改后立即生效。</p>
                 <div class="form-group">
                     <label for="default_printer">默认打印机</label>
                     <select class="form-select" id="default_printer" name="default_printer" style="width: 100%;">
@@ -94,8 +96,15 @@
     <div>
         <!-- Quark API -->
         <div class="card mb-3">
-            <div class="card-header">夸克扫描王 API</div>
+            <div class="card-header">
+                夸克扫描王 API
+                <span class="restart-badge" title="修改此项后需重启服务">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                    需重启
+                </span>
+            </div>
             <div class="card-body">
+                <p class="section-desc">配置夸克扫描王 API 以启用图片增强功能，包括文档矫正、去阴影、去屏纹和画质增强。</p>
                 <div class="form-group">
                     <label for="quark_api_key_id">API Key ID</label>
                     <input type="text" class="form-input" id="quark_api_key_id" name="quark_api_key_id" value="{{ config.quark_api_key_id }}" style="width: 100%; font-family: monospace;">
@@ -113,6 +122,7 @@
         <div class="card mb-3">
             <div class="card-header">通知渠道</div>
             <div class="card-body">
+                <p class="section-desc">配置打印任务完成或失败时的推送通知，支持钉钉和 Bark 两种渠道。</p>
                 <div class="form-group">
                     <label>推送通知</label>
                     <select class="form-select" id="notify_channel" name="notify_channel" onchange="toggleNotifyChannel()" style="width: 200px;">
@@ -126,6 +136,7 @@
                     <div class="form-group">
                         <label for="dingtalk_webhook">Webhook URL</label>
                         <input type="url" class="form-input" id="dingtalk_webhook" name="dingtalk_webhook" value="{{ config.dingtalk_webhook }}" style="width: 100%;">
+                        <div class="help-text">钉钉机器人的 Webhook 地址</div>
                     </div>
                     <div class="form-group">
                         <label for="dingtalk_level">通知级别</label>
@@ -141,15 +152,23 @@
                     <div class="form-group">
                         <label for="bark_key">Bark Key</label>
                         <input type="text" class="form-input" id="bark_key" name="bark_key" value="{{ config.bark_key }}" style="width: 100%; font-family: monospace;" placeholder="设备密钥">
+                        <div class="help-text">iOS Bark App 的设备密钥</div>
                     </div>
                     <div class="form-group">
                         <label for="bark_server">Bark 服务器</label>
                         <input type="url" class="form-input" id="bark_server" name="bark_server" value="{{ config.bark_server | default('https://api.day.app') }}" style="width: 100%;" placeholder="https://api.day.app">
+                        <div class="help-text">Bark 服务器地址，默认为 https://api.day.app</div>
                     </div>
                 </div>
 
                 <div style="margin-top: 12px;">
-                    <button type="button" class="btn btn-outline" onclick="testNotification()">发送测试通知</button>
+                    <button type="button" class="btn btn-outline" onclick="testNotification()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                        </svg>
+                        发送测试通知
+                    </button>
                     <span id="testResult" style="margin-left: 8px; font-size: 12px; display: none;"></span>
                 </div>
             </div>
@@ -159,13 +178,26 @@
         <div class="card">
             <div class="card-header">服务器</div>
             <div class="card-body">
+                <p class="section-desc">服务器基本配置，修改端口或日志级别后需要重启服务才能生效。</p>
                 <div class="form-group">
-                    <label for="port">监听端口</label>
+                    <label for="port">
+                        监听端口
+                        <span class="restart-badge" title="修改此项后需重启服务">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                            需重启
+                        </span>
+                    </label>
                     <input type="number" class="form-input" id="port" name="port" value="{{ config.port }}" min="1" max="65535" style="width: 100px;">
                     <div class="help-text">修改后需重启服务生效</div>
                 </div>
                 <div class="form-group">
-                    <label for="log_level">日志级别</label>
+                    <label for="log_level">
+                        日志级别
+                        <span class="restart-badge" title="修改此项后需重启服务">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                            需重启
+                        </span>
+                    </label>
                     <select class="form-select" id="log_level" name="log_level" style="width: 140px;">
                         <option value="DEBUG" {% if config.log_level == 'DEBUG' %}selected{% endif %}>DEBUG</option>
                         <option value="INFO" {% if config.log_level == 'INFO' %}selected{% endif %}>INFO</option>
@@ -180,7 +212,12 @@
 </div>
 
 <div style="margin-top: 20px; display: flex; gap: 10px; align-items: center;">
-    <button type="submit" class="btn btn-primary">保存配置</button>
+    <button type="submit" class="btn btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        保存配置
+    </button>
     <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);" id="saveHint">部分配置修改后需重启服务才能生效</span>
 </div>
 </form>
@@ -190,42 +227,65 @@
 <script>
 function toggleNotifyChannel() {
     var val = document.getElementById('notify_channel').value;
-    document.getElementById('dingtalkFields').style.display = val === 'dingtalk' ? 'block' : 'none';
-    document.getElementById('barkFields').style.display = val === 'bark' ? 'block' : 'none';
+    var dingtalk = document.getElementById('dingtalkFields');
+    var bark = document.getElementById('barkFields');
+    if (dingtalk) dingtalk.style.display = val === 'dingtalk' ? 'block' : 'none';
+    if (bark) bark.style.display = val === 'bark' ? 'block' : 'none';
 }
 
 function testNotification() {
-    fetch('/admin/api/test_notification', { method: 'POST' })
+    var btn = event.target;
+    if (btn.tagName !== 'BUTTON') btn = btn.closest('button');
+    withLoading(btn, fetch('/admin/api/test_notification', { method: 'POST' })
         .then(r => r.json())
         .then(d => {
             var el = document.getElementById('testResult');
             el.style.display = 'inline';
-            el.textContent = '✅ 测试通知已发送 (' + d.channel + ')';
-            el.style.color = '#22C55E';
+            el.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg> 测试通知已发送 (' + d.channel + ')';
+            el.style.color = '';
             setTimeout(function() { el.style.display = 'none'; }, 5000);
         })
         .catch(function() {
             var el = document.getElementById('testResult');
             el.style.display = 'inline';
-            el.textContent = '❌ 发送失败';
-            el.style.color = '#EF4444';
-        });
+            el.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> 发送失败';
+            el.style.color = '';
+        })
+    );
 }
 
 function saveSettings(form) {
+    var portChanged = false;
+    var origPort = {{ config.port }};
+    var newPort = parseInt(document.getElementById('port').value);
+    if (newPort !== origPort) {
+        portChanged = true;
+    }
+
     var formData = new FormData(form);
-    fetch(form.action, { method: 'POST', body: formData })
+    var btn = form.querySelector('button[type="submit"]');
+    withLoading(btn, fetch(form.action, { method: 'POST', body: formData })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success) {
                 showToast('配置已保存', 'success');
+                if (portChanged) {
+                    setTimeout(function() {
+                        confirmAction('端口已修改，是否立即重启服务？', function() {
+                            fetch('/admin/api/restart', { method: 'POST' })
+                                .then(function() { showToast('服务正在重启...', 'success'); })
+                                .catch(function() { showToast('重启失败', 'error'); });
+                        });
+                    }, 500);
+                }
             } else {
                 showToast('保存失败: ' + (data.error || '未知错误'), 'error');
             }
         })
         .catch(function() {
-            showToast('保存失败', 'error');
-        });
+            showToast('保存失败，请检查网络连接', 'error');
+        })
+    );
     return false;
 }
 </script>
