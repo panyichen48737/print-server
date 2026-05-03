@@ -16,6 +16,7 @@ class QueueManager:
         self._queue = queue.Queue()
         self._workers = []
         self._stop_evt = threading.Event()
+        self._cancelled_ids = set()
         self._word_lock = threading.Lock()
         self._excel_lock = threading.Lock()
         self._ppt_lock = threading.Lock()
@@ -193,6 +194,11 @@ class QueueManager:
         while not self._stop_evt.is_set():
             try:
                 job_id = self._queue.get(timeout=1)
+                # Skip cancelled jobs silently
+                if job_id in self._cancelled_ids:
+                    self._cancelled_ids.discard(job_id)
+                    self._queue.task_done()
+                    continue
                 self._process_job(job_id, print_engine, worker_id)
                 self._queue.task_done()
             except queue.Empty:
@@ -236,17 +242,56 @@ class QueueManager:
             if success:
                 self.update_status(job_id, 'completed')
                 logger.info(f'打印完成: {job["filename"]}')
+                # Notify DingTalk
+                if hasattr(print_engine, 'dingtalk') and print_engine.dingtalk:
+                    try:
+                        print_engine.dingtalk.notify_job_completed(
+                            job['filename'],
+                            datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        )
+                    except Exception:
+                        pass
             else:
                 self.update_status(job_id, 'failed', '打印引擎返回失败')
                 logger.error(f'打印失败: {job["filename"]}')
+                # Notify DingTalk
+                if hasattr(print_engine, 'dingtalk') and print_engine.dingtalk:
+                    try:
+                        print_engine.dingtalk.notify_job_failed(
+                            job['filename'],
+                            '打印引擎返回失败',
+                            datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        )
+                    except Exception:
+                        pass
         except FuturesTimeout:
             error_msg = f'打印超时 ({timeout}s)'
             self.update_status(job_id, 'failed', error_msg)
             logger.error(f'打印超时: {job["filename"]}')
+            # Notify DingTalk
+            if hasattr(print_engine, 'dingtalk') and print_engine.dingtalk:
+                try:
+                    print_engine.dingtalk.notify_job_failed(
+                        job['filename'],
+                        error_msg,
+                        datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    )
+                except Exception:
+                    pass
         except Exception as e:
             error_msg = str(e)
             self.update_status(job_id, 'failed', error_msg)
             logger.error(f'打印异常: {job["filename"]} - {error_msg}')
+            # Notify DingTalk
+            if hasattr(print_engine, 'dingtalk') and print_engine.dingtalk:
+                try:
+                    print_engine.dingtalk.notify_job_failed(
+                        job['filename'],
+                        error_msg,
+                        datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    )
+                except Exception:
+                    pass
         finally:
             try:
                 if os.path.exists(original_path):
@@ -268,6 +313,8 @@ class QueueManager:
         if job['status'] != 'queued':
             return False, '只能取消排队中的任务'
         self.update_status(job_id, 'failed', '用户取消')
+        # Track cancelled ID so worker skips it if still in queue
+        self._cancelled_ids.add(job_id)
         logger.info(f'任务已取消: {job_id}')
         return True, None
 
@@ -289,9 +336,11 @@ class QueueManager:
         # 清理过期历史记录
         cutoff = (now - timedelta(days=self.config.get('job_retention_days', 30))).isoformat()
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute('DELETE FROM jobs WHERE created_at < ?', (cutoff,))
+            result = conn.execute('DELETE FROM jobs WHERE created_at < ?', (cutoff,))
+            deleted = result.rowcount
             conn.commit()
-        logger.info('已清理过期任务记录')
+        if deleted > 0:
+            logger.info(f'已清理 {deleted} 条过期任务记录')
 
         # 心跳检测：找回卡在 printing 超过 5 分钟的任务，重新入队
         heartbeat = (now - timedelta(minutes=5)).isoformat()

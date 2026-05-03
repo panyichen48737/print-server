@@ -1,6 +1,7 @@
 import os
 import logging
 import io
+import threading
 
 logger = logging.getLogger('print_server')
 
@@ -176,7 +177,7 @@ class PrintEngine:
              f'--print-to-printer="{printer_name}"',
              '--no-margins', '--no-pdf-header-footer',
              os.path.abspath(filepath)],
-            capture_output=True, text=True, timeout=120
+            capture_output=True, text=True, timeout=self.config.get('job_timeout', 300)
         )
 
         if result.returncode != 0:
@@ -277,7 +278,14 @@ class PrintEngine:
 
             x = (pw - new_w) // 2
             y = (ph - new_h) // 2
-            canvas.paste(img_resized, (x, y))
+            # Handle alpha channel if present
+            if img_resized.mode == 'RGBA':
+                canvas.paste(img_resized, (x, y), img_resized)
+            elif img_resized.mode == 'P':
+                img_resized = img_resized.convert('RGBA')
+                canvas.paste(img_resized, (x, y), img_resized)
+            else:
+                canvas.paste(img_resized, (x, y))
 
             # Step 4: Print via win32print
             self._send_to_printer(canvas)
@@ -357,7 +365,8 @@ class PrintEngine:
             dm = win32print.GetPrinter(handle, 2)['pDevMode']
             dm.Orientation = 2 if need_landscape else 1
             dm.Duplex = 1  # DMDUP_SIMPLEX
-            dm.Fields = dm.Fields | 1 | 0x1000  # DM_ORIENTATION | DM_DUPLEX
+            import win32con
+            dm.Fields = dm.Fields | win32con.DM_ORIENTATION | win32con.DM_DUPLEX
             dc_handle = win32gui.CreateDC('WINSPOOL', printer_name, dm)
         finally:
             win32print.ClosePrinter(handle)

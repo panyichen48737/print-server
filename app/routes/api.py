@@ -37,8 +37,11 @@ def print_file():
 
     # Check extension
     config = get_config()
-    filename = secure_filename(file.filename)
-    ext = os.path.splitext(filename)[1].lower()
+    # Preserve original filename but sanitize for filesystem safety
+    original_name = file.filename
+    safe_name = secure_filename(original_name) or f"file{os.path.splitext(original_name)[1].lower()}"
+    filename = safe_name
+    ext = os.path.splitext(original_name)[1].lower()
     if ext not in config.allowed_extensions:
         return jsonify({'error': f'File type {ext} not allowed'}), 400
 
@@ -58,7 +61,8 @@ def print_file():
 
     # Queue job
     queue_mgr = get_queue_manager()
-    new_job_id = queue_mgr.add_job(filename, save_path, file_size, ext)
+    new_job_id = queue_mgr.add_job(original_name, save_path, file_size, ext)
+    # Note: save_path still uses the sanitized filename internally
 
     return jsonify({'status': 'queued', 'job_id': new_job_id}), 200
 
