@@ -1,5 +1,7 @@
+import os
 import logging
 from flask import Blueprint, render_template, request, jsonify, current_app
+from werkzeug.utils import secure_filename
 
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger('print_server')
@@ -108,6 +110,82 @@ def printers():
     queue_mgr = get_queue_manager()
     printer_list = queue_mgr.get_printers()
     return render_template('admin/printers.html', config=config, printers=printer_list)
+
+
+@admin_bp.route('/upload')
+def upload_page():
+    config = get_config()
+    queue_mgr = get_queue_manager()
+    printers = queue_mgr.get_printers()
+    return render_template('admin/upload.html',
+        config=config,
+        printers=printers,
+        max_size_mb=config.max_file_size_mb,
+        allowed_extensions=config.allowed_extensions
+    )
+
+
+@admin_bp.route('/api/upload', methods=['POST'])
+def upload_file():
+    """Web 上传打印（内网无鉴权）"""
+    if 'file' not in request.files:
+        return jsonify({'error': '未选择文件'}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': '文件名为空'}), 400
+
+    config = get_config()
+    original_name = file.filename
+    ext = os.path.splitext(original_name)[1].lower()
+
+    # 校验扩展名
+    if ext not in config.allowed_extensions:
+        return jsonify({'error': f'文件类型 {ext} 不允许'}), 400
+
+    # 保存文件
+    import uuid
+    from app._paths import app_root, ensure_dir
+    jobs_dir = ensure_dir(app_root(), 'jobs')
+    safe_name = f"{uuid.uuid4()}_{secure_filename(original_name) or f'file{ext}'}"
+    save_path = os.path.join(jobs_dir, safe_name)
+    file.save(save_path)
+    file_size = os.path.getsize(save_path)
+
+    # 校验大小
+    max_size = config.max_file_size_mb * 1024 * 1024
+    if file_size > max_size:
+        os.remove(save_path)
+        return jsonify({'error': f'文件过大，最大 {config.max_file_size_mb}MB'}), 400
+
+    # 获取打印参数
+    printer = request.form.get('printer') or None
+    copies_s = request.form.get('copies')
+    copies = int(copies_s) if copies_s and copies_s.isdigit() else None
+    duplex_s = request.form.get('duplex')
+    duplex = int(duplex_s) if duplex_s in ('0', '1') else None
+    color_s = request.form.get('color')
+    color = int(color_s) if color_s in ('0', '1') else None
+    paper_size = request.form.get('paper_size') or None
+
+    if copies is not None and (copies < 1 or copies > 99):
+        return jsonify({'error': '份数必须在 1-99 之间'}), 400
+
+    queue_mgr = get_queue_manager()
+    job_id = queue_mgr.add_job(
+        original_name, save_path, file_size, ext,
+        duplex=duplex, color=color, copies=copies,
+        paper_size=paper_size, printer_name=printer
+    )
+
+    logger.info(f'Web 上传成功: {original_name} -> job_id={job_id}')
+    return jsonify({
+        'success': True,
+        'job_id': job_id,
+        'filename': original_name,
+        'file_size': file_size,
+        'file_type': ext
+    })
 
 
 @admin_bp.route('/api/set_default_printer', methods=['POST'])
