@@ -6,7 +6,7 @@
 <div class="card">
     <div class="card-header">
         <span>可用打印机</span>
-        <span style="font-size: 13px; color: var(--text-muted);">{{ printers|length }} 台</span>
+        <span class="status-indicator" style="font-size: 11px; color: var(--text-muted);">{{ printers|length }} 台</span>
     </div>
     <div class="card-body">
         {% if printers %}
@@ -18,14 +18,14 @@
                     <div class="printer-name">{{ printer }}</div>
                     <div class="printer-status">
                         {% if config.default_printer == printer %}
-                        <span style="color: var(--accent-green);">● 默认打印机</span>
+                        <span class="status-indicator"><span class="dot ready"></span>默认打印机</span>
                         {% else %}
-                        <span>可用</span>
+                        <span class="status-indicator"><span class="dot ready"></span>可用</span>
                         {% endif %}
                     </div>
                 </div>
                 {% if config.default_printer != printer %}
-                <button class="btn btn-outline btn-sm" onclick="setDefault('{{ printer }}')">设为默认</button>
+                <button class="btn btn-ghost btn-sm" onclick="setDefault('{{ printer }}')">设为默认</button>
                 {% else %}
                 <span class="printer-badge">默认</span>
                 {% endif %}
@@ -41,12 +41,12 @@
     </div>
 </div>
 
-<!-- System Printers Note -->
 <div class="card mt-3">
     <div class="card-header">说明</div>
-    <div class="card-body" style="font-size: 13px; color: var(--text-secondary);">
-        <p style="margin: 0 0 8px;">此列表显示 Windows 系统中已安装的所有打印机。包含物理打印机、Microsoft Print to PDF、Fax 等虚拟打印机。</p>
-        <p style="margin: 0;">选择默认打印机后，iOS 端提交的打印任务将默认发送到此打印机。可在发送时通过 API 指定其他打印机。</p>
+    <div class="card-body" style="font-size: 12px; color: var(--text-secondary); font-family: var(--font-mono);">
+        <p style="margin: 0 0 6px;">此列表显示 Windows 系统中已安装的所有打印机。</p>
+        <p style="margin: 0;">包含物理打印机、Microsoft Print to PDF、Fax 等虚拟打印机。</p>
+        <p style="margin: 6px 0 0;">选择默认打印机后，iOS 端提交的打印任务将默认发送到此打印机。</p>
     </div>
 </div>
 {% endblock %}
@@ -54,7 +54,7 @@
 {% block scripts %}
 <script>
 function setDefault(printerName) {
-    confirmAction('将「' + printerName + '」设为默认打印机？', function() {
+    confirmAction('将 [' + printerName + '] 设为默认打印机？', function() {
         fetch('/admin/api/set_default_printer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

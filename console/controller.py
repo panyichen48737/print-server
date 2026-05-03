@@ -3,7 +3,6 @@ import logging
 import subprocess
 import os
 import sys
-from datetime import datetime
 
 logger = logging.getLogger('print_server')
 

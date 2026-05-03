@@ -1,7 +1,6 @@
 import threading
 import msvcrt
 import sys
-from datetime import datetime
 
 from rich.console import Console
 from rich.layout import Layout
@@ -91,8 +90,6 @@ class TUI:
         return Panel(t, title="运行统计", border_style="green")
 
     def _render_printer_status(self):
-        from rich.table import Table
-        from rich.panel import Panel
         if not self.ctrl.printer_monitor:
             return Panel("", title="打印机状态")
         statuses = self.ctrl.printer_monitor.get_all_statuses()

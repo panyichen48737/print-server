@@ -14,7 +14,7 @@
                 </label>
                 <span>自动滚动</span>
             </div>
-            <button class="btn btn-outline btn-sm" onclick="clearLogs()">清除</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearLogs()">清除</button>
         </div>
     </div>
     <div class="card-body" style="padding: 0;">
@@ -68,14 +68,14 @@
                 lastLogLength = data.lines.length;
 
                 var html = '';
-                data.lines.forEach(function(line) {
+                data.lines.forEach(function(line, idx) {
                     var levelClass = 'INFO';
                     var displayLevel = 'INFO';
                     if (line.indexOf('ERROR') > -1) { levelClass = 'ERROR'; displayLevel = 'ERROR'; }
                     else if (line.indexOf('WARNING') > -1 || line.indexOf('WARN') > -1) { levelClass = 'WARNING'; displayLevel = 'WARN'; }
                     else if (line.indexOf('DEBUG') > -1) { levelClass = 'DEBUG'; displayLevel = 'DEBUG'; }
 
-                    html += '<div class="log-entry">';
+                    html += '<div class="log-entry" data-line="' + (idx + 1) + '">';
                     html += '<span class="log-level ' + levelClass + '">' + displayLevel + '</span>';
                     html += escapeHtml(line);
                     html += '</div>';

@@ -34,7 +34,6 @@ a = Analysis(
         'msvcrt',
         'ctypes',
         'win32api',
-        'win32print',
         'app.config', 'app.routes.api', 'app.routes.admin',
         'app.services.queue_manager', 'app.services.print_engine',
         'app.services.dingtalk',

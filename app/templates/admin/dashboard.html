@@ -3,26 +3,26 @@
 {% block page_title %}仪表盘{% endblock %}
 
 {% block content %}
-<div class="row g-3 mb-4" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
-    <div class="stat-card">
+<div class="stats-grid">
+    <div class="stat-card cyan">
         <div class="d-flex justify-content-between align-items-start">
             <div>
                 <div class="stat-label">排队中</div>
                 <div class="stat-value">{{ stats.queued }}</div>
             </div>
-            <div class="stat-icon amber">◷</div>
+            <div class="stat-icon cyan">◷</div>
         </div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card amber">
         <div class="d-flex justify-content-between align-items-start">
             <div>
                 <div class="stat-label">打印中</div>
                 <div class="stat-value">{{ stats.printing }}</div>
             </div>
-            <div class="stat-icon blue">◉</div>
+            <div class="stat-icon amber">◉</div>
         </div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card green">
         <div class="d-flex justify-content-between align-items-start">
             <div>
                 <div class="stat-label">今日完成</div>
@@ -31,19 +31,16 @@
             <div class="stat-icon green">✓</div>
         </div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card red">
         <div class="d-flex justify-content-between align-items-start">
             <div>
                 <div class="stat-label">今日失败</div>
-                <div class="stat-value" style="color: var(--accent-red);">{{ stats.today_failed }}</div>
+                <div class="stat-value">{{ stats.today_failed }}</div>
             </div>
             <div class="stat-icon red">✕</div>
         </div>
     </div>
-</div>
-
-<div class="row g-3 mb-4" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
-    <div class="stat-card">
+    <div class="stat-card green">
         <div class="d-flex justify-content-between align-items-start">
             <div>
                 <div class="stat-label">成功率</div>
@@ -52,7 +49,7 @@
             <div class="stat-icon green">↗</div>
         </div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card blue">
         <div class="d-flex justify-content-between align-items-start">
             <div>
                 <div class="stat-label">总计任务</div>
@@ -187,12 +184,13 @@
     function createPrinterCard(p) {
         var card = document.createElement('div');
         card.className = 'printer-card';
-        card.setAttribute('data-printer', p.name ? p.name.replace(/["\\]/g, '') : 'unknown');
-        card.innerHTML = '<div class="printer-icon"></div>' +
+        var safeName = p.name ? p.name.replace(/["\\]/g, '') : 'unknown';
+        card.setAttribute('data-printer', safeName);
+        card.innerHTML = '<div class="printer-icon">⎙</div>' +
             '<div class="printer-info">' +
             '<div class="printer-name"></div>' +
             '<div class="printer-status"><span class="printer-status-text"></span></div>' +
-            '<div class="printer-details" style="font-size:11px;color:var(--text-muted);margin-top:4px;"></div>' +
+            '<div class="printer-details"></div>' +
             '</div>';
         return card;
     }
@@ -205,18 +203,20 @@
         var statusEl = card.querySelector('.printer-status-text');
         var detailEl = card.querySelector('.printer-details');
 
+        // Update status class on card
+        card.className = 'printer-card status-' + overall;
+
         if (iconEl) {
-            if (overall === 'ready') iconEl.textContent = '🟢';
-            else if (overall === 'error') iconEl.textContent = '🔴';
-            else if (overall === 'removed') iconEl.textContent = '⚪';
-            else iconEl.textContent = '🟡';
+            iconEl.textContent = '⎙';
         }
         if (nameEl) nameEl.textContent = p.name || '';
         if (statusEl) {
             statusEl.textContent = statusTextMap[overall] || overall;
             if (overall === 'ready') statusEl.style.color = 'var(--accent-green)';
             else if (overall === 'error') statusEl.style.color = 'var(--accent-red)';
-            else statusEl.style.color = 'var(--accent-amber)';
+            else if (overall === 'warning') statusEl.style.color = 'var(--accent-amber)';
+            else if (overall === 'busy') statusEl.style.color = 'var(--accent-cyan)';
+            else statusEl.style.color = 'var(--text-dim)';
         }
         if (detailEl) {
             var labels = (p.statuses || []).map(function(s) { return s.label; });

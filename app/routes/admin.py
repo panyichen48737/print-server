@@ -1,7 +1,5 @@
-import os
 import logging
 from flask import Blueprint, render_template, request, jsonify, current_app
-from datetime import datetime
 
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger('print_server')

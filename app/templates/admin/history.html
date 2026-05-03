@@ -19,8 +19,8 @@
                 <option value="failed" {% if status_filter == 'failed' %}selected{% endif %}>失败</option>
             </select>
             <input type="text" class="form-input" id="searchInput" placeholder="搜索文件名..." value="{{ search }}" onkeyup="if(event.key==='Enter')filterJobs()">
-            <button class="btn btn-amber btn-sm" onclick="filterJobs()">搜索</button>
-            <button class="btn btn-outline btn-sm" onclick="resetFilter()">重置</button>
+            <button class="btn btn-primary btn-sm" onclick="filterJobs()">搜索</button>
+            <button class="btn btn-ghost btn-sm" onclick="resetFilter()">重置</button>
         </div>
 
         {% if jobs %}
@@ -70,9 +70,9 @@
                         <td style="color: var(--text-muted); font-size: 13px;">{{ job.completed_at or '-' }}</td>
                         <td>
                             {% if job.status == 'failed' %}
-                            <button class="btn btn-amber btn-sm" onclick="retryJob('{{ job.id }}')">↻ 重试</button>
+                            <button class="btn btn-primary btn-sm" onclick="retryJob('{{ job.id }}')">↻ 重试</button>
                             {% elif job.status == 'queued' %}
-                            <button class="btn-danger-sm" onclick="cancelJob('{{ job.id }}')">✕ 取消</button>
+                            <button class="btn-danger btn-sm" onclick="cancelJob('{{ job.id }}')">✕ 取消</button>
                             {% endif %}
                         </td>
                     </tr>
