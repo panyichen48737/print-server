@@ -19,6 +19,7 @@ sys.path.insert(0, app_root())
 from app.config import Config, setup_logging
 from .log_handler import LOG_BUFFER, TUILogHandler
 from .daemon_manager import start_daemon, stop_daemon, read_daemon_status, is_daemon_alive, restart_daemon
+from .autostart import install_autostart, uninstall_autostart, is_autostart_installed
 from .tui import TUI
 
 
@@ -28,6 +29,8 @@ def main():
     parser.add_argument('--stop', action='store_true', help='停止后台服务')
     parser.add_argument('--restart', action='store_true', help='重启后台服务')
     parser.add_argument('--status', action='store_true', help='查看后台服务状态')
+    parser.add_argument('--autostart-install', action='store_true', help='注册开机自启')
+    parser.add_argument('--autostart-uninstall', action='store_true', help='卸载开机自启')
     args = parser.parse_args()
 
     if args.start:
@@ -53,7 +56,18 @@ def main():
         print(f'状态: {"● 运行中" if alive else "○ 已停止"}')
         print(f'PID: {status.get("pid", "-")}')
         print(f'端口: {status.get("port", "-")}')
+        print(f'自启: {"已注册" if is_autostart_installed() else "未注册"}')
         return 0
+
+    if args.autostart_install:
+        ok, msg = install_autostart()
+        print(msg)
+        return 0 if ok else 1
+
+    if args.autostart_uninstall:
+        ok, msg = uninstall_autostart()
+        print(msg)
+        return 0 if ok else 1
 
     # 默认：启动控制台 TUI
     config = Config()
@@ -68,6 +82,11 @@ def main():
     # 自动启动后台守护进程
     ok, msg = start_daemon()
     logger.info(msg)
+
+    # 首次启动自动注册开机自启
+    if not is_autostart_installed():
+        ok2, msg2 = install_autostart()
+        logger.info(msg2)
 
     try:
         TUI().run()

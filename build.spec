@@ -39,7 +39,7 @@ a = Analysis(
         'app.services.queue_manager', 'app.services.print_engine',
         'app.services.dingtalk',
         'app._paths',
-        'console.conflicts', 'console.daemon_manager', 'console.log_handler', 'console.tui',
+        'console.conflicts', 'console.daemon_manager', 'console.autostart', 'console.log_handler', 'console.tui',
         'logging.handlers',
         'http.client',
         'email.mime.multipart', 'email.mime.text',

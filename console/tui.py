@@ -12,6 +12,7 @@ from rich.text import Text
 from .conflicts import get_local_ips
 from .log_handler import LOG_BUFFER
 from .daemon_manager import start_daemon, stop_daemon, restart_daemon, read_daemon_status, is_daemon_alive
+from .autostart import install_autostart, uninstall_autostart, is_autostart_installed
 
 
 class TUI:
@@ -93,10 +94,13 @@ class TUI:
 
     def _render_footer(self):
         alive = is_daemon_alive()
+        autostart = is_autostart_installed()
+        u_label = "卸载自启" if autostart else "注册自启"
         return Panel(
             f"  [bold cyan]S[/bold cyan] 启动    "
             f"[bold cyan]T[/bold cyan] 停止    "
             f"[bold cyan]R[/bold cyan] 重启    "
+            f"[bold cyan]U[/bold cyan] {u_label}    "
             f"[bold cyan]Q[/bold cyan] 退出（后台服务继续运行）",
             title="操作", border_style="yellow",
         )
@@ -125,6 +129,12 @@ class TUI:
                         LOG_BUFFER.append(msg)
                     elif key == b'r':
                         ok, msg = restart_daemon()
+                        LOG_BUFFER.append(msg)
+                    elif key == b'u':
+                        if is_autostart_installed():
+                            ok, msg = uninstall_autostart()
+                        else:
+                            ok, msg = install_autostart()
                         LOG_BUFFER.append(msg)
 
                 threading.Event().wait(0.5)
