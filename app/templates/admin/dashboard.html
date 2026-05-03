@@ -63,6 +63,19 @@
     </div>
 </div>
 
+<!-- Printer Status Section -->
+<div class="card mb-4">
+    <div class="card-header">
+        <span>打印机状态</span>
+        <span id="printerCount" style="font-size: 13px; color: var(--text-muted);"></span>
+    </div>
+    <div class="card-body" id="printerStatusContainer">
+        <div class="printer-grid" id="printerGrid">
+            <!-- JS 动态渲染 -->
+        </div>
+    </div>
+</div>
+
 <!-- Recent tasks -->
 <div class="card">
     <div class="card-header">
@@ -125,4 +138,91 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 打印机状态实时更新
+(function() {
+    var statusTextMap = {
+        'ready': '就绪', 'offline': '离线', 'error': '错误',
+        'paper_jam': '卡纸', 'paper_out': '缺纸',
+        'no_toner': '缺墨', 'door_open': '盖板打开',
+        'toner_low': '墨量低', 'busy': '忙碌',
+        'printing': '打印中', 'paused': '已暂停',
+        'power_save': '节能', 'warning': '警告', 'removed': '已移除'
+    };
+
+    // 初始加载
+    fetch('/api/printers/status').then(function(r) { return r.json(); }).then(function(data) {
+        updatePrinterCards(data.printers || {});
+    }).catch(function() {});
+
+    // WebSocket 实时更新
+    onWSMessage('printer_status', function(data) {
+        updatePrinterCards([data]);
+    });
+
+    function updatePrinterCards(printers) {
+        var grid = document.getElementById('printerGrid');
+        var countEl = document.getElementById('printerCount');
+        if (!grid) return;
+
+        var items = Array.isArray(printers) ? printers : Object.values(printers);
+        if (items.length === 0) return;
+
+        // Merge update
+        items.forEach(function(p) {
+            var safeName = p.name ? p.name.replace(/["\\]/g, '') : 'unknown';
+            var card = grid.querySelector('[data-printer="' + safeName + '"]');
+            if (!card) {
+                card = createPrinterCard(p);
+                grid.appendChild(card);
+            }
+            updatePrinterCard(card, p);
+        });
+        if (countEl) countEl.textContent = items.length + ' 台';
+    }
+
+    function createPrinterCard(p) {
+        var card = document.createElement('div');
+        card.className = 'printer-card';
+        card.setAttribute('data-printer', p.name ? p.name.replace(/["\\]/g, '') : 'unknown');
+        card.innerHTML = '<div class="printer-icon"></div>' +
+            '<div class="printer-info">' +
+            '<div class="printer-name"></div>' +
+            '<div class="printer-status"><span class="printer-status-text"></span></div>' +
+            '<div class="printer-details" style="font-size:11px;color:var(--text-muted);margin-top:4px;"></div>' +
+            '</div>';
+        return card;
+    }
+
+    function updatePrinterCard(card, p) {
+        if (!card) return;
+        var overall = p.overall || 'unknown';
+        var iconEl = card.querySelector('.printer-icon');
+        var nameEl = card.querySelector('.printer-name');
+        var statusEl = card.querySelector('.printer-status-text');
+        var detailEl = card.querySelector('.printer-details');
+
+        if (iconEl) {
+            if (overall === 'ready') iconEl.textContent = '🟢';
+            else if (overall === 'error') iconEl.textContent = '🔴';
+            else if (overall === 'removed') iconEl.textContent = '⚪';
+            else iconEl.textContent = '🟡';
+        }
+        if (nameEl) nameEl.textContent = p.name || '';
+        if (statusEl) {
+            statusEl.textContent = statusTextMap[overall] || overall;
+            if (overall === 'ready') statusEl.style.color = 'var(--accent-green)';
+            else if (overall === 'error') statusEl.style.color = 'var(--accent-red)';
+            else statusEl.style.color = 'var(--accent-amber)';
+        }
+        if (detailEl) {
+            var labels = (p.statuses || []).map(function(s) { return s.label; });
+            detailEl.textContent = labels.join(' / ') || '';
+        }
+    }
+})();
+</script>
 {% endblock %}

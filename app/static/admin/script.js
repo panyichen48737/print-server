@@ -71,3 +71,40 @@ function showToast(message, type) {
         setTimeout(function() { toast.remove(); }, 300);
     }, 4000);
 }
+
+// Socket.IO 实时推送连接
+var socket = io({
+    transports: ['websocket', 'polling'],
+    reconnectionDelay: 5000,
+    reconnectionAttempts: Infinity
+});
+
+var wsHandlers = {};
+
+socket.on('connect', function() {
+    console.log('WebSocket 已连接');
+});
+
+socket.on('printer_status', function(data) {
+    dispatchWS('printer_status', data);
+});
+
+socket.on('job_status', function(data) {
+    dispatchWS('job_status', data);
+});
+
+function onWSMessage(eventType, callback) {
+    if (!wsHandlers[eventType]) wsHandlers[eventType] = [];
+    wsHandlers[eventType].push(callback);
+}
+
+function dispatchWS(eventType, data) {
+    var handlers = wsHandlers[eventType] || [];
+    for (var i = 0; i < handlers.length; i++) {
+        handlers[i](data);
+    }
+    var allHandlers = wsHandlers['*'] || [];
+    for (var i = 0; i < allHandlers.length; i++) {
+        allHandlers[i](eventType, data);
+    }
+}

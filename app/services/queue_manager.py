@@ -10,8 +10,9 @@ logger = logging.getLogger('print_server')
 
 
 class QueueManager:
-    def __init__(self, config, db_path=None):
+    def __init__(self, config, socketio=None, db_path=None):
         self.config = config
+        self._socketio = socketio
         self._lock = threading.Lock()
         self._queue = queue.Queue()
         self._workers = []
@@ -242,6 +243,13 @@ class QueueManager:
             if success:
                 self.update_status(job_id, 'completed')
                 logger.info(f'打印完成: {job["filename"]}')
+                if self._socketio:
+                    self._socketio.emit('job_status', {
+                        'job_id': job_id,
+                        'filename': job['filename'],
+                        'status': 'completed',
+                        'ts': datetime.now().isoformat()
+                    }, namespace='/')
                 # Notify DingTalk
                 if hasattr(print_engine, 'dingtalk') and print_engine.dingtalk:
                     try:
@@ -254,6 +262,14 @@ class QueueManager:
             else:
                 self.update_status(job_id, 'failed', '打印引擎返回失败')
                 logger.error(f'打印失败: {job["filename"]}')
+                if self._socketio:
+                    self._socketio.emit('job_status', {
+                        'job_id': job_id,
+                        'filename': job['filename'],
+                        'status': 'failed',
+                        'error': '打印引擎返回失败',
+                        'ts': datetime.now().isoformat()
+                    }, namespace='/')
                 # Notify DingTalk
                 if hasattr(print_engine, 'dingtalk') and print_engine.dingtalk:
                     try:
@@ -268,6 +284,14 @@ class QueueManager:
             error_msg = f'打印超时 ({timeout}s)'
             self.update_status(job_id, 'failed', error_msg)
             logger.error(f'打印超时: {job["filename"]}')
+            if self._socketio:
+                self._socketio.emit('job_status', {
+                    'job_id': job_id,
+                    'filename': job['filename'],
+                    'status': 'failed',
+                    'error': error_msg,
+                    'ts': datetime.now().isoformat()
+                }, namespace='/')
             # Notify DingTalk
             if hasattr(print_engine, 'dingtalk') and print_engine.dingtalk:
                 try:
@@ -282,6 +306,14 @@ class QueueManager:
             error_msg = str(e)
             self.update_status(job_id, 'failed', error_msg)
             logger.error(f'打印异常: {job["filename"]} - {error_msg}')
+            if self._socketio:
+                self._socketio.emit('job_status', {
+                    'job_id': job_id,
+                    'filename': job['filename'],
+                    'status': 'failed',
+                    'error': error_msg,
+                    'ts': datetime.now().isoformat()
+                }, namespace='/')
             # Notify DingTalk
             if hasattr(print_engine, 'dingtalk') and print_engine.dingtalk:
                 try:

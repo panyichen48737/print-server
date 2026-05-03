@@ -46,7 +46,7 @@ def main():
     logging.getLogger('print_server').addHandler(tui_handler)
 
     # 初始化服务组件
-    app, queue_mgr, print_engine = bootstrap(config)
+    app, queue_mgr, print_engine, printer_monitor, socketio = bootstrap(config)
 
     # 冲突检测
     if not check_conflicts(config, logger):
@@ -66,7 +66,9 @@ def main():
 
     # 控制器
     global _global_ctrl
-    ctrl = ServerController(config, app, queue_mgr, print_engine)
+    ctrl = ServerController(config, app, queue_mgr, print_engine,
+                            printer_monitor=printer_monitor,
+                            socketio=None)  # 控制台模式不使用 SocketIO
     _global_ctrl = ctrl
     try:
         import win32api

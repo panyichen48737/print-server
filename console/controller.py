@@ -65,11 +65,13 @@ def uninstall_autostart():
 class ServerController:
     """控制 workers + HTTP 的统一生命周期"""
 
-    def __init__(self, config, app, queue_mgr, print_engine):
+    def __init__(self, config, app, queue_mgr, print_engine, printer_monitor=None, socketio=None):
         self.config = config
         self.app = app
         self.queue_mgr = queue_mgr
         self.print_engine = print_engine
+        self.printer_monitor = printer_monitor
+        self._socketio = socketio
         self._state = ServerState.STOPPED
         self.httpd = None
         self._port = config.get('port', 5000)
@@ -93,6 +95,9 @@ class ServerController:
         try:
             self.queue_mgr.start_workers(self.print_engine)
 
+            if self.printer_monitor:
+                self.printer_monitor.start()
+
             from waitress import create_server
             self.httpd = create_server(
                 self.app, host='0.0.0.0', port=self._port,
@@ -110,6 +115,9 @@ class ServerController:
         if self._state != ServerState.RUNNING or not self.httpd:
             return
         try:
+            if self.printer_monitor:
+                self.printer_monitor.stop()
+
             self.httpd.close()
             self.httpd = None
             self.queue_mgr.stop_workers()

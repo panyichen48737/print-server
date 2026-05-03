@@ -31,8 +31,12 @@ class TUI:
             Layout(name="footer", size=3),
         )
         layout["body"].split_row(
-            Layout(name="stats", size=48),
+            Layout(name="left", ratio=1),
             Layout(name="log", ratio=1),
+        )
+        layout["left"].split_column(
+            Layout(name="stats", size=10),
+            Layout(name="printer", ratio=1),
         )
         return layout
 
@@ -57,12 +61,18 @@ class TUI:
             status_text = "● 已停止"
             extra = f" 端口: {port}"
 
+        printer_count = 0
+        if self.ctrl.printer_monitor:
+            printer_count = len(self.ctrl.printer_monitor.get_all_statuses() or {})
+
         return Panel(
             Text.assemble(
                 ("iOS 云打印服务器", "bold white"), "\n",
                 ("状态: ", "cyan"), (status_text, status_style),
                 ("  |  ", "dim"), extra,
                 ("  |  ", "dim"), (f"自启: {autostart_str}", autostart_style),
+                ("  |  ", "dim"),
+                (f"打印机: {printer_count} 台", "cyan"),
             ),
             title="控制台",
             border_style="bright_blue",
@@ -80,6 +90,48 @@ class TUI:
         t.add_row("成功率", f"{stats.get('success_rate', 100):.0f}%")
         return Panel(t, title="运行统计", border_style="green")
 
+    def _render_printer_status(self):
+        from rich.table import Table
+        from rich.panel import Panel
+        if not self.ctrl.printer_monitor:
+            return Panel("", title="打印机状态")
+        statuses = self.ctrl.printer_monitor.get_all_statuses()
+        if not statuses:
+            return Panel("无打印机", title="打印机状态")
+
+        t = Table(show_header=False, box=None, padding=(0, 1))
+        t.add_column("打印机", style="cyan")
+        t.add_column("状态", style="white")
+        t.add_column("详细信息", style="dim")
+
+        for name, info in statuses.items():
+            overall = info['overall']
+            if overall == 'ready':
+                icon = "🟢"
+                status_text = "就绪"
+                status_style = "green"
+            elif overall == 'error':
+                icon = "🔴"
+                status_text = "错误"
+                status_style = "red"
+            elif overall == 'warning':
+                icon = "🟡"
+                status_text = "警告"
+                status_style = "yellow"
+            elif overall == 'busy':
+                icon = "🔄"
+                status_text = "忙"
+                status_style = "blue"
+            else:
+                icon = "⚪"
+                status_text = overall
+                status_style = "dim"
+
+            detail = ", ".join(s['label'] for s in info.get('statuses', [])) if info.get('statuses') else ""
+            t.add_row(f"{icon} {name}", f"[{status_style}]{status_text}[/]", detail)
+
+        return Panel(t, title="打印机状态")
+
     def _render_log(self):
         lines = LOG_BUFFER[-50:] if LOG_BUFFER else ["等待日志..."]
         return Panel("\n".join(lines), title="日志", border_style="dim")
@@ -96,6 +148,7 @@ class TUI:
     def _update(self):
         self.layout["header"].update(self._render_header())
         self.layout["stats"].update(self._render_stats())
+        self.layout["printer"].update(self._render_printer_status())
         self.layout["log"].update(self._render_log())
         self.layout["footer"].update(self._render_footer())
 

@@ -91,3 +91,13 @@ def list_printers():
     queue_mgr = get_queue_manager()
     printers = queue_mgr.get_printers()
     return jsonify({'printers': printers}), 200
+
+
+@api_bp.route('/printers/status', methods=['GET'])
+def printer_status():
+    """获取全部打印机实时状态"""
+    from flask import current_app
+    pm = current_app.config.get('printer_monitor')
+    if not pm:
+        return jsonify({'printers': {}})
+    return jsonify({'printers': pm.get_all_statuses()})

@@ -38,8 +38,18 @@ async function main() {
   const jobId = await uploadFile(file);
   if (!jobId) return;
 
-  // Poll status
-  await pollStatus(jobId);
+  // Try WebSocket first, fall back to polling
+  try {
+    await waitForCompletion(jobId);
+    const notification = new Notification();
+    notification.title = "🖨 打印任务已完成！";
+    notification.body = "文件已成功发送到打印机";
+    notification.sound = "default";
+    await notification.schedule();
+  } catch (wsError) {
+    console.log(`WebSocket 失败 (${wsError.message}), 回退到轮询...`);
+    await pollStatus(jobId);
+  }
 }
 
 function getFile() {
@@ -56,6 +66,62 @@ function getFile() {
 function getExtension(filename) {
   const idx = filename.lastIndexOf(".");
   return idx >= 0 ? filename.substring(idx).toLowerCase() : "";
+}
+
+async function waitForCompletion(jobId) {
+    return new Promise((resolve, reject) => {
+        const wsUrl = SERVER_URL.replace(/^http/, 'ws') + '/socket.io/?transport=websocket&EIO=4';
+        const ws = new WebSocket(wsUrl);
+        const maxWait = POLL_MAX_RETRIES * (POLL_INTERVAL * 1000);
+        const timeout = setTimeout(() => {
+            try { ws.close(); } catch(e) {}
+            reject(new Error('等待超时'));
+        }, maxWait);
+
+        ws.onopen = function() {
+            // Socket.IO v4 connect packet
+            ws.send('40');
+        };
+
+        ws.onmessage = function(evt) {
+            const msg = evt.data;
+            // Socket.IO connected response
+            if (msg === '40' || msg === '40/') {
+                return;
+            }
+            // Socket.IO v4 message format: 42["event",{...}]
+            if (typeof msg === 'string' && msg.startsWith('42')) {
+                try {
+                    const payload = JSON.parse(msg.slice(2));
+                    const eventType = payload[0];
+                    const data = payload[1];
+                    if (eventType === 'job_status' && data && data.job_id === jobId) {
+                        if (data.status === 'completed') {
+                            clearTimeout(timeout);
+                            try { ws.close(); } catch(e) {}
+                            resolve('completed');
+                        } else if (data.status === 'failed') {
+                            clearTimeout(timeout);
+                            try { ws.close(); } catch(e) {}
+                            reject(new Error(data.error || '打印失败'));
+                        }
+                    }
+                } catch(e) {
+                    // ignore parse errors
+                }
+            }
+        };
+
+        ws.onerror = function() {
+            clearTimeout(timeout);
+            reject(new Error('WebSocket 连接失败'));
+        };
+
+        ws.onclose = function() {
+            clearTimeout(timeout);
+            reject(new Error('WebSocket 连接关闭'));
+        };
+    });
 }
 
 async function uploadFile(file) {
