@@ -167,6 +167,10 @@ class Config:
     def worker_count(self):
         return self.get('worker_count', 2)
 
+    @property
+    def auto_rotate(self):
+        return self.get('auto_rotate', True)
+
 
 def setup_logging(log_dir=None, level='INFO'):
     import logging

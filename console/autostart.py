@@ -55,9 +55,10 @@ def _get_python_cmd():
 
 def is_autostart_installed():
     """检查是否已注册自启（nssm 服务优先）"""
-    if _nssm_available():
+    nssm = _nssm_path()
+    if nssm:
         try:
-            r = subprocess.run(['nssm', 'status', SERVICE_NAME],
+            r = subprocess.run([nssm, 'status', SERVICE_NAME],
                                capture_output=True, timeout=5)
             if 'SERVICE_RUNNING' in r.stdout.decode('utf-8', errors='ignore') or \
                'SERVICE_STOPPED' in r.stdout.decode('utf-8', errors='ignore') or \
@@ -116,7 +117,8 @@ def _install_nssm():
                        capture_output=True, timeout=5)
         subprocess.run([nssm, 'set', SERVICE_NAME, 'AppExit', 'Default', 'Exit'],
                        capture_output=True, timeout=5)
-        for code in ('0', '1', '2'):
+        # 0 = normal exit, don't restart. Only restart on crash (exit code 1, 2)
+        for code in ('1', '2'):
             subprocess.run([nssm, 'set', SERVICE_NAME, 'AppExit', code, 'Restart'],
                            capture_output=True, timeout=5)
 

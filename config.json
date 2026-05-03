@@ -9,7 +9,6 @@
     "paper_size": "A4",
     "quark_api_key_id": "BACK_EN1BB1TMUNYLDWGJ1NMR",
     "quark_api_key": "iur4ihM8M457c9hwCWX1O5j3jZfoog7mmnukap78",
-    "dingtalk_enabled": false,
     "dingtalk_webhook": "",
     "dingtalk_level": "error",
     "port": 5000,

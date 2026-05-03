@@ -21,6 +21,8 @@ class QueueManager:
         self._workers = []
         self._stop_evt = threading.Event()
         self._cancelled_ids = set()
+        self._cancelled_lock = threading.Lock()
+        self._cancel_evt = threading.Event()
         self._word_lock = threading.Lock()
         self._excel_lock = threading.Lock()
         self._ppt_lock = threading.Lock()
@@ -32,6 +34,18 @@ class QueueManager:
         self.db_path = db_path
 
         self._init_db()
+
+    def _is_cancelled(self, job_id):
+        with self._cancelled_lock:
+            return job_id in self._cancelled_ids
+
+    def _mark_cancelled(self, job_id):
+        with self._cancelled_lock:
+            self._cancelled_ids.add(job_id)
+
+    def _clear_cancelled(self, job_id):
+        with self._cancelled_lock:
+            self._cancelled_ids.discard(job_id)
 
     def _init_db(self):
         with sqlite3.connect(self.db_path) as conn:
@@ -230,8 +244,8 @@ class QueueManager:
             try:
                 job_id = self._queue.get(timeout=1)
                 # Skip cancelled jobs silently
-                if job_id in self._cancelled_ids:
-                    self._cancelled_ids.discard(job_id)
+                if self._is_cancelled(job_id):
+                    self._clear_cancelled(job_id)
                     self._queue.task_done()
                     continue
                 self._process_job(job_id, print_engine, worker_id)
@@ -247,7 +261,7 @@ class QueueManager:
         max_retries = self.config.get('auto_retry_count', 0)
         for attempt in range(max_retries + 1):
             job = self.get_job(job_id)
-            if not job or job_id in self._cancelled_ids:
+            if not job or self._is_cancelled(job_id):
                 return
             success, error_msg = self._do_print(job_id, print_engine, worker_id, attempt)
             if success:
@@ -274,8 +288,8 @@ class QueueManager:
         if not job:
             return False, '任务不存在'
 
-        if job_id in self._cancelled_ids:
-            self._cancelled_ids.discard(job_id)
+        if self._is_cancelled(job_id):
+            self._clear_cancelled(job_id)
             return True, None
 
         if attempt == 0:
@@ -295,7 +309,9 @@ class QueueManager:
                 temp_path = tmp.name
 
             timeout = self.config.get('job_timeout', 300)
-            with ThreadPoolExecutor(max_workers=1) as pool:
+            self._cancel_evt.clear()
+            pool = ThreadPoolExecutor(max_workers=1)
+            try:
                 print_params = {
                     'printer_name': job.get('printer_name') or '',
                     'copies': job.get('copies') or 1,
@@ -324,22 +340,20 @@ class QueueManager:
                             success = fut.result(timeout=1)
                             break
                         except FuturesTimeout:
-                            if job_id in self._cancelled_ids:
+                            if self._is_cancelled(job_id):
                                 logger.info(f'任务 {job_id} 已被取消，终止等待')
+                                self._cancel_evt.set()
                                 if self._print_engine:
                                     self._print_engine.cancel_active_job(job_id)
-                                if lock and lock.locked():
-                                    try:
-                                        lock.release()
-                                    except:
-                                        pass
                                 return True, None
                 else:
                     success = fut.result(timeout=timeout)
+            finally:
+                pool.shutdown(wait=False)
 
-            if job_id in self._cancelled_ids:
+            if self._is_cancelled(job_id):
                 logger.info(f'任务 {job_id} 已被外部取消，跳过后续处理')
-                self._cancelled_ids.discard(job_id)
+                self._clear_cancelled(job_id)
                 return True, None
 
             if success:
@@ -401,11 +415,14 @@ class QueueManager:
             return False, error_msg
 
         finally:
-            try:
-                if os.path.exists(original_path):
-                    os.remove(original_path)
-            except Exception as e:
-                logger.warning(f'删除上传文件失败: {original_path} - {e}')
+            # Only delete source file on success, not on failure (keep for retry)
+            job_after = self.get_job(job_id)
+            if job_after and job_after.get('status') == 'completed':
+                try:
+                    if os.path.exists(original_path):
+                        os.remove(original_path)
+                except Exception as e:
+                    logger.warning(f'删除上传文件失败: {original_path} - {e}')
             if temp_path:
                 try:
                     if os.path.exists(temp_path):
@@ -420,7 +437,8 @@ class QueueManager:
         if job['status'] not in ('queued', 'printing'):
             return False, '只能取消排队或打印中的任务'
 
-        self._cancelled_ids.add(job_id)
+        self._mark_cancelled(job_id)
+        self._cancel_evt.set()
 
         if job['status'] == 'queued':
             self.update_status(job_id, 'failed', '用户取消')
@@ -458,8 +476,9 @@ class QueueManager:
         jobs = self.get_jobs_by_status('queued')
         count = 0
         for job in jobs:
-            if job['id'] not in self._cancelled_ids:
-                self._cancelled_ids.add(job['id'])
+            if not self._is_cancelled(job['id']):
+                self._mark_cancelled(job['id'])
+                self._cancel_evt.set()
                 self.update_status(job['id'], 'failed', '用户取消')
                 if self._socketio:
                     self._socketio.emit('job_status', {
@@ -497,6 +516,7 @@ class QueueManager:
 
     def _notify_all(self, event_type, filename, source='api', **kwargs):
         if source == 'ios':
+            logger.debug(f'iOS 来源任务不发送通知: {filename}')
             return
         time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         channel = self.config.get('notify_channel', 'disabled')

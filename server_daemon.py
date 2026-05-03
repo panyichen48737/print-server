@@ -3,11 +3,15 @@ import os
 import sys
 import json
 import atexit
+import argparse
 from pathlib import Path
 
 # 确保在项目根目录
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+if not getattr(sys, 'frozen', False):
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+else:
+    os.chdir(os.path.dirname(os.path.abspath(sys.executable)))
 
 from app.config import Config, setup_logging
 from app import bootstrap, socketio
@@ -25,6 +29,11 @@ def write_status(status, **extra):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--server-daemon', action='store_true',
+                        help='以守护进程模式运行（冻结 EXE 入口）')
+    parser.parse_known_args()
+
     config = Config()
     logger = setup_logging(level=config.log_level)
 

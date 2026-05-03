@@ -69,9 +69,16 @@ def start_daemon():
 
     try:
         CREATE_NO_WINDOW = 0x08000000
+        # 冻结 EXE 模式下没有 .py 入口，直接用 --server-daemon 调自己
+        if getattr(sys, 'frozen', False):
+            cmd = [sys.executable, '--server-daemon']
+            cwd = os.path.dirname(sys.executable)
+        else:
+            cmd = [sys.executable, GUARDIAN_SCRIPT]
+            cwd = os.path.dirname(GUARDIAN_SCRIPT)
         proc = subprocess.Popen(
-            [sys.executable, GUARDIAN_SCRIPT],
-            cwd=os.path.dirname(GUARDIAN_SCRIPT),
+            cmd,
+            cwd=cwd,
             creationflags=CREATE_NO_WINDOW,
             stdout=open(log_dir / 'daemon_stdout.log', 'a'),
             stderr=open(log_dir / 'daemon_stderr.log', 'a'),
@@ -105,17 +112,33 @@ def stop_daemon():
         except Exception:
             pass
 
-        # 终止后台工作进程
+        # 终止后台工作进程 — 优先 graceful
         if server_pid:
-            subprocess.run(['taskkill', '/F', '/PID', str(server_pid)],
-                           capture_output=True, timeout=5, check=False)
-            time.sleep(1)
+            try:
+                os.kill(server_pid, signal.CTRL_BREAK_EVENT)
+                time.sleep(3)
+            except Exception:
+                pass
+            try:
+                os.kill(server_pid, 0)
+                subprocess.run(['taskkill', '/F', '/PID', str(server_pid)],
+                               capture_output=True, timeout=5, check=False)
+            except (OSError, PermissionError):
+                pass
 
         # guardian 检测到 stopped 后会自动退出，补一刀确保清理
         if guardian_pid:
-            subprocess.run(['taskkill', '/F', '/PID', str(guardian_pid)],
-                           capture_output=True, timeout=5, check=False)
-            time.sleep(0.5)
+            try:
+                os.kill(guardian_pid, signal.SIGTERM)
+                time.sleep(2)
+            except Exception:
+                pass
+            try:
+                os.kill(guardian_pid, 0)
+                subprocess.run(['taskkill', '/F', '/PID', str(guardian_pid)],
+                               capture_output=True, timeout=5, check=False)
+            except (OSError, PermissionError):
+                pass
 
         _cleanup_all()
         return True, '守护进程已停止'

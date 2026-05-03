@@ -1,4 +1,5 @@
 import threading
+import time
 import msvcrt
 import sys
 
@@ -89,7 +90,10 @@ class TUI:
         return Panel(t, title="快速入口", border_style="cyan")
 
     def _render_log(self):
-        lines = LOG_BUFFER[-30:] if LOG_BUFFER else ["等待日志..."]
+        if LOG_BUFFER:
+            lines = list(LOG_BUFFER)[-30:]
+        else:
+            lines = ["等待日志..."]
         return Panel("\n".join(lines), title="日志", border_style="dim")
 
     def _render_footer(self):
@@ -137,4 +141,4 @@ class TUI:
                             ok, msg = install_autostart()
                         LOG_BUFFER.append(msg)
 
-                threading.Event().wait(0.5)
+                time.sleep(0.5)

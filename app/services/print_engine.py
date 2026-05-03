@@ -292,7 +292,7 @@ class PrintEngine:
             if self.config.get('auto_rotate', True):
                 try:
                     img = ImageOps.exif_transpose(img)
-                except:
+                except Exception:
                     pass
 
             # Step 3: 适配 A4 居中
@@ -542,7 +542,7 @@ class PrintEngine:
                 with self._active_jobs_lock:
                     self._active_jobs.pop(job_id, None)
                 logger.info(f'GDI 打印发送成功: 页面 {page_width}x{page_height}, 图片 {draw_w}x{draw_h}')
-            except:
+            except Exception:
                 with self._active_jobs_lock:
                     self._active_jobs.pop(job_id, None)
                 raise

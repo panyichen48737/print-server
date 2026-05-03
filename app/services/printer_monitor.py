@@ -93,6 +93,7 @@ class PrinterMonitor:
         self._stop_evt = threading.Event()
         self._thread = None
         self._cache = {}  # printer_name -> last_status_dict
+        self._cache_lock = threading.Lock()
 
     def start(self):
         if self._thread and self._thread.is_alive():
@@ -135,28 +136,36 @@ class PrinterMonitor:
             logger.warning(f'枚举打印机失败: {e}')
             return
 
-        # 检测变化并推送
-        current_names = {p['name'] for p in printers}
-        for pr in printers:
-            name = pr['name']
-            old = self._cache.get(name)
-            if old != pr:
-                self._cache[name] = pr
-                if self.socketio:
-                    try:
-                        self.socketio.emit('printer_status', pr, namespace='/')
-                    except Exception:
-                        pass
+        # 检测变化（在锁内）
+        changed = []
+        removed = []
+        with self._cache_lock:
+            current_names = {p['name'] for p in printers}
+            for pr in printers:
+                name = pr['name']
+                old = self._cache.get(name)
+                if old != pr:
+                    self._cache[name] = pr
+                    changed.append(pr)
+            for name in list(self._cache.keys()):
+                if name not in current_names:
+                    removed.append(name)
+                    self._cache.pop(name)
 
-        # 检测已删除的打印机
-        for name in list(self._cache.keys()):
-            if name not in current_names:
-                removed = self._cache.pop(name)
-                if self.socketio:
-                    try:
-                        self.socketio.emit('printer_status', {'name': name, 'overall': 'removed', 'statuses': []}, namespace='/')
-                    except Exception:
-                        pass
+        # 在锁外推送，避免网络 IO 持锁
+        for pr in changed:
+            if self.socketio:
+                try:
+                    self.socketio.emit('printer_status', pr, namespace='/')
+                except Exception:
+                    pass
+        for name in removed:
+            if self.socketio:
+                try:
+                    self.socketio.emit('printer_status', {'name': name, 'overall': 'removed', 'statuses': []}, namespace='/')
+                except Exception:
+                    pass
 
     def get_all_statuses(self):
-        return dict(self._cache)
+        with self._cache_lock:
+            return dict(self._cache)

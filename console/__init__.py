@@ -10,9 +10,8 @@ import sys
 import os
 import logging
 import argparse
-from datetime import datetime
 
-from app._paths import app_root, data_root
+from app._paths import app_root
 
 sys.path.insert(0, app_root())
 

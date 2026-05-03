@@ -16,6 +16,14 @@ def get_config():
     return current_app.config['app_config']
 
 
+def admin_auth():
+    """验证 Bearer Token（与 api.py check_auth 保持一致）"""
+    auth = request.headers.get('Authorization', '')
+    config = get_config()
+    expected = f'Bearer {config.api_key}'
+    return auth == expected
+
+
 @admin_bp.route('/')
 def dashboard():
     queue_mgr = get_queue_manager()
@@ -77,6 +85,8 @@ def settings():
     config = get_config()
 
     if request.method == 'POST':
+        if not admin_auth():
+            return jsonify({'error': 'Unauthorized'}), 401
         try:
             config.set('api_key', request.form.get('api_key', config.get('api_key', '')))
             config.set('default_printer', request.form.get('default_printer', ''))
@@ -130,7 +140,9 @@ def upload_page():
 
 @admin_bp.route('/api/upload', methods=['POST'])
 def upload_file():
-    """Web 上传打印（内网无鉴权）"""
+    """Web 上传打印"""
+    if not admin_auth():
+        return jsonify({'error': 'Unauthorized'}), 401
     if 'file' not in request.files:
         return jsonify({'error': '未选择文件'}), 400
 
@@ -199,6 +211,8 @@ def upload_file():
 
 @admin_bp.route('/api/set_default_printer', methods=['POST'])
 def set_default_printer():
+    if not admin_auth():
+        return jsonify({'error': 'Unauthorized'}), 401
     config = get_config()
     data = request.get_json()
     printer = data.get('printer', '')
@@ -210,6 +224,8 @@ def set_default_printer():
 
 @admin_bp.route('/api/retry/<job_id>', methods=['POST'])
 def retry_job(job_id):
+    if not admin_auth():
+        return jsonify({'error': 'Unauthorized'}), 401
     queue_mgr = get_queue_manager()
     new_id, error = queue_mgr.retry_job(job_id)
     if error:
@@ -219,6 +235,8 @@ def retry_job(job_id):
 
 @admin_bp.route('/api/cancel/<job_id>', methods=['POST'])
 def cancel_job(job_id):
+    if not admin_auth():
+        return jsonify({'error': 'Unauthorized'}), 401
     queue_mgr = get_queue_manager()
     success, error = queue_mgr.cancel_job(job_id)
     if not success:
@@ -228,6 +246,8 @@ def cancel_job(job_id):
 
 @admin_bp.route('/api/test_notification', methods=['POST'])
 def test_notification():
+    if not admin_auth():
+        return jsonify({'error': 'Unauthorized'}), 401
     config = current_app.config['app_config']
     channel = config.get('notify_channel', 'disabled')
     time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -244,6 +264,8 @@ def test_notification():
 
 @admin_bp.route('/api/cancel_all_queued', methods=['POST'])
 def cancel_all_queued():
+    if not admin_auth():
+        return jsonify({'error': 'Unauthorized'}), 401
     queue_mgr = get_queue_manager()
     count = queue_mgr.cancel_all_queued()
     return jsonify({'success': True, 'cancelled': count})
