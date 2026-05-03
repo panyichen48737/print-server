@@ -80,7 +80,7 @@ def settings():
 
     if request.method == 'POST':
         if not check_auth():
-            return jsonify({'error': 'Unauthorized'}), 401
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
         try:
             config.set('api_key', request.form.get('api_key', config.get('api_key', '')))
             config.set('default_printer', request.form.get('default_printer', ''))
