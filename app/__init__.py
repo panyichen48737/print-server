@@ -34,12 +34,14 @@ def bootstrap(config):
     from app.services.print_engine import PrintEngine
     from app.services.dingtalk import DingTalk
     from app.services.printer_monitor import PrinterMonitor
+    from app.services.bark import BarkNotifier
 
     app = create_app()
     socketio.init_app(app, cors_allowed_origins='*')
 
     dingtalk = DingTalk(config)
-    queue_mgr = QueueManager(config, socketio=socketio)
+    bark = BarkNotifier(config)
+    queue_mgr = QueueManager(config, socketio=socketio, dingtalk=dingtalk, bark=bark)
     print_engine = PrintEngine(
         config,
         dingtalk=dingtalk,
@@ -51,6 +53,7 @@ def bootstrap(config):
     app.config['queue_manager'] = queue_mgr
     app.config['app_config'] = config
     app.config['dingtalk'] = dingtalk
+    app.config['bark'] = bark
     app.config['printer_monitor'] = printer_monitor
     app.config['MAX_CONTENT_LENGTH'] = config.max_file_size_mb * 1024 * 1024
 
