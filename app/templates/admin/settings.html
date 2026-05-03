@@ -79,6 +79,13 @@
                         <option value="handout6" {% if config.get('ppt_output_type', 'slides') == 'handout6' %}selected{% endif %}>每页6张讲义</option>
                     </select>
                 </div>
+
+                <div class="form-group">
+                    <label for="auto_retry_count">自动重试次数</label>
+                    <input type="number" class="form-input" id="auto_retry_count" name="auto_retry_count"
+                           value="{{ config.get('auto_retry_count', 0) }}" min="0" max="10" style="width: 80px;">
+                    <div class="help-text">打印失败时自动重试次数（0 表示不重试）</div>
+                </div>
             </div>
         </div>
     </div>
@@ -101,29 +108,48 @@
             </div>
         </div>
 
-        <!-- DingTalk -->
+        <!-- Notification Channel -->
         <div class="card mb-3">
-            <div class="card-header">钉钉通知</div>
+            <div class="card-header">通知渠道</div>
             <div class="card-body">
                 <div class="form-group">
-                    <div class="form-check">
-                        <input type="checkbox" id="dingtalk_enabled" name="dingtalk_enabled" value="1" onchange="toggleDingtalk()" {% if config.dingtalk_enabled %}checked{% endif %}>
-                        <label for="dingtalk_enabled" style="margin: 0;">启用钉钉通知</label>
-                    </div>
+                    <label>推送通知</label>
+                    <select class="form-select" id="notify_channel" name="notify_channel" onchange="toggleNotifyChannel()" style="width: 200px;">
+                        <option value="disabled" {% if config.get('notify_channel', 'disabled') == 'disabled' %}selected{% endif %}>关闭</option>
+                        <option value="dingtalk" {% if config.get('notify_channel', 'disabled') == 'dingtalk' %}selected{% endif %}>钉钉</option>
+                        <option value="bark" {% if config.get('notify_channel', 'disabled') == 'bark' %}selected{% endif %}>Bark</option>
+                    </select>
                 </div>
-                <div id="dingtalkFields" {% if not config.dingtalk_enabled %}style="display:none"{% endif %}>
+
+                <div id="dingtalkFields" {% if config.get('notify_channel', 'disabled') != 'dingtalk' %}style="display:none"{% endif %}>
                     <div class="form-group">
                         <label for="dingtalk_webhook">Webhook URL</label>
-                        <input type="url" class="form-input" id="dingtalk_webhook" name="dingtalk_webhook" value="{{ config.dingtalk_webhook }}" style="width: 100%;" placeholder="https://oapi.dingtalk.com/robot/send?access_token=...">
+                        <input type="url" class="form-input" id="dingtalk_webhook" name="dingtalk_webhook" value="{{ config.dingtalk_webhook }}" style="width: 100%;">
                     </div>
                     <div class="form-group">
                         <label for="dingtalk_level">通知级别</label>
                         <select class="form-select" id="dingtalk_level" name="dingtalk_level" style="width: 160px;">
                             <option value="error" {% if config.dingtalk_level == 'error' %}selected{% endif %}>仅错误</option>
                             <option value="warning" {% if config.dingtalk_level == 'warning' %}selected{% endif %}>警告及以上</option>
-                            <option value="info" {% if config.dingtalk_level == 'info' %}selected{% endif %}>所有状态变更</option>
+                            <option value="info" {% if config.dingtalk_level == 'info' %}selected{% endif %}>所有状态</option>
                         </select>
                     </div>
+                </div>
+
+                <div id="barkFields" {% if config.get('notify_channel', 'disabled') != 'bark' %}style="display:none"{% endif %}>
+                    <div class="form-group">
+                        <label for="bark_key">Bark Key</label>
+                        <input type="text" class="form-input" id="bark_key" name="bark_key" value="{{ config.bark_key }}" style="width: 100%; font-family: monospace;" placeholder="设备密钥">
+                    </div>
+                    <div class="form-group">
+                        <label for="bark_server">Bark 服务器</label>
+                        <input type="url" class="form-input" id="bark_server" name="bark_server" value="{{ config.bark_server | default('https://api.day.app') }}" style="width: 100%;" placeholder="https://api.day.app">
+                    </div>
+                </div>
+
+                <div style="margin-top: 12px;">
+                    <button type="button" class="btn btn-outline" onclick="testNotification()">发送测试通知</button>
+                    <span id="testResult" style="margin-left: 8px; font-size: 12px; display: none;"></span>
                 </div>
             </div>
         </div>
@@ -161,9 +187,28 @@
 
 {% block scripts %}
 <script>
-function toggleDingtalk() {
-    var checked = document.getElementById('dingtalk_enabled').checked;
-    document.getElementById('dingtalkFields').style.display = checked ? 'block' : 'none';
+function toggleNotifyChannel() {
+    var val = document.getElementById('notify_channel').value;
+    document.getElementById('dingtalkFields').style.display = val === 'dingtalk' ? 'block' : 'none';
+    document.getElementById('barkFields').style.display = val === 'bark' ? 'block' : 'none';
+}
+
+function testNotification() {
+    fetch('/admin/api/test_notification', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => {
+            var el = document.getElementById('testResult');
+            el.style.display = 'inline';
+            el.textContent = '✅ 测试通知已发送 (' + d.channel + ')';
+            el.style.color = '#22C55E';
+            setTimeout(function() { el.style.display = 'none'; }, 5000);
+        })
+        .catch(function() {
+            var el = document.getElementById('testResult');
+            el.style.display = 'inline';
+            el.textContent = '❌ 发送失败';
+            el.style.color = '#EF4444';
+        });
 }
 
 function saveSettings(form) {

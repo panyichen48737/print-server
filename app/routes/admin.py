@@ -1,6 +1,7 @@
 import os
 import logging
 from flask import Blueprint, render_template, request, jsonify, current_app
+from datetime import datetime
 from werkzeug.utils import secure_filename
 
 admin_bp = Blueprint('admin', __name__)
@@ -87,9 +88,12 @@ def settings():
             config.set('paper_size', request.form.get('paper_size', 'A4'))
             config.set('quark_api_key_id', request.form.get('quark_api_key_id', ''))
             config.set('quark_api_key', request.form.get('quark_api_key', ''))
-            config.set('dingtalk_enabled', request.form.get('dingtalk_enabled') == '1')
+            config.set('notify_channel', request.form.get('notify_channel', 'disabled'))
             config.set('dingtalk_webhook', request.form.get('dingtalk_webhook', ''))
             config.set('dingtalk_level', request.form.get('dingtalk_level', 'error'))
+            config.set('bark_key', request.form.get('bark_key', ''))
+            config.set('bark_server', request.form.get('bark_server', 'https://api.day.app'))
+            config.set('auto_retry_count', int(request.form.get('auto_retry_count', 0)))
             config.set('port', int(request.form.get('port', 5000)))
             config.set('log_level', request.form.get('log_level', 'INFO'))
             config.save()
@@ -179,7 +183,8 @@ def upload_file():
     job_id = queue_mgr.add_job(
         original_name, save_path, file_size, ext,
         duplex=duplex, color=color, copies=copies,
-        paper_size=paper_size, printer_name=printer
+        paper_size=paper_size, printer_name=printer,
+        source='web'
     )
 
     logger.info(f'Web 上传成功: {original_name} -> job_id={job_id}')
@@ -219,3 +224,26 @@ def cancel_job(job_id):
     if not success:
         return jsonify({'success': False, 'error': error}), 400
     return jsonify({'success': True})
+
+
+@admin_bp.route('/api/test_notification', methods=['POST'])
+def test_notification():
+    config = current_app.config['app_config']
+    channel = config.get('notify_channel', 'disabled')
+    time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    if channel == 'dingtalk':
+        dt = current_app.config['dingtalk']
+        if dt:
+            dt.send_notification('🔔 测试通知', f'这是一条测试消息\n时间: {time_str}', level='info')
+    elif channel == 'bark':
+        bk = current_app.config['bark']
+        if bk:
+            bk.send_notification('🔔 测试通知', f'这是一条测试消息\n时间: {time_str}')
+    return jsonify({'success': True, 'channel': channel})
+
+
+@admin_bp.route('/api/cancel_all_queued', methods=['POST'])
+def cancel_all_queued():
+    queue_mgr = get_queue_manager()
+    count = queue_mgr.cancel_all_queued()
+    return jsonify({'success': True, 'cancelled': count})

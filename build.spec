@@ -45,6 +45,7 @@ a = Analysis(
         'flask_socketio',
         'eventlet',
         'app.services.printer_monitor',
+        'app.services.bark',
     ],
     hookspath=[],
     runtime_hooks=[],

@@ -11,7 +11,7 @@
             <div class="card-header">选择文件</div>
             <div class="card-body">
                 <div class="upload-zone" id="uploadZone">
-                    <input type="file" id="fileInput" accept="{{ allowed_extensions | join(',') }}" style="display: none;">
+                    <input type="file" id="fileInput" accept="{{ allowed_extensions | join(',') }}" multiple style="display: none;">
                     <div id="uploadDefault">
                         <div class="upload-icon">↑</div>
                         <p>拖拽文件到此处，或点击选择</p>
@@ -26,6 +26,10 @@
                             </div>
                             <button type="button" class="btn btn-ghost btn-sm" id="removeFileBtn" title="移除文件">✕</button>
                         </div>
+                        <div id="previewThumbnail" style="display: none; margin-top: 8px; text-align: center;">
+                            <img id="thumbnailImg" style="max-width: 100%; max-height: 200px; border-radius: 4px; border: 1px solid var(--border-color);">
+                        </div>
+                        <div id="pdfPreviewContainer" style="display: none; margin-top: 8px; text-align: center;"></div>
                     </div>
                     <div id="uploadError" class="upload-error" style="display: none;"></div>
                 </div>
@@ -346,7 +350,7 @@
 
 <script>
 // ── File selection state ──
-var selectedFile = null;
+var pendingFiles = [];
 var trackedJobs = {};
 
 var uploadZone = document.getElementById('uploadZone');
@@ -394,40 +398,81 @@ function validateFile(file) {
     return null;
 }
 
-// ── Handle file selection ──
-function handleFile(file) {
-    var error = validateFile(file);
-    if (error) {
-        uploadError.textContent = error;
+// ── Preview file (image or PDF) ──
+function showPreview(file) {
+    document.getElementById('previewThumbnail').style.display = 'none';
+    document.getElementById('pdfPreviewContainer').style.display = 'none';
+
+    if (file.type.startsWith('image/')) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            var img = document.getElementById('thumbnailImg');
+            img.src = e.target.result;
+            document.getElementById('previewThumbnail').style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    } else if (file.type === 'application/pdf') {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            var container = document.getElementById('pdfPreviewContainer');
+            container.innerHTML = '<embed src="' + e.target.result + '" type="application/pdf" style="max-width:100%;height:200px;border-radius:4px;border:1px solid var(--border-color);">';
+            container.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+// ── Handle file selection (multi) ──
+function handleFiles(files) {
+    var errors = [];
+    pendingFiles = [];
+    for (var i = 0; i < files.length; i++) {
+        var err = validateFile(files[i]);
+        if (err) {
+            errors.push(files[i].name + ': ' + err);
+        } else {
+            pendingFiles.push(files[i]);
+        }
+    }
+    if (errors.length > 0) {
+        uploadError.textContent = errors.join('\n');
         uploadError.style.display = 'block';
+    } else {
+        uploadError.style.display = 'none';
+    }
+    updateFilePreview();
+}
+
+function updateFilePreview() {
+    if (pendingFiles.length === 0) {
         uploadDefault.style.display = 'block';
         uploadPreview.style.display = 'none';
-        selectedFile = null;
         submitBtn.disabled = true;
         return;
     }
-
-    uploadError.style.display = 'none';
     uploadDefault.style.display = 'none';
     uploadPreview.style.display = 'block';
-
-    selectedFile = file;
-    previewName.textContent = file.name;
-    previewSize.textContent = formatSize(file.size);
-    previewIcon.textContent = getFileIcon(file.name);
+    previewName.textContent = pendingFiles.length + ' 个文件';
+    previewSize.textContent = pendingFiles.map(function(f) { return f.name; }).join(', ');
     submitBtn.disabled = false;
+
+    if (pendingFiles.length === 1) {
+        showPreview(pendingFiles[0]);
+    } else {
+        document.getElementById('previewThumbnail').style.display = 'none';
+        document.getElementById('pdfPreviewContainer').style.display = 'none';
+    }
 }
 
 // ── Click to upload ──
 uploadZone.addEventListener('click', function(e) {
-    // Ignore clicks on the remove button
     if (e.target.closest('#removeFileBtn')) return;
     fileInput.click();
 });
 
 fileInput.addEventListener('change', function() {
-    if (fileInput.files && fileInput.files[0]) {
-        handleFile(fileInput.files[0]);
+    if (fileInput.files && fileInput.files.length > 0) {
+        handleFiles(fileInput.files);
     }
 });
 
@@ -448,14 +493,14 @@ uploadZone.addEventListener('drop', function(e) {
     e.preventDefault();
     e.stopPropagation();
     uploadZone.classList.remove('drag-over');
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-        handleFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        handleFiles(e.dataTransfer.files);
     }
 });
 
-// ── Remove file ──
+// ── Remove all files ──
 removeFileBtn.addEventListener('click', function() {
-    selectedFile = null;
+    pendingFiles = [];
     fileInput.value = '';
     uploadDefault.style.display = 'block';
     uploadPreview.style.display = 'none';
@@ -463,56 +508,58 @@ removeFileBtn.addEventListener('click', function() {
     submitBtn.disabled = true;
 });
 
-// ── Submit print ──
+// ── Submit print (batch) ──
 function submitPrint() {
-    if (!selectedFile) return;
+    if (pendingFiles.length === 0) return;
 
     var btn = document.getElementById('submitBtn');
     btn.disabled = true;
-    btn.textContent = '上传中...';
+    btn.textContent = '上传中 0/' + pendingFiles.length;
 
-    var formData = new FormData();
-    formData.append('file', selectedFile);
-    formData.append('printer', document.getElementById('printer').value);
-    formData.append('copies', document.getElementById('copies').value);
-    formData.append('paper_size', document.getElementById('paper_size').value);
-    formData.append('duplex', document.getElementById('duplex').checked ? '1' : '0');
-    formData.append('color', document.getElementById('color').checked ? '1' : '0');
+    var filesToUpload = pendingFiles.slice();
+    pendingFiles = [];
+    updateFilePreview();
+    var completed = 0;
 
-    fetch('/admin/api/upload', { method: 'POST', body: formData })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (data.success) {
-                addStatusCard(data.job_id, selectedFile.name, selectedFile.size);
-                // Reset form
-                selectedFile = null;
-                fileInput.value = '';
-                uploadDefault.style.display = 'block';
-                uploadPreview.style.display = 'none';
-                uploadError.style.display = 'none';
-                showToast('打印任务已提交', 'success');
-            } else {
-                showToast('提交失败: ' + (data.error || '未知错误'), 'error');
-            }
-        })
-        .catch(function(err) {
-            showToast('提交失败: ' + (err.message || '网络错误'), 'error');
-        })
-        .finally(function() {
-            btn.disabled = false;
-            btn.textContent = '↑ 提交打印';
-        });
+    filesToUpload.forEach(function(file, idx) {
+        var formData = new FormData();
+        formData.append('file', file);
+        formData.append('printer', document.getElementById('printer').value);
+        formData.append('copies', document.getElementById('copies').value);
+        formData.append('paper_size', document.getElementById('paper_size').value);
+        formData.append('duplex', document.getElementById('duplex').checked ? '1' : '0');
+        formData.append('color', document.getElementById('color').checked ? '1' : '0');
+
+        fetch('/admin/api/upload', { method: 'POST', body: formData })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    addStatusCard(data.job_id, file.name, file.size);
+                } else {
+                    showToast(file.name + ': ' + (data.error || '失败'), 'error');
+                }
+            })
+            .catch(function(err) {
+                showToast(file.name + ': 网络错误', 'error');
+            })
+            .finally(function() {
+                completed++;
+                btn.textContent = '上传中 ' + completed + '/' + filesToUpload.length;
+                if (completed === filesToUpload.length) {
+                    btn.disabled = false;
+                    btn.textContent = '↑ 提交打印';
+                    showToast('全部上传完成', 'success');
+                }
+            });
+    });
 }
 
 // ── Add status card ──
 function addStatusCard(jobId, filename, fileSize) {
-    // Hide empty state
     statusEmpty.style.display = 'none';
 
-    // Remove existing card for same job
-    var existing = trackedJobs[jobId];
-    if (existing) {
-        existing.parentNode.removeChild(existing);
+    if (trackedJobs[jobId]) {
+        trackedJobs[jobId].parentNode.removeChild(trackedJobs[jobId]);
     }
 
     var card = document.createElement('div');
@@ -526,7 +573,6 @@ function addStatusCard(jobId, filename, fileSize) {
         '</div>' +
         '<div class="status-filesize">' + formatSize(fileSize) + '</div>';
 
-    // Insert at top
     var firstChild = statusContainer.firstChild;
     if (firstChild && firstChild.id !== 'statusEmpty') {
         statusContainer.insertBefore(card, firstChild);
@@ -542,7 +588,6 @@ function updateStatusCard(jobId, status, error) {
     var card = trackedJobs[jobId];
     if (!card) return;
 
-    // Reset status classes
     card.className = 'status-card';
 
     var badgeEl = card.querySelector('.status-badge');
@@ -589,7 +634,6 @@ function updateStatusCard(jobId, status, error) {
 
     badgeEl.textContent = statusText;
 
-    // Show/hide error message
     var errorEl = card.querySelector('.status-error-msg');
     if (error) {
         if (!errorEl) {
@@ -614,7 +658,6 @@ function clearCompleted() {
             card.parentNode.removeChild(card);
         }
     }
-    // Show empty state if no cards left
     var remaining = statusContainer.querySelectorAll('.status-card');
     if (remaining.length === 0) {
         statusEmpty.style.display = 'block';
@@ -626,7 +669,6 @@ onWSMessage('job_status', function(data) {
     var jobId = data.job_id || data.id;
     if (jobId && trackedJobs[jobId]) {
         updateStatusCard(jobId, data.status, data.error);
-        // Show toast on completion or failure
         if (data.status === 'completed') {
             showToast('打印完成: ' + (data.filename || jobId), 'success');
         } else if (data.status === 'failed') {

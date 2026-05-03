@@ -61,8 +61,7 @@ def print_file():
 
     # Queue job
     queue_mgr = get_queue_manager()
-    new_job_id = queue_mgr.add_job(original_name, save_path, file_size, ext)
-    # Note: save_path still uses the sanitized filename internally
+    new_job_id = queue_mgr.add_job(original_name, save_path, file_size, ext, source='ios')
 
     return jsonify({'status': 'queued', 'job_id': new_job_id}), 200
 
@@ -101,3 +100,15 @@ def printer_status():
     if not pm:
         return jsonify({'printers': {}})
     return jsonify({'printers': pm.get_all_statuses()})
+
+
+@api_bp.route('/cancel/<job_id>', methods=['POST'])
+def cancel_job_api(job_id):
+    """API 取消任务（带鉴权）"""
+    if not check_auth():
+        return jsonify({'error': 'Unauthorized'}), 401
+    queue_mgr = get_queue_manager()
+    success, error = queue_mgr.cancel_job(job_id)
+    if not success:
+        return jsonify({'error': error}), 400
+    return jsonify({'success': True})

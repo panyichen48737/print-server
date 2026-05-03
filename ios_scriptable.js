@@ -38,18 +38,8 @@ async function main() {
   const jobId = await uploadFile(file);
   if (!jobId) return;
 
-  // Try WebSocket first, fall back to polling
-  try {
-    await waitForCompletion(jobId);
-    const notification = new Notification();
-    notification.title = "🖨 打印任务已完成！";
-    notification.body = "文件已成功发送到打印机";
-    notification.sound = "default";
-    await notification.schedule();
-  } catch (wsError) {
-    console.log(`WebSocket 失败 (${wsError.message}), 回退到轮询...`);
-    await pollStatus(jobId);
-  }
+  // Cancel-aware wait flow
+  await waitForCompletion(jobId);
 }
 
 function getFile() {
@@ -69,59 +59,75 @@ function getExtension(filename) {
 }
 
 async function waitForCompletion(jobId) {
-    return new Promise((resolve, reject) => {
-        const wsUrl = SERVER_URL.replace(/^http/, 'ws') + '/socket.io/?transport=websocket&EIO=4';
-        const ws = new WebSocket(wsUrl);
-        const maxWait = POLL_MAX_RETRIES * (POLL_INTERVAL * 1000);
-        const timeout = setTimeout(() => {
-            try { ws.close(); } catch(e) {}
-            reject(new Error('等待超时'));
-        }, maxWait);
+  const alert = new Alert();
+  alert.title = "🖨 正在打印...";
+  alert.message = "任务已提交，等待打印机响应";
+  alert.addAction("等待完成");
+  alert.addCancelAction("取消打印");
 
-        ws.onopen = function() {
-            // Socket.IO v4 connect packet
-            ws.send('40');
-        };
+  const btn = await Promise.race([
+    alert.present(),
+    new Promise(r => setTimeout(() => r(0), 3000))
+  ]);
 
-        ws.onmessage = function(evt) {
-            const msg = evt.data;
-            // Socket.IO connected response
-            if (msg === '40' || msg === '40/') {
-                return;
+  if (btn === -1) {
+    await cancelJob(jobId);
+    const n = new Notification();
+    n.title = "⏹ 打印已取消";
+    n.body = "打印任务已取消";
+    n.sound = "default";
+    await n.schedule();
+    return;
+  }
+
+  try {
+    await waitForCompletionWS(jobId);
+    const n = new Notification();
+    n.title = "✅ 打印完成";
+    n.body = "文件已成功发送到打印机";
+    n.sound = "default";
+    await n.schedule();
+  } catch (err) {
+    if (err.message === 'cancelled') return;
+    await pollStatus(jobId);
+  }
+}
+
+function waitForCompletionWS(jobId) {
+  return new Promise((resolve, reject) => {
+    const wsUrl = SERVER_URL.replace(/^http/, 'ws') + '/socket.io/?transport=websocket&EIO=4';
+    const ws = new WebSocket(wsUrl);
+    const timeout = setTimeout(() => { ws.close(); reject(new Error('超时')); }, 180000);
+
+    ws.onopen = () => ws.send('40');
+    ws.onmessage = (evt) => {
+      const msg = evt.data;
+      if (msg === '40' || msg === '40/') return;
+      if (typeof msg === 'string' && msg.startsWith('42')) {
+        try {
+          const [eventType, data] = JSON.parse(msg.slice(2));
+          if (eventType === 'job_status' && data && data.job_id === jobId) {
+            if (data.status === 'completed') {
+              clearTimeout(timeout); ws.close(); resolve('completed');
+            } else if (data.status === 'failed') {
+              clearTimeout(timeout); ws.close();
+              reject(new Error(data.error || '打印失败'));
             }
-            // Socket.IO v4 message format: 42["event",{...}]
-            if (typeof msg === 'string' && msg.startsWith('42')) {
-                try {
-                    const payload = JSON.parse(msg.slice(2));
-                    const eventType = payload[0];
-                    const data = payload[1];
-                    if (eventType === 'job_status' && data && data.job_id === jobId) {
-                        if (data.status === 'completed') {
-                            clearTimeout(timeout);
-                            try { ws.close(); } catch(e) {}
-                            resolve('completed');
-                        } else if (data.status === 'failed') {
-                            clearTimeout(timeout);
-                            try { ws.close(); } catch(e) {}
-                            reject(new Error(data.error || '打印失败'));
-                        }
-                    }
-                } catch(e) {
-                    // ignore parse errors
-                }
-            }
-        };
+          }
+        } catch(e) {}
+      }
+    };
+    ws.onerror = () => { clearTimeout(timeout); reject(new Error('WS连接失败')); };
+  });
+}
 
-        ws.onerror = function() {
-            clearTimeout(timeout);
-            reject(new Error('WebSocket 连接失败'));
-        };
-
-        ws.onclose = function() {
-            clearTimeout(timeout);
-            reject(new Error('WebSocket 连接关闭'));
-        };
-    });
+async function cancelJob(jobId) {
+  const url = `${SERVER_URL}/api/cancel/${jobId}`;
+  const req = new Request(url);
+  req.method = "POST";
+  req.allowInsecureRequest = true;
+  req.headers = { "Authorization": `Bearer ${API_KEY}` };
+  await req.loadJSON();
 }
 
 async function uploadFile(file) {

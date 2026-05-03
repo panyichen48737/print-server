@@ -23,6 +23,13 @@
             <button class="btn btn-ghost btn-sm" onclick="resetFilter()">重置</button>
         </div>
 
+        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
+            <button class="btn-danger btn-sm" id="cancelAllBtn" onclick="cancelAllQueued()" style="display: none;">
+                ✕ 取消全部排队
+            </button>
+            <span id="cancelAllResult" style="font-size: 12px; display: none;"></span>
+        </div>
+
         {% if jobs %}
         <div class="table-container">
             <table class="table">
@@ -57,6 +64,9 @@
                             {% endif %}
                         </td>
                         <td>
+                            {% if job.status == 'failed' and job.error_message == '用户取消' %}
+                            <span class="badge badge-cancelled" style="background: var(--color-warning);">已取消</span>
+                            {% else %}
                             <span class="badge badge-{{ job.status }}">
                                 <span class="status-dot-sm {{ job.status }}"></span>
                                 {% if job.status == 'queued' %}排队中
@@ -65,13 +75,17 @@
                                 {% elif job.status == 'failed' %}失败
                                 {% else %}{{ job.status }}{% endif %}
                             </span>
+                            {% endif %}
+                            {% if job.retry_count and job.retry_count > 0 %}
+                            <span style="font-size: 11px; color: var(--text-muted); margin-left: 4px;">重试 {{ job.retry_count }} 次</span>
+                            {% endif %}
                         </td>
                         <td style="color: var(--text-muted); font-size: 13px;">{{ job.created_at }}</td>
                         <td style="color: var(--text-muted); font-size: 13px;">{{ job.completed_at or '-' }}</td>
                         <td>
-                            {% if job.status == 'failed' %}
+                            {% if job.status == 'failed' and job.error_message != '用户取消' %}
                             <button class="btn btn-primary btn-sm" onclick="retryJob('{{ job.id }}')">↻ 重试</button>
-                            {% elif job.status == 'queued' %}
+                            {% elif job.status in ('queued', 'printing') %}
                             <button class="btn-danger btn-sm" onclick="cancelJob('{{ job.id }}')">✕ 取消</button>
                             {% endif %}
                         </td>
@@ -141,7 +155,7 @@ function retryJob(jobId) {
 }
 
 function cancelJob(jobId) {
-    confirmAction('确定要取消这个排队中的任务吗？', function() {
+    confirmAction('确定要取消这个任务吗？', function() {
         fetch('/admin/api/cancel/' + jobId, { method: 'POST' })
             .then(r => r.json())
             .then(data => {
@@ -155,5 +169,25 @@ function cancelJob(jobId) {
             .catch(function() { showToast('请求失败', 'error'); });
     });
 }
+
+function cancelAllQueued() {
+    if (!confirm('确定取消所有排队中的任务？')) return;
+    fetch('/admin/api/cancel_all_queued', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => {
+            var el = document.getElementById('cancelAllResult');
+            el.style.display = 'inline';
+            el.textContent = '已取消 ' + d.cancelled + ' 个任务';
+            el.style.color = '#22C55E';
+            setTimeout(function() { location.reload(); }, 2000);
+        });
+}
+
+// Show cancel-all button when queued tasks exist
+document.addEventListener('DOMContentLoaded', function() {
+    var hasQueued = document.querySelectorAll('.badge-queued').length > 0;
+    var btn = document.getElementById('cancelAllBtn');
+    if (btn) btn.style.display = hasQueued ? 'inline-block' : 'none';
+});
 </script>
 {% endblock %}
