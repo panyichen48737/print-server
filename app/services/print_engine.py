@@ -362,16 +362,13 @@ class PrintEngine:
             import base64
             import requests
             import os
+            import io
+            from PIL import Image
 
             client_id = self.config.quark_api_key_id
             client_secret = self.config.quark_api_key
             if not client_id or not client_secret:
                 logger.warning('Quark API 未配置，跳过图片增强')
-                return None
-
-            # API 限制：图片不超过 10MB
-            if os.path.getsize(filepath) > 10 * 1024 * 1024:
-                logger.warning(f'Quark API 图片超过 10MB 限制，跳过增强')
                 return None
 
             ext = os.path.splitext(filepath)[1].lower()
@@ -384,23 +381,43 @@ class PrintEngine:
                 '.bmp': 'bmp', '.gif': 'gif', '.webp': 'webp',
                 '.tiff': 'tiff', '.tif': 'tiff',
             }
+            max_api_size = 10 * 1024 * 1024
 
             if ext in supported_exts:
                 data_type = ext_map[ext]
-                with open(filepath, 'rb') as f:
-                    img_data = f.read()
+                if os.path.getsize(filepath) <= max_api_size:
+                    with open(filepath, 'rb') as f:
+                        img_data = f.read()
+                else:
+                    # 超过 10MB 压缩到限额内
+                    img = Image.open(filepath)
+                    if img.mode in ('RGBA', 'P', 'LA'):
+                        img = img.convert('RGB')
+                    quality = 85
+                    buf = io.BytesIO()
+                    img.save(buf, format='JPEG', quality=quality)
+                    while buf.tell() > max_api_size and quality > 20:
+                        quality -= 10
+                        buf = io.BytesIO()
+                        img.save(buf, format='JPEG', quality=quality)
+                    img_data = buf.getvalue()
+                    data_type = 'jpg'
+                    logger.info(f'Quark API: 图片超过 10MB，已压缩至 {len(img_data)//1024}KB (quality={quality})')
             else:
                 # 不支持的格式（如 HEIC/HEIF）转 JPG
-                from PIL import Image
                 img = Image.open(filepath)
                 if img.mode in ('RGBA', 'P', 'LA'):
                     img = img.convert('RGB')
-                import io
+                quality = 95
                 buf = io.BytesIO()
-                img.save(buf, format='JPEG', quality=95)
+                img.save(buf, format='JPEG', quality=quality)
+                while buf.tell() > max_api_size and quality > 20:
+                    quality -= 10
+                    buf = io.BytesIO()
+                    img.save(buf, format='JPEG', quality=quality)
                 img_data = buf.getvalue()
                 data_type = 'jpg'
-                logger.info(f'Quark API: {ext} 已转换为 JPG')
+                logger.info(f'Quark API: {ext} 已转换为 JPG ({len(img_data)//1024}KB)')
 
             img_b64 = base64.b64encode(img_data).decode('utf-8')
 
