@@ -255,9 +255,16 @@ class QueueManager:
             # 超时保护：用独立线程 + timeout 执行打印，防止 COM 调用卡死
             timeout = self.config.get('job_timeout', 300)
             with ThreadPoolExecutor(max_workers=1) as pool:
+                print_params = {
+                    'printer_name': job.get('printer_name') or '',
+                    'copies': job.get('copies') or 1,
+                    'duplex': job.get('duplex'),
+                    'color': job.get('color'),
+                    'paper_size': job.get('paper_size') or '',
+                }
                 fut = pool.submit(
                     print_engine.print_file,
-                    temp_path, job['file_type'], job_id, self._word_lock
+                    temp_path, job['file_type'], job_id, self._word_lock, print_params
                 )
                 success = fut.result(timeout=timeout)
 

@@ -13,24 +13,26 @@ class PrintEngine:
         self.excel_lock = excel_lock or threading.Lock()
         self.ppt_lock = ppt_lock or threading.Lock()
 
-    def print_file(self, filepath, file_type, job_id, word_lock):
+    def print_file(self, filepath, file_type, job_id, word_lock, print_params=None):
         """根据文件类型分发到对应的打印方法"""
         ext = file_type.lower()
         if ext in ('.doc', '.docx'):
-            return self._print_word(filepath, word_lock)
+            return self._print_word(filepath, word_lock, print_params)
         elif ext == '.pdf':
-            return self._print_pdf(filepath)
+            return self._print_pdf(filepath, print_params)
         elif ext in ('.xls', '.xlsx'):
-            return self._print_excel(filepath)
+            return self._print_excel(filepath, print_params)
         elif ext in ('.ppt', '.pptx'):
-            return self._print_ppt(filepath)
+            return self._print_ppt(filepath, print_params)
         elif ext in ('.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif', '.heic', '.heif'):
-            return self._print_image(filepath, job_id)
+            return self._print_image(filepath, job_id, print_params)
         else:
             raise ValueError(f'不支持的文件类型: {ext}')
 
-    def _print_word(self, filepath, word_lock):
+    def _print_word(self, filepath, word_lock, print_params=None):
         """通过 win32com 调用 Word 打印"""
+        if print_params is None:
+            print_params = {}
         with word_lock:
             import win32com.client
             import pythoncom
@@ -43,11 +45,11 @@ class PrintEngine:
 
                 doc = word.Documents.Open(os.path.abspath(filepath))
 
-                printer = self.config.get('default_printer', '')
+                printer = print_params.get('printer_name') or self.config.get('default_printer', '')
                 if printer:
                     word.ActivePrinter = printer
 
-                copies = self.config.get('default_copies', 1)
+                copies = print_params.get('copies') or self.config.get('default_copies', 1)
                 doc.PrintOut(Background=False, Copies=copies)
 
                 doc.Close(SaveChanges=0)  # wdDoNotSaveChanges
@@ -69,8 +71,10 @@ class PrintEngine:
                 except:
                     pass
 
-    def _print_excel(self, filepath):
+    def _print_excel(self, filepath, print_params=None):
         """通过 win32com 调用 Excel 打印"""
+        if print_params is None:
+            print_params = {}
         with self.excel_lock:
             import win32com.client
             import pythoncom
@@ -82,11 +86,11 @@ class PrintEngine:
                 excel.DisplayAlerts = False
                 workbook = excel.Workbooks.Open(os.path.abspath(filepath))
 
-                printer = self.config.get('default_printer', '')
+                printer = print_params.get('printer_name') or self.config.get('default_printer', '')
                 if printer:
                     excel.ActivePrinter = printer
 
-                copies = self.config.get('default_copies', 1)
+                copies = print_params.get('copies') or self.config.get('default_copies', 1)
                 all_sheets = self.config.get('excel_print_all_sheets', True)
 
                 if all_sheets:
@@ -113,8 +117,10 @@ class PrintEngine:
                 except:
                     pass
 
-    def _print_ppt(self, filepath):
+    def _print_ppt(self, filepath, print_params=None):
         """通过 win32com 调用 PowerPoint 打印"""
+        if print_params is None:
+            print_params = {}
         with self.ppt_lock:
             import win32com.client
             import pythoncom
@@ -125,11 +131,11 @@ class PrintEngine:
                 ppt.Visible = False
                 presentation = ppt.Presentations.Open(os.path.abspath(filepath))
 
-                printer = self.config.get('default_printer', '')
+                printer = print_params.get('printer_name') or self.config.get('default_printer', '')
                 if printer:
                     ppt.ActivePrinter = printer
 
-                copies = self.config.get('default_copies', 1)
+                copies = print_params.get('copies') or self.config.get('default_copies', 1)
                 output_type = self.config.get('ppt_output_type', 'slides')
 
                 output_map = {
@@ -160,14 +166,16 @@ class PrintEngine:
                 except:
                     pass
 
-    def _print_pdf(self, filepath):
+    def _print_pdf(self, filepath, print_params=None):
         """使用 Chromium (Chrome/Edge) headless 模式直接打印 PDF，质量最佳"""
+        if print_params is None:
+            print_params = {}
         import subprocess
         chrome_path = self._find_chromium()
         if not chrome_path:
             raise RuntimeError('未找到 Chromium 浏览器 (Chrome/Edge)')
 
-        printer_name = self.config.get('default_printer', '')
+        printer_name = print_params.get('printer_name') or self.config.get('default_printer', '')
         if not printer_name:
             import win32print
             printer_name = win32print.GetDefaultPrinter()
@@ -225,8 +233,10 @@ class PrintEngine:
 
         return None
 
-    def _print_image(self, filepath, job_id):
+    def _print_image(self, filepath, job_id, print_params=None):
         """处理图片：Quark API 预处理 → PIL 排版 → win32print 打印"""
+        if print_params is None:
+            print_params = {}
         try:
             from PIL import Image, ImageOps
             import requests
@@ -249,7 +259,7 @@ class PrintEngine:
 
             # Step 3: 适配 A4 居中
             dpi = self.config.get('print_dpi', 300)
-            paper_size = self.config.get('paper_size', 'A4')
+            paper_size = print_params.get('paper_size') or self.config.get('paper_size', 'A4')
             if paper_size == 'A4':
                 pw, ph = int(8.27 * dpi), int(11.69 * dpi)
             elif paper_size == 'Letter':
@@ -269,7 +279,13 @@ class PrintEngine:
             new_w = int(img_w * scale)
             new_h = int(img_h * scale)
 
-            if self.config.get('default_color', True):
+            color_val = print_params.get('color')
+            if color_val is not None:
+                use_color = bool(color_val)
+            else:
+                use_color = self.config.get('default_color', True)
+
+            if use_color:
                 canvas = Image.new('RGB', (pw, ph), (255, 255, 255))
                 img_resized = img.resize((new_w, new_h), Image.LANCZOS)
             else:
@@ -288,7 +304,7 @@ class PrintEngine:
                 canvas.paste(img_resized, (x, y))
 
             # Step 4: Print via win32print
-            self._send_to_printer(canvas)
+            self._send_to_printer(canvas, print_params)
 
             return True
 
@@ -342,14 +358,16 @@ class PrintEngine:
             logger.warning(f'Quark API 调用失败，使用原图: {e}')
             return None
 
-    def _send_to_printer(self, pil_image):
+    def _send_to_printer(self, pil_image, print_params=None):
         """使用 Windows GDI 将 PIL Image 渲染到打印机（兼容 Epson/HP/Canon 等）"""
+        if print_params is None:
+            print_params = {}
         import win32ui
         import win32print
         import win32gui
         from PIL import ImageWin
 
-        printer_name = self.config.get('default_printer', '')
+        printer_name = print_params.get('printer_name') or self.config.get('default_printer', '')
         if not printer_name:
             printer_name = win32print.GetDefaultPrinter()
 
@@ -359,14 +377,26 @@ class PrintEngine:
         img_w, img_h = pil_image.size
         need_landscape = img_w > img_h
 
-        # Create DEVMODE with correct orientation + simplex duplex
+        # Create DEVMODE with correct orientation + duplex
         handle = win32print.OpenPrinter(printer_name)
         try:
             dm = win32print.GetPrinter(handle, 2)['pDevMode']
             dm.Orientation = 2 if need_landscape else 1
-            dm.Duplex = 1  # DMDUP_SIMPLEX
             import win32con
-            dm.Fields = dm.Fields | win32con.DM_ORIENTATION | win32con.DM_DUPLEX
+            dm.Fields = dm.Fields | win32con.DM_ORIENTATION
+
+            # Duplex handling — use per-job value if set
+            duplex_val = print_params.get('duplex')
+            if duplex_val is not None:
+                dm.Duplex = 2 if duplex_val else 1  # 2 = DMDUP_VERTICAL, 1 = DMDUP_SIMPLEX
+                dm.Fields = dm.Fields | win32con.DM_DUPLEX
+            elif self.config.get('default_duplex', False):
+                dm.Duplex = 2
+                dm.Fields = dm.Fields | win32con.DM_DUPLEX
+            else:
+                dm.Duplex = 1  # simplex
+                dm.Fields = dm.Fields | win32con.DM_DUPLEX
+
             dc_handle = win32gui.CreateDC('WINSPOOL', printer_name, dm)
         finally:
             win32print.ClosePrinter(handle)
@@ -380,8 +410,14 @@ class PrintEngine:
             page_width = hdc.GetDeviceCaps(110)   # HORZRES
             page_height = hdc.GetDeviceCaps(111)  # VERTRES
 
-            color = self.config.get('default_color', True)
-            if color:
+            # Color handling — use per-job value if set
+            color_val = print_params.get('color')
+            if color_val is not None:
+                use_color = bool(color_val)
+            else:
+                use_color = self.config.get('default_color', True)
+
+            if use_color:
                 img = pil_image.convert('RGB')
             else:
                 img = pil_image.convert('L')
