@@ -32,9 +32,10 @@ def get_status(job_id):
     queue_mgr = get_queue_manager()
     job = queue_mgr.get_job(job_id)
     if not job:
-        return jsonify({'error': 'Job not found'}), 404
+        return jsonify({'success': False, 'error': 'Job not found'}), 404
 
     response = {
+        'success': True,
         'status': job['status'],
         'job_id': job['id']
     }
@@ -69,7 +70,7 @@ def cancel_job_api(job_id):
     queue_mgr = get_queue_manager()
     success, error = queue_mgr.cancel_job(job_id)
     if not success:
-        return jsonify({'error': error}), 400
+        return jsonify({'success': False, 'error': error}), 400
     return jsonify({'success': True})
 
 
@@ -77,10 +78,9 @@ def cancel_job_api(job_id):
 def sse_events():
     """Server-Sent Events endpoint — multiplexes all real-time event types."""
     from flask import Response, stream_with_context, current_app
-    from app.services.sse_broadcaster import get_broadcaster
     import json
 
-    broadcaster = get_broadcaster()
+    broadcaster = current_app.extensions['sse']
     sub_id, q = broadcaster.subscribe()
 
     def generate():

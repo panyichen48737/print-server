@@ -20,6 +20,9 @@ def create_app():
     ensure_dir(app_root(), 'jobs')
     ensure_dir(app_root(), 'logs')
 
+    from app.services.sse_broadcaster import init_app
+    init_app(app)
+
     return app
 
 
@@ -32,11 +35,10 @@ def bootstrap(config):
     from app.services.dingtalk import DingTalk
     from app.services.printer_monitor import PrinterMonitor
     from app.services.bark import BarkNotifier
-    from app.services.sse_broadcaster import get_broadcaster
 
     app = create_app()
 
-    broadcaster = get_broadcaster()
+    broadcaster = app.extensions['sse']
 
     dingtalk = DingTalk(config)
     bark = BarkNotifier(config)

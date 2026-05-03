@@ -53,3 +53,10 @@ def get_broadcaster(maxsize=100):
             if _broadcaster is None:
                 _broadcaster = SSEBroadcaster(maxsize=maxsize)
     return _broadcaster
+
+
+def init_app(app, maxsize=100):
+    """初始化 SSE 广播器并注册到 app.extensions"""
+    broadcaster = SSEBroadcaster(maxsize=maxsize)
+    app.extensions['sse'] = broadcaster
+    return broadcaster
