@@ -17,6 +17,7 @@ a = Analysis(
         (str(root / 'certs' / 'cert.pem'), 'certs'),
         (str(root / 'certs' / 'key.pem'), 'certs'),
         (str(root / 'server_daemon.py'), '.'),
+        (str(root / 'guardian.py'), '.'),
     ],
     hiddenimports=[
         'win32ui', 'win32print', 'win32gui', 'win32com.client',
