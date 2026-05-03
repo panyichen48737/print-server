@@ -10,12 +10,13 @@ TASK_NAME = 'iOSPrintServer'
 
 
 def _get_python_cmd():
-    """获取启动命令"""
+    """获取启动命令 — 直接启动 guardian 看门狗"""
     this_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if getattr(sys, 'frozen', False):
+        # 冻结模式走主程序 --start（内部 daemon_manager 启动 guardian）
         return f'"{sys.executable}" --start'
     else:
-        return f'"{sys.executable}" -m console --start'
+        return f'"{sys.executable}" "{this_dir}\\guardian.py"'
 
 
 def is_autostart_installed():
