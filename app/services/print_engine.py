@@ -361,34 +361,48 @@ class PrintEngine:
             import time
             import base64
             import requests
+            import os
 
-            client_id = self.config.quark_api_key_id  # 开发者后台的 clientId
-            client_secret = self.config.quark_api_key  # 开发者后台的 clientSecret
+            client_id = self.config.quark_api_key_id
+            client_secret = self.config.quark_api_key
             if not client_id or not client_secret:
                 logger.warning('Quark API 未配置，跳过图片增强')
                 return None
-
-            # 读取图片并 base64
-            with open(filepath, 'rb') as f:
-                img_data = f.read()
-            img_b64 = base64.b64encode(img_data).decode('utf-8')
-
-            # 图片格式映射
-            ext_map = {
-                '.jpg': 'jpg', '.jpeg': 'jpg', '.png': 'png',
-                '.bmp': 'bmp', '.gif': 'gif', '.webp': 'webp',
-                '.tiff': 'tiff', '.tif': 'tiff',
-            }
-            ext = os.path.splitext(filepath)[1].lower()
-            data_type = ext_map.get(ext, 'jpg')
-            if data_type not in ('jpg', 'png', 'bmp', 'gif', 'webp', 'tiff'):
-                logger.warning(f'Quark API 不支持 {ext} 格式，使用 jpg')
-                data_type = 'jpg'
 
             # API 限制：图片不超过 10MB
             if os.path.getsize(filepath) > 10 * 1024 * 1024:
                 logger.warning(f'Quark API 图片超过 10MB 限制，跳过增强')
                 return None
+
+            ext = os.path.splitext(filepath)[1].lower()
+
+            # API 支持的格式：PNG/JPG/JPEG/BMP/GIF/TIFF/WebP
+            # 不支持的格式（HEIC/HEIF 等）用 PIL 转成 JPG
+            supported_exts = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif'}
+            ext_map = {
+                '.jpg': 'jpg', '.jpeg': 'jpg', '.png': 'png',
+                '.bmp': 'bmp', '.gif': 'gif', '.webp': 'webp',
+                '.tiff': 'tiff', '.tif': 'tiff',
+            }
+
+            if ext in supported_exts:
+                data_type = ext_map[ext]
+                with open(filepath, 'rb') as f:
+                    img_data = f.read()
+            else:
+                # 不支持的格式（如 HEIC/HEIF）转 JPG
+                from PIL import Image
+                img = Image.open(filepath)
+                if img.mode in ('RGBA', 'P', 'LA'):
+                    img = img.convert('RGB')
+                import io
+                buf = io.BytesIO()
+                img.save(buf, format='JPEG', quality=95)
+                img_data = buf.getvalue()
+                data_type = 'jpg'
+                logger.info(f'Quark API: {ext} 已转换为 JPG')
+
+            img_b64 = base64.b64encode(img_data).decode('utf-8')
 
             # 构建签名参数
             business = 'vision'
