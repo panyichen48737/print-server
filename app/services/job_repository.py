@@ -2,6 +2,7 @@ import os
 import sqlite3
 import uuid
 import logging
+from typing import Optional
 from datetime import datetime, timedelta
 
 logger = logging.getLogger('print_server')
@@ -10,7 +11,7 @@ logger = logging.getLogger('print_server')
 class JobRepository:
     """任务数据库操作层，封装所有 SQLite 直接访问"""
 
-    def __init__(self, db_path=None):
+    def __init__(self, db_path: Optional[str] = None) -> None:
         """初始化数据库连接，db_path 默认为 jobs/jobs.db"""
         if db_path is None:
             from app._paths import app_root, ensure_dir
@@ -19,7 +20,7 @@ class JobRepository:
         self.db_path = db_path
         self.init_db()
 
-    def init_db(self):
+    def init_db(self) -> None:
         """建表 + 索引"""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute('''
@@ -42,7 +43,7 @@ class JobRepository:
             conn.commit()
         self.migrate_db()
 
-    def migrate_db(self):
+    def migrate_db(self) -> None:
         """向后兼容的列添加（已有列跳过）"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute("PRAGMA table_info(jobs)")
@@ -59,9 +60,10 @@ class JobRepository:
                     conn.execute(f'ALTER TABLE jobs ADD COLUMN {col} {dtype}')
             conn.commit()
 
-    def add_job(self, filename, filepath, file_size=0, file_type='',
-                duplex=None, color=None, copies=None, paper_size=None, printer_name=None,
-                source='api'):
+    def add_job(self, filename: str, filepath: str, file_size: int = 0, file_type: str = '',
+                duplex: Optional[int] = None, color: Optional[int] = None,
+                copies: Optional[int] = None, paper_size: Optional[str] = None,
+                printer_name: Optional[str] = None, source: str = 'api') -> str:
         """插入新任务，返回 job_id"""
         job_id = str(uuid.uuid4())
         with sqlite3.connect(self.db_path) as conn:
@@ -76,7 +78,7 @@ class JobRepository:
             conn.commit()
         return job_id
 
-    def get_job(self, job_id):
+    def get_job(self, job_id: str) -> Optional[dict]:
         """查询单个任务，返回 dict 或 None"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -85,7 +87,7 @@ class JobRepository:
                 return dict(row)
             return None
 
-    def update_status(self, job_id, status, error_message=None):
+    def update_status(self, job_id: str, status: str, error_message: Optional[str] = None) -> None:
         """更新任务状态，completed/failed 时同时记录 completed_at"""
         with sqlite3.connect(self.db_path) as conn:
             now = datetime.now().isoformat()
@@ -101,7 +103,8 @@ class JobRepository:
                 )
             conn.commit()
 
-    def get_jobs(self, status=None, search=None, limit=50, offset=0):
+    def get_jobs(self, status: Optional[str] = None, search: Optional[str] = None,
+                 limit: int = 50, offset: int = 0) -> list[dict]:
         """分页查询任务列表，支持按状态和文件名搜索"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -118,7 +121,7 @@ class JobRepository:
             rows = conn.execute(query, params).fetchall()
             return [dict(r) for r in rows]
 
-    def count_jobs(self, status=None, search=None):
+    def count_jobs(self, status: Optional[str] = None, search: Optional[str] = None) -> int:
         """统计任务数量，支持按状态和文件名筛选"""
         with sqlite3.connect(self.db_path) as conn:
             query = 'SELECT COUNT(*) FROM jobs WHERE 1=1'
@@ -131,14 +134,14 @@ class JobRepository:
                 params.append(f'%{search}%')
             return conn.execute(query, params).fetchone()[0]
 
-    def get_jobs_by_status(self, status):
+    def get_jobs_by_status(self, status: str) -> list[dict]:
         """按状态查询所有任务"""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute('SELECT * FROM jobs WHERE status = ?', (status,)).fetchall()
             return [dict(r) for r in rows]
 
-    def get_stats(self):
+    def get_stats(self) -> dict:
         """获取统计信息"""
         with sqlite3.connect(self.db_path) as conn:
             today = datetime.now().strftime('%Y-%m-%d')
@@ -163,7 +166,7 @@ class JobRepository:
                 'success_rate': success_rate
             }
 
-    def cleanup_old_jobs(self, retention_days=30):
+    def cleanup_old_jobs(self, retention_days: int = 30) -> int:
         """清理过期历史记录（不处理心跳恢复）"""
         cutoff = (datetime.now() - timedelta(days=retention_days)).isoformat()
         with sqlite3.connect(self.db_path) as conn:
@@ -174,7 +177,7 @@ class JobRepository:
             logger.info(f'已清理 {deleted} 条过期任务记录')
         return deleted
 
-    def increment_retry(self, job_id):
+    def increment_retry(self, job_id: str) -> None:
         """递增任务重试计数"""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute('UPDATE jobs SET retry_count = retry_count + 1 WHERE id = ?', (job_id,))

@@ -3,14 +3,15 @@
 import os
 import uuid
 import logging
-from flask import jsonify
+from typing import Optional
+from flask import jsonify, Response
 from werkzeug.utils import secure_filename
 from app._paths import app_root, ensure_dir
 
 logger = logging.getLogger('print_server')
 
 
-def handle_file_upload(request, config, queue_mgr, *, source='api'):
+def handle_file_upload(request, config, queue_mgr, *, source: str = 'api') -> tuple[Optional[str], Optional[tuple[Response, int]]]:
     """
     处理文件上传的统一逻辑
 

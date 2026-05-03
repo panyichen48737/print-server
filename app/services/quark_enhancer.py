@@ -5,6 +5,7 @@ import time
 import base64
 import io
 import os
+from typing import Optional
 from PIL import Image
 import requests
 
@@ -14,10 +15,10 @@ logger = logging.getLogger('print_server')
 class QuarkEnhancer:
     """夸克扫描王 API 图片增强"""
 
-    def __init__(self, config):
+    def __init__(self, config) -> None:
         self.config = config
 
-    def enhance(self, filepath):
+    def enhance(self, filepath: str) -> Optional[bytes]:
         """
         对图片进行 Quark API 增强处理
 
@@ -118,7 +119,8 @@ class QuarkEnhancer:
             logger.warning(f'Quark API 调用失败，使用原图: {e}')
             return None
 
-    def _sign(self, client_id, client_secret, business, sign_method, sign_nonce, timestamp):
+    def _sign(self, client_id: str, client_secret: str, business: str,
+               sign_method: str, sign_nonce: str, timestamp: int) -> str:
         """计算签名"""
         sign_str = f'{client_id}_{business}_{sign_method}_{sign_nonce}_{timestamp}_{client_secret}'
         return hashlib.sha3_256(sign_str.encode('utf-8')).hexdigest().lower()

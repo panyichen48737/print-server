@@ -1,6 +1,6 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, Response
 
-from app.auth import require_auth, check_auth
+from app.auth import require_auth
 from app.upload_helper import handle_file_upload
 
 api_bp = Blueprint('api', __name__)
