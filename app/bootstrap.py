@@ -38,12 +38,9 @@ def bootstrap(config: Config, lifespan=None):
     broadcaster = app.state.sse
     logger.add(LogBroadcaster(broadcaster), format='{message}', level='INFO')
 
-    from app.services.event_bus import EventBus
-    event_bus = EventBus(broadcaster)
-
     repo = JobRepository()
-    job_queue = JobQueue(repo, event_bus=event_bus)
-    worker_pool = WorkerPool(config, event_bus=event_bus)
+    job_queue = JobQueue(repo, event_bus=broadcaster)
+    worker_pool = WorkerPool(config, event_bus=broadcaster)
     print_engine = PrintEngine(
         config,
         excel_lock=worker_pool.excel_lock(),
@@ -51,7 +48,7 @@ def bootstrap(config: Config, lifespan=None):
     )
     printer_monitor = PrinterMonitor(broadcaster=broadcaster)
 
-    # 事件驱动通知 — 通过 EventBus 解耦 Worker 与 Notifier
+    # 事件驱动通知 — 通过 SSEBroadcaster 解耦 Worker 与 Notifier
     if notifier:
         def _on_job_status(data):
             from app.services.notifier import is_print_related_error
@@ -71,12 +68,12 @@ def bootstrap(config: Config, lifespan=None):
                     notifier.notify_job_failed(filename, error, time_str)
             except Exception:
                 pass
-        event_bus.on('job_status', _on_job_status)
+        broadcaster.on('job_status', _on_job_status)
 
     # 启动工作线程
     worker_pool.start(print_engine, repo, job_queue)
 
-    print_service = PrintService(config, job_queue, event_bus, notifier)
+    print_service = PrintService(config, job_queue, notifier)
     printer_discovery = PrinterDiscoveryService(printer_monitor)
 
     # Register on app.state

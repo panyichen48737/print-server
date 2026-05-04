@@ -145,7 +145,7 @@ class JobQueue:
 
     def _emit_job_status(self, job: dict, status: str, error: str = '') -> None:
         if self._event_bus:
-            self._event_bus.emit('job_status', {
+            self._event_bus.publish('job_status', {
                 'job_id': job['id'],
                 'filename': job['filename'],
                 'status': status,
@@ -156,7 +156,7 @@ class JobQueue:
     def _notify_cancelled(self, job: dict, print_engine: Any) -> None:
         """当打印中的任务被取消时触发通知"""
         if self._event_bus:
-            self._event_bus.emit('notification', {
+            self._event_bus.publish('notification', {
                 'type': 'job_cancelled',
                 'filename': job['filename'],
                 'time': format_time(),

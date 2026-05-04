@@ -196,7 +196,7 @@ print_server/
 │   │   │   └── image.py      # 图片 (PIL + GDI)
 │   │   ├── engine.py         # 打印调度层
 │   │   ├── enhancer.py       # 夸克 API 图片增强
-│   │   ├── queue_manager.py  # 任务队列 + 工作线程
+│   │   ├── job_queue.py      # 任务队列
 │   │   └── repository.py     # SQLite 持久化
 │   ├── routes/
 │   │   ├── api.py            # REST API 路由
@@ -205,8 +205,8 @@ print_server/
 │   │   ├── notifier.py       # 错误格式化 + 通知抽象
 │   │   ├── dingtalk.py       # 钉钉 Webhook 通知
 │   │   ├── bark.py           # Bark 推送通知
-│   │   ├── event_bus.py      # SSE 事件总线
-│   │   ├── job_service.py    # 服务层
+│   │   ├── sse_broadcaster.py # 发布/订阅 + 本地监听
+│   │   ├── print_service.py  # 打印服务层
 │   │   ├── log_broadcaster.py # 日志实时推送
 │   │   ├── printer_monitor.py # 打印机状态轮询
 │   │   └── sse_broadcaster.py # 发布/订阅

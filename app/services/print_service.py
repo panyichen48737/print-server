@@ -12,12 +12,10 @@ class PrintService:
         self,
         config: Any,
         job_queue: Any,
-        event_bus: Any = None,
         notifier: Any = None,
     ) -> None:
         self._config = config
         self._job_queue = job_queue
-        self._event_bus = event_bus
         self._notifier = notifier
 
     def submit_print(

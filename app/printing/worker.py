@@ -64,7 +64,7 @@ class JobExecutor:
             }
             if error_message:
                 data['error'] = error_message
-            self._event_bus.emit('job_status', data)
+            self._event_bus.publish('job_status', data)
 
     def _make_temp_copy(self, original_path, filename):
         suffix = os.path.splitext(filename)[1]
