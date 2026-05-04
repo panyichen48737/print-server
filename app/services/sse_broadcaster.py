@@ -6,6 +6,7 @@ SSEBroadcaster: subscribe/unsubscribe/publish    — SSE/WS 远程推送
 """
 import queue
 import threading
+import time
 import uuid
 from typing import Any, Callable
 
@@ -46,6 +47,7 @@ class SSEBroadcaster:
         self._maxsize = maxsize
         self._subscribers: dict[str, queue.Queue] = {}
         self._stale_count: dict[str, int] = {}
+        self._subscribe_time: dict[str, float] = {}
         self._event_bus = event_bus or EventBus()
         self._lock = threading.Lock()
 
@@ -64,12 +66,14 @@ class SSEBroadcaster:
         sub_id = str(uuid.uuid4())
         with self._lock:
             self._subscribers[sub_id] = q
+            self._subscribe_time[sub_id] = time.monotonic()
         return sub_id, q
 
     def unsubscribe(self, sub_id: str) -> None:
         with self._lock:
             self._subscribers.pop(sub_id, None)
             self._stale_count.pop(sub_id, None)
+            self._subscribe_time.pop(sub_id, None)
 
     # ── 发布（远程 + 本地）──
 
@@ -94,12 +98,35 @@ class SSEBroadcaster:
                     if count >= _STALE_LIMIT:
                         self._subscribers.pop(sub_id, None)
                         self._stale_count.pop(sub_id, None)
+                        self._subscribe_time.pop(sub_id, None)
                         logger.warning(
                             f'SSE 订阅者 {sub_id[:8]} 已连续 {_STALE_LIMIT} 次队列满，已移除')
                     else:
                         self._stale_count[sub_id] = count
 
         self._event_bus.publish(event_type, data)
+
+    def cleanup_idle_subscribers(self, timeout: float = 300) -> int:
+        """移除超过 timeout 秒未活动的空闲订阅者。
+
+        线程安全，返回被移除的订阅者数量。
+        """
+        now = time.monotonic()
+        removed = 0
+        with self._lock:
+            idle_ids = [
+                sub_id
+                for sub_id, t in self._subscribe_time.items()
+                if now - t > timeout
+            ]
+            for sub_id in idle_ids:
+                self._subscribers.pop(sub_id, None)
+                self._stale_count.pop(sub_id, None)
+                self._subscribe_time.pop(sub_id, None)
+                removed += 1
+        if removed:
+            logger.info(f'已清理 {removed} 个空闲 SSE 订阅者')
+        return removed
 
 
 def init_app(app: Any, maxsize: int = 100) -> SSEBroadcaster:
