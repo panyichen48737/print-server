@@ -85,17 +85,15 @@ async def get_status(job_id: str, request: Request):
 @api_router.get('/printers', response_model=PrinterListResponse)
 async def list_printers(request: Request):
     """获取可用打印机列表"""
-    pd = request.app.state.printer_discovery
-    return {'printers': pd.list_printers()}
+    monitor = request.app.state.printer_monitor
+    return {'printers': list(monitor.get_all_statuses().keys())}
 
 
 @api_router.get('/printers/status', response_model=PrinterStatusResponse)
 async def printer_status(request: Request):
     """获取全部打印机实时状态"""
-    pd = getattr(request.app.state, 'printer_discovery', None)
-    if not pd:
-        return {'printers': {}}
-    return {'printers': pd.get_all_statuses()}
+    monitor = request.app.state.printer_monitor
+    return {'printers': monitor.get_all_statuses()}
 
 
 @api_router.post('/cancel/{job_id}', response_model=CancelResponse)

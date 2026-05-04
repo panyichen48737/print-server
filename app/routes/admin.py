@@ -82,8 +82,8 @@ async def logs(request: Request):
 @admin_router.get('/settings', name='settings')
 async def settings_get(request: Request):
     config = request.app.state.app_config
-    pd = request.app.state.printer_discovery
-    printers = pd.list_printers()
+    monitor = request.app.state.printer_monitor
+    printers = list(monitor.get_all_statuses().keys())
     return templates.TemplateResponse(
         'admin/settings.html',
         {'request': request, 'config': config, 'printers': printers}
@@ -152,8 +152,8 @@ async def settings_post(
 @admin_router.get('/printers', name='printers')
 async def printers(request: Request):
     config = request.app.state.app_config
-    pd = request.app.state.printer_discovery
-    printer_list = pd.list_printers()
+    monitor = request.app.state.printer_monitor
+    printer_list = list(monitor.get_all_statuses().keys())
     return templates.TemplateResponse(
         'admin/printers.html',
         {'request': request, 'config': config, 'printers': printer_list}
@@ -163,8 +163,8 @@ async def printers(request: Request):
 @admin_router.get('/upload', name='upload_page')
 async def upload_page(request: Request):
     config = request.app.state.app_config
-    pd = request.app.state.printer_discovery
-    printer_list = pd.list_printers()
+    monitor = request.app.state.printer_monitor
+    printer_list = list(monitor.get_all_statuses().keys())
     return templates.TemplateResponse('admin/upload.html', {
         'request': request,
         'config': config,

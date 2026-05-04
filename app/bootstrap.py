@@ -19,7 +19,6 @@ def bootstrap(config: Config, lifespan=None):
     from app.services.dingtalk import DingTalk
     from app.services.printer_monitor import PrinterMonitor
     from app.services.bark import BarkNotifier
-    from app.services.printer_discovery import PrinterDiscoveryService
 
     app = create_app(lifespan=lifespan)
 
@@ -86,8 +85,6 @@ def bootstrap(config: Config, lifespan=None):
     # 启动工作线程
     worker_pool.start(print_engine, repo, job_queue)
 
-    printer_discovery = PrinterDiscoveryService(printer_monitor)
-
     # Register on app.state
     app.state.job_queue = job_queue
     app.state.job_repo = repo
@@ -98,7 +95,6 @@ def bootstrap(config: Config, lifespan=None):
     app.state.bark = bark
     app.state.printer_monitor = printer_monitor
     app.state.sse = broadcaster
-    app.state.printer_discovery = printer_discovery
 
     job_queue.cleanup_old_jobs(config.get('job_retention_days', 30))
 
