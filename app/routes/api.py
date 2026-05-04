@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 
 from app.auth import require_auth
 from app._paths import app_root
+from app.version import __version__
 from app.services.upload import handle_file_upload
 from app.utils import format_time
 from app.schemas import (
@@ -36,7 +37,7 @@ async def _handle_upload(request, file, printer, copies, duplex, color, paper_si
 async def health(request: Request):
     return {
         'status': 'ok',
-        'version': '1.0.0',
+        'version': __version__,
         'queue_size': request.app.state.job_queue.queue_size(),
     }
 

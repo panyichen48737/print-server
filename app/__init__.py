@@ -6,13 +6,16 @@ from fastapi.staticfiles import StaticFiles
 from app._paths import app_root, ensure_dir, data_root
 
 
+from app.version import __version__
+
+
 @asynccontextmanager
 async def _default_lifespan(app):
     yield
 
 
 def create_app(lifespan=_default_lifespan) -> FastAPI:
-    app = FastAPI(title='iOSPrintServer', version='1.0.0', lifespan=lifespan)
+    app = FastAPI(title='iOSPrintServer', version=__version__, lifespan=lifespan)
 
     static_dir = os.path.join(data_root(), 'app', 'static')
     if os.path.isdir(static_dir):

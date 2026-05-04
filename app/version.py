@@ -1,15 +1,25 @@
-"""版本号 — 自动从 git tag 获取"""
+"""版本号 — 优先从 version.txt 读取（PyInstaller 打包后使用），其次 git tag，最后回退"""
 import subprocess
 import os
+import sys
 from pathlib import Path
 
 
 def _get_version() -> str:
-    # CI/构建时通过环境变量注入精确版本
+    # 1. 环境变量（最高优先级）
     env_ver = os.environ.get('RELEASE_VERSION')
     if env_ver:
         return env_ver.lstrip('v')
 
+    # 2. version.txt（PyInstaller 打包后写入 dist 目录）
+    if getattr(sys, 'frozen', False):
+        ver_file = Path(sys.executable).parent / 'version.txt'
+    else:
+        ver_file = Path(__file__).resolve().parent.parent / 'version.txt'
+    if ver_file.exists():
+        return ver_file.read_text().strip()
+
+    # 3. git describe（开发环境）
     try:
         desc = subprocess.run(
             ['git', 'describe', '--tags', '--always', '--dirty'],

@@ -1,0 +1,40 @@
+changelog:
+  categories:
+    - title: 🚀 新功能
+      labels:
+        - feat
+        - enhancement
+        - feature
+    - title: 🐛 修复
+      labels:
+        - fix
+        - bug
+        - bugfix
+    - title: ⚡ 性能优化
+      labels:
+        - perf
+        - performance
+    - title: 🛠 重构与改进
+      labels:
+        - refactor
+        - cleanup
+        - improvement
+    - title: 📖 文档
+      labels:
+        - docs
+        - documentation
+    - title: 🧪 测试
+      labels:
+        - test
+        - testing
+    - title: 🔧 构建与 CI
+      labels:
+        - build
+        - ci
+        - release
+    - title: 📦 依赖更新
+      labels:
+        - dependencies
+    - title: 其他变化
+      labels:
+        - "*"
