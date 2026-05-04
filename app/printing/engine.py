@@ -1,9 +1,9 @@
 """打印引擎 — 根据文件类型委托给对应的后端策略"""
-import os
 import threading
 from typing import Any, Optional
 
 from app.printing.backends import OfficeBackend, PdfBackend, ImageBackend
+from app.utils import safe_remove
 
 OFFICE_EXTS = {'.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'}
 IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif', '.heic', '.heif'}
@@ -60,7 +60,7 @@ class PrintEngine:
             finally:
                 with self._active_jobs_lock:
                     self._active_jobs.pop(job_id, None)
-                self._cleanup_temp(pdf_path)
+                safe_remove(pdf_path)
         else:
             backend = self._get_backend(file_type)
             lock = word_lock if backend is self._office_backend else None
@@ -81,10 +81,3 @@ class PrintEngine:
             del self._active_jobs[job_id]
 
         return backend.cancel(job_id, {})
-
-    def _cleanup_temp(self, path: str) -> None:
-        try:
-            if os.path.exists(path):
-                os.unlink(path)
-        except Exception:
-            pass

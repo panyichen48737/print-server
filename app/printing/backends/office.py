@@ -54,7 +54,7 @@ class OfficeBackend(PrinterBackend):
 
     # ── 转换方法 ──
 
-    def _word_to_pdf(self, filepath, pdf_path, print_params=None):
+    def _word_to_pdf(self, filepath, pdf_path, print_params):
         word_lock = print_params.get('_word_lock')
         with self._com_context('Word.Application', word_lock, display_alerts=0) as word:
             doc = word.Documents.Open(os.path.abspath(filepath))
@@ -63,7 +63,7 @@ class OfficeBackend(PrinterBackend):
             finally:
                 doc.Close(SaveChanges=0)
 
-    def _excel_to_pdf(self, filepath, pdf_path, print_params=None):
+    def _excel_to_pdf(self, filepath, pdf_path, print_params):
         with self._com_context('Excel.Application', self.excel_lock, display_alerts=False) as excel:
             wb = excel.Workbooks.Open(os.path.abspath(filepath))
             try:
@@ -71,7 +71,7 @@ class OfficeBackend(PrinterBackend):
             finally:
                 wb.Close(SaveChanges=False)
 
-    def _ppt_to_pdf(self, filepath, pdf_path, print_params=None):
+    def _ppt_to_pdf(self, filepath, pdf_path, print_params):
         with self._com_context('PowerPoint.Application', self.ppt_lock) as ppt:
             pres = ppt.Presentations.Open(os.path.abspath(filepath))
             try:
@@ -79,7 +79,7 @@ class OfficeBackend(PrinterBackend):
             finally:
                 pres.Close(SaveChanges=0)
 
-    # ── PrinterBackend 接口（已废弃）──
+    # ── PrinterBackend 存根（实际打印委托给 PdfBackend）──
 
     def print_file(self, filepath, job_id, print_params, lock=None):
         raise RuntimeError('OfficeBackend 不再直接打印，请通过 convert_to_pdf + PdfBackend')
