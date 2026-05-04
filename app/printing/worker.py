@@ -52,11 +52,7 @@ class JobExecutor:
             logger.error(f'打印异常: {filename} - {error_msg}')
             return False, error_msg
         finally:
-            if temp_path:
-                try:
-                    os.remove(temp_path)
-                except Exception as e:
-                    logger.warning(f'删除临时文件失败: {temp_path} - {e}')
+            safe_remove(temp_path)
 
     def _update_and_broadcast(self, job_id, status, error_message=None, filename='', source='api'):
         self._repo.update_status(job_id, status, error_message)
@@ -126,10 +122,7 @@ class JobExecutor:
             logger.error(f'打印失败: {filename}')
             return False, error_msg
 
-        try:
-            safe_remove(original_path, '上传文件')
-        except Exception as e:
-            logger.warning(f'删除上传文件失败: {original_path} - {e}')
+        safe_remove(original_path, '上传文件')
 
         return True, None
 

@@ -4,6 +4,7 @@ from loguru import logger
 
 from app.config import Config
 from app import create_app
+from app.utils import format_time
 
 
 def bootstrap(config: Config, lifespan=None):
@@ -54,7 +55,6 @@ def bootstrap(config: Config, lifespan=None):
     if notifier:
         def _on_job_status(data):
             from app.services.notifier import is_print_related_error
-            from app.utils import format_time
             status = data.get('status')
             source = data.get('source', 'api')
             if source == 'ios':
