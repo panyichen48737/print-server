@@ -12,17 +12,6 @@ const POLL_MAX_RETRIES = 60;                           // 最大轮询次数（�
 const ALLOWED_EXTENSIONS = [".doc", ".docx", ".pdf", ".xls", ".xlsx", ".ppt", ".pptx", ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif", ".heic", ".heif"];
 // ==============================================================
 
-// Polyfill TextEncoder for iOS < 14.5 (Scriptable on older devices)
-if (typeof TextEncoder === 'undefined') {
-  TextEncoder = function() {};
-  TextEncoder.prototype.encode = function(str) {
-    var utf8 = unescape(encodeURIComponent(str));
-    var arr = new Uint8Array(utf8.length);
-    for (var i = 0; i < utf8.length; i++) arr[i] = utf8.charCodeAt(i);
-    return arr;
-  };
-}
-
 async function main() {
   const files = getFiles();
   if (!files || files.length === 0) {
@@ -140,17 +129,28 @@ async function main() {
 }
 
 function getFiles() {
+  const files = [];
+  const fm = FileManager.local();
+
+  // Files from share sheet (Files app, Safari, etc.)
   if (args.fileURLs && args.fileURLs.length > 0) {
-    const fm = FileManager.local();
-    const files = [];
     for (const url of args.fileURLs) {
       const data = fm.read(url);
       const name = decodeURIComponent(url.split("/").pop().split("?")[0]);
-      files.push({ data, name });
+      if (data) files.push({ data, name });
     }
-    return files;
   }
-  return [];
+
+  // Images from Photos app share sheet
+  if (args.images && args.images.length > 0) {
+    for (const image of args.images) {
+      const ext = ALLOWED_EXTENSIONS.find(e => e === '.png' || e === '.jpg' || e === '.jpeg') || '.png';
+      const name = `photo_${Date.now()}_${files.length}${ext}`;
+      files.push({ image, name });
+    }
+  }
+
+  return files;
 }
 
 function getExtension(filename) {
@@ -234,49 +234,22 @@ async function cancelJob(jobId) {
 }
 
 async function uploadFile(file) {
-  const url = `${SERVER_URL}/api/print`;
-
-  // Create form data
-  const req = new Request(url);
+  const req = new Request(`${SERVER_URL}/api/print`);
   req.method = "POST";
-  req.allowInsecureRequest = true; // 自签名 HTTPS 证书
-  req.headers = {
-    "Authorization": `Bearer ${API_KEY}`,
-    "Content-Type": "multipart/form-data; boundary=----FormBoundary123"
-  };
+  req.allowInsecureRequest = true;
+  req.headers = { "Authorization": `Bearer ${API_KEY}` };
 
-  // Build multipart body
-  const boundary = "----FormBoundary123";
-  let body = "";
-  body += `--${boundary}\r\n`;
-  body += `Content-Disposition: form-data; name="file"; filename="${file.name}"\r\n`;
-  body += `Content-Type: application/octet-stream\r\n\r\n`;
+  // Use built-in multipart API (automatic Content-Type, no manual encoding)
+  if (file.data) {
+    req.addFileDataToMultipart(file.data, "application/octet-stream", "file", file.name);
+  } else if (file.image) {
+    const imgData = Data.fromPNG(file.image);
+    req.addFileDataToMultipart(imgData, "image/png", "file", file.name);
+  } else {
+    return null;
+  }
 
-  const bodyStart = body;
-  const bodyEnd = `\r\n--${boundary}--\r\n`;
-
-  // Create combined data
-  const fm = FileManager.local();
-  const tempPath = fm.joinPath(fm.temporaryDirectory(), `upload_${Date.now()}.dat`);
-  const encoder = new TextEncoder();
-
-  // Write boundary + headers
-  fm.write(tempPath, encoder.encode(bodyStart));
-
-  // Append file data
-  fm.write(tempPath, file.data, true);
-
-  // Append closing boundary
-  fm.write(tempPath, encoder.encode(bodyEnd), true);
-
-  // Read complete data
-  const requestData = fm.read(tempPath);
-  fm.delete(tempPath);
-
-  req.body = requestData;
-
-  // Show progress
-  let progress = Progress.create();
+  const progress = Progress.create();
   progress.totalUnitCount = 1;
   progress.completedUnitCount = 0;
   progress.localizedDescription = "正在上传文件...";
