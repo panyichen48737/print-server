@@ -12,6 +12,17 @@ const POLL_MAX_RETRIES = 60;                           // 最大轮询次数（�
 const ALLOWED_EXTENSIONS = [".doc", ".docx", ".pdf", ".xls", ".xlsx", ".ppt", ".pptx", ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif", ".heic", ".heif"];
 // ==============================================================
 
+// Polyfill TextEncoder for iOS < 14.5 (Scriptable on older devices)
+if (typeof TextEncoder === 'undefined') {
+  TextEncoder = function() {};
+  TextEncoder.prototype.encode = function(str) {
+    var utf8 = unescape(encodeURIComponent(str));
+    var arr = new Uint8Array(utf8.length);
+    for (var i = 0; i < utf8.length; i++) arr[i] = utf8.charCodeAt(i);
+    return arr;
+  };
+}
+
 async function main() {
   const files = getFiles();
   if (!files || files.length === 0) {
