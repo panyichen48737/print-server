@@ -146,18 +146,9 @@ class JobWorker:
         self._stop_evt = stop_evt
         self._executor = JobExecutor(config, event_bus, repo, print_engine,
                                      job_queue.is_cancelled, word_lock)
-        self._thread = None
 
-    def start(self):
-        self._thread = threading.Thread(target=self._run, daemon=True)
-        self._thread.start()
-        return self._thread
-
-    def join(self, timeout=None):
-        if self._thread:
-            self._thread.join(timeout=timeout)
-
-    def _run(self):
+    def run(self):
+        """由 ThreadPoolExecutor 调用，运行事件循环直到收到停止信号"""
         import pythoncom
         pythoncom.CoInitialize()
         try:

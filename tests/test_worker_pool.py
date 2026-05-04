@@ -1,6 +1,6 @@
-"""测试 WorkerPool"""
+"""测试 WorkerPool (ThreadPoolExecutor)"""
 import threading
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -21,9 +21,8 @@ class TestWorkerPool:
     def test_start_creates_workers(self, pool):
         pool._word_lock = threading.Lock()
         pool.start(MagicMock(), MagicMock(), MagicMock())
-        assert len(pool._workers) == 2
-        for w in pool._workers:
-            assert w._thread.is_alive()
+        assert len(pool._futures) == 2
+        assert all(f.running() or f.done() for f in pool._futures)
         pool.stop()
 
     def test_stop_no_workers(self, pool):
@@ -38,5 +37,5 @@ class TestWorkerPool:
     def test_start_without_word_lock(self, config):
         pool = WorkerPool(config, event_bus=MagicMock())
         pool.start(MagicMock(), MagicMock(), MagicMock())
-        assert len(pool._workers) == 2
+        assert len(pool._futures) == 2
         pool.stop()
