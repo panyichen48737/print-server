@@ -1,7 +1,5 @@
 """服务装配：初始化所有服务并组装 app"""
 
-from datetime import datetime
-
 from loguru import logger
 
 from app.config import Config
@@ -47,7 +45,6 @@ def bootstrap(config: Config, lifespan=None):
     worker_pool = WorkerPool(config, event_bus=event_bus)
     print_engine = PrintEngine(
         config,
-        dingtalk=dingtalk,
         excel_lock=worker_pool.excel_lock(),
         ppt_lock=worker_pool.ppt_lock()
     )
@@ -57,12 +54,13 @@ def bootstrap(config: Config, lifespan=None):
     if notifier:
         def _on_job_status(data):
             from app.services.notifier import is_print_related_error
+            from app.utils import format_time
             status = data.get('status')
             source = data.get('source', 'api')
             if source == 'ios':
                 return
             filename = data.get('filename', '')
-            time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            time_str = format_time()
             try:
                 if status == 'completed':
                     notifier.notify_job_completed(filename, time_str)

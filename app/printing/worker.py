@@ -1,4 +1,4 @@
-"""工作线程与任务执行器 — 从 QueueManager 提取"""
+"""工作线程与任务执行器"""
 import os
 import time
 import threading
@@ -8,6 +8,8 @@ import datetime
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from typing import Any
 from loguru import logger
+
+from app.utils import safe_remove
 
 
 class JobExecutor:
@@ -125,9 +127,7 @@ class JobExecutor:
             return False, error_msg
 
         try:
-            os.remove(original_path)
-        except FileNotFoundError:
-            pass
+            safe_remove(original_path, '上传文件')
         except Exception as e:
             logger.warning(f'删除上传文件失败: {original_path} - {e}')
 

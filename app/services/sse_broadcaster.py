@@ -55,21 +55,6 @@ class SSEBroadcaster:
                     else:
                         self._stale_count[sub_id] = count
 
-    def remove_stale_subscribers(self) -> int:
-        """扫描并移除累积满队列次数达到阈值的订阅者"""
-        removed = 0
-        with self._lock:
-            for sub_id in list(self._subscribers.keys()):
-                count = self._stale_count.get(sub_id, 0)
-                if count >= _STALE_LIMIT:
-                    self._subscribers.pop(sub_id, None)
-                    self._stale_count.pop(sub_id, None)
-                    removed += 1
-        if removed:
-            logger.info(f'移除 {removed} 个过期 SSE 订阅者')
-        return removed
-
-
 def init_app(app: Any, maxsize: int = 100) -> SSEBroadcaster:
     """初始化 SSE 广播器并注册到 app.state"""
     broadcaster = SSEBroadcaster(maxsize=maxsize)

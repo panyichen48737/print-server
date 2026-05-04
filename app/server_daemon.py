@@ -12,14 +12,10 @@ import uvicorn
 
 from app._paths import app_root
 
-# 确保在项目根目录
+root = app_root()
+os.chdir(root)
 if not getattr(sys, 'frozen', False):
-    root = app_root()
-    os.chdir(root)
     sys.path.insert(0, root)
-else:
-    root = os.path.dirname(os.path.abspath(sys.executable))
-    os.chdir(root)
 
 from app.config import Config, setup_logging
 from app.bootstrap import bootstrap

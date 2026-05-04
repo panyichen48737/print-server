@@ -1,4 +1,4 @@
-"""工作线程池 — 管理 JobWorker 生命周期与 COM 锁，从 QueueManager 拆出的独立职责"""
+"""工作线程池 — 管理 JobWorker 生命周期与 COM 锁"""
 import threading
 from typing import Any, Optional
 

@@ -11,11 +11,10 @@ IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif',
 class PrintEngine:
     """打印调度层，按文件类型分发到不同的 PrinterBackend"""
 
-    def __init__(self, config: Any, dingtalk: Any = None,
-                 excel_lock: Optional[threading.Lock] = None,
-                 ppt_lock: Optional[threading.Lock] = None) -> None:
+    def __init__(self, config: Any,
+                 excel_lock: threading.Lock,
+                 ppt_lock: threading.Lock) -> None:
         self.config = config
-        self.dingtalk = dingtalk
 
         pdf_backend = PdfBackend(config)
         office_backend = OfficeBackend(config, excel_lock, ppt_lock)
@@ -29,8 +28,6 @@ class PrintEngine:
         self._backends['.pdf'] = pdf_backend
 
         self._office_backend = office_backend
-        self._excel_lock = excel_lock or threading.Lock()
-        self._ppt_lock = ppt_lock or threading.Lock()
         self._active_jobs: dict[str, dict[str, Any]] = {}
         self._active_jobs_lock = threading.Lock()
 

@@ -24,7 +24,7 @@ class TestHandleFileUpload:
 
     @pytest.fixture
     def queue_mgr(self):
-        """模拟 QueueManager 对象"""
+        """模拟 JobQueue 对象"""
         qm = MagicMock()
         qm.add_job.return_value = 'test-job-id-123'
         return qm

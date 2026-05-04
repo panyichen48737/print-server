@@ -34,7 +34,7 @@ def handle_file_upload(
         filename: 原始文件名
         file_bytes: 文件二进制内容
         config: Config 实例
-        queue_mgr: QueueManager 实例
+        queue_mgr: JobQueue 实例
         source: 来源标识，'api' 或 'web'
         printer/copies/duplex/color/paper_size: 打印参数
 

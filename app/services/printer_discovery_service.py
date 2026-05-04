@@ -1,4 +1,4 @@
-"""打印机发现服务：枚举打印机与聚合状态，抽离 QueueManager 中的 win32print 调用"""
+"""打印机发现服务：枚举打印机与聚合状态"""
 from typing import Any
 
 from loguru import logger

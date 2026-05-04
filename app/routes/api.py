@@ -95,8 +95,8 @@ async def cancel_job_api(
     auth=Depends(require_auth),
 ):
     """取消任务"""
-    ps = request.app.state.print_service
-    success, error = ps.cancel_job(job_id)
+    job_queue = request.app.state.job_queue
+    success, error = job_queue.cancel_job(job_id)
     if not success:
         raise HTTPException(status_code=400, detail=error)
     return {'success': True}
@@ -146,8 +146,8 @@ async def retry_job(
     request: Request,
     auth=Depends(require_auth),
 ):
-    ps = request.app.state.print_service
-    new_id, error = ps.retry_job(job_id)
+    job_queue = request.app.state.job_queue
+    new_id, error = job_queue.retry_job(job_id)
     if error:
         raise HTTPException(status_code=400, detail=error)
     return {'success': True, 'new_job_id': new_id}
@@ -176,8 +176,8 @@ async def cancel_all_queued(
     request: Request,
     auth=Depends(require_auth),
 ):
-    ps = request.app.state.print_service
-    count = ps.cancel_all_queued()
+    job_queue = request.app.state.job_queue
+    count = job_queue.cancel_all_queued()
     return {'success': True, 'cancelled': count}
 
 

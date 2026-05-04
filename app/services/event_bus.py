@@ -25,11 +25,3 @@ class EventBus:
                 handler(data)
             except Exception:
                 pass
-
-    def subscribe(self) -> tuple:
-        """注册新订阅者，返回 (sub_id, Queue)"""
-        return self._broadcaster.subscribe()
-
-    def unsubscribe(self, sub_id: str) -> None:
-        """注销订阅者"""
-        self._broadcaster.unsubscribe(sub_id)

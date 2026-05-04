@@ -1,5 +1,4 @@
-"""任务队列 — 入队、取消、状态管理，从 QueueManager 拆出的独立职责"""
-import os
+"""任务队列 — 入队、取消、状态管理、心跳恢复"""
 import queue
 import threading
 from datetime import datetime, timedelta
@@ -8,6 +7,7 @@ from typing import Any, Optional
 from loguru import logger
 
 from app.printing.repository import JobRepository
+from app.utils import format_time, safe_remove
 
 
 class JobQueue:
@@ -85,7 +85,7 @@ class JobQueue:
             except Exception:
                 pass
 
-        self._safe_remove(job.get('filepath'), '取消任务文件')
+        safe_remove(job.get('filepath'), '取消任务文件')
         logger.info(f'任务已取消: {job_id}')
         return True, None
 
@@ -103,7 +103,7 @@ class JobQueue:
 
         for job in to_cancel:
             self._emit_job_status(job, 'failed', '用户取消')
-            self._safe_remove(job.get('filepath'), '取消任务文件')
+            safe_remove(job.get('filepath'), '取消任务文件')
 
         logger.info(f'批量取消完成: {len(to_cancel)} 个任务')
         return len(to_cancel)
@@ -153,22 +153,11 @@ class JobQueue:
                 'source': job.get('source', 'api'),
             })
 
-    def _safe_remove(self, filepath: Optional[str], label: str = '') -> None:
-        if not filepath:
-            return
-        try:
-            os.remove(filepath)
-        except FileNotFoundError:
-            pass
-        except Exception as e:
-            logger.warning(f'删除{label}失败: {filepath} - {e}')
-
     def _notify_cancelled(self, job: dict, print_engine: Any) -> None:
         """当打印中的任务被取消时触发通知"""
-        time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         if self._event_bus:
             self._event_bus.emit('notification', {
                 'type': 'job_cancelled',
                 'filename': job['filename'],
-                'time': time_str,
+                'time': format_time(),
             })
