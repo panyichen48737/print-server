@@ -60,6 +60,16 @@ def build(version: str):
         cwd=PROJECT_ROOT, check=True, capture_output=True,
     )
 
+    # 将运行时需要的资源文件集中到 build_resources/，供 --add-data 内嵌
+    res_dir = BUILD_DIR / 'resources'
+    res_dir.mkdir(parents=True, exist_ok=True)
+    # version.txt — 运行时显示版本号
+    (res_dir / 'version.txt').write_text(f'{version}\n')
+    # CHANGELOG.md — 管理后台/用户可查阅更新历史
+    changelog = PROJECT_ROOT / 'CHANGELOG.md'
+    if changelog.exists():
+        shutil.copy2(changelog, res_dir / 'CHANGELOG.md')
+
     # PyInstaller 参数
     args = [
         sys.executable, '-m', 'PyInstaller',
@@ -71,6 +81,9 @@ def build(version: str):
         '--add-data', f'{PROJECT_ROOT / "app" / "templates"}{os.pathsep}app/templates',
         '--add-data', f'{PROJECT_ROOT / "app" / "static"}{os.pathsep}app/static',
         '--add-data', f'{PROJECT_ROOT / "app" / "server_daemon.py"}{os.pathsep}app',
+        # 内嵌资源（放在包根目录，exe 同级）
+        '--add-data', f'{res_dir / "version.txt"}{os.pathsep}.',
+        '--add-data', f'{res_dir / "CHANGELOG.md"}{os.pathsep}.',
     ]
 
     # nssm（可选）
@@ -125,10 +138,8 @@ def build(version: str):
 
     subprocess.run(args, cwd=PROJECT_ROOT, check=True, env=env)
 
-    # 写入版本信息
     dist_app_dir = DIST_DIR / APP_NAME
     if dist_app_dir.exists():
-        (dist_app_dir / 'version.txt').write_text(f'{version}\n')
         print(f'[build] 构建完成: {dist_app_dir}')
         print(f'[build] 版本: {version}')
     else:

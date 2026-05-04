@@ -11,9 +11,13 @@ def _get_version() -> str:
     if env_ver:
         return env_ver.lstrip('v')
 
-    # 2. version.txt（PyInstaller 打包后写入 dist 目录）
+    # 2. version.txt（PyInstaller --add-data 内嵌）
     if getattr(sys, 'frozen', False):
-        ver_file = Path(sys.executable).parent / 'version.txt'
+        # sys._MEIPASS 是 PyInstaller 解压资源的临时目录
+        ver_file = Path(sys._MEIPASS) / 'version.txt'
+        if not ver_file.exists():
+            # 回退到 exe 同级目录
+            ver_file = Path(sys.executable).parent / 'version.txt'
     else:
         ver_file = Path(__file__).resolve().parent.parent / 'version.txt'
     if ver_file.exists():
