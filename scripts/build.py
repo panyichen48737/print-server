@@ -69,6 +69,16 @@ def build(version: str):
     changelog = PROJECT_ROOT / 'CHANGELOG.md'
     if changelog.exists():
         shutil.copy2(changelog, res_dir / 'CHANGELOG.md')
+    # SSL 证书（如存在）— 内嵌后按需释放到数据目录
+    cert_dir = PROJECT_ROOT / 'certs'
+    if cert_dir.exists():
+        shutil.copytree(cert_dir, res_dir / 'certs', dirs_exist_ok=True)
+        print(f'[build] 已包含 SSL 证书')
+    # nssm（如存在）— 注册为 Windows 服务用
+    nssm_src = PROJECT_ROOT / 'bin' / 'nssm.exe'
+    if nssm_src.exists():
+        shutil.copy2(nssm_src, res_dir / 'nssm.exe')
+        print(f'[build] 已包含 nssm.exe')
 
     # PyInstaller 参数
     args = [
@@ -81,16 +91,9 @@ def build(version: str):
         '--add-data', f'{PROJECT_ROOT / "app" / "templates"}{os.pathsep}app/templates',
         '--add-data', f'{PROJECT_ROOT / "app" / "static"}{os.pathsep}app/static',
         '--add-data', f'{PROJECT_ROOT / "app" / "server_daemon.py"}{os.pathsep}app',
-        # 内嵌资源（放在包根目录，exe 同级）
-        '--add-data', f'{res_dir / "version.txt"}{os.pathsep}.',
-        '--add-data', f'{res_dir / "CHANGELOG.md"}{os.pathsep}.',
+        # 内嵌资源（放在 _internal/resources/，通过 app/resources.py 按需释放）
+        '--add-data', f'{res_dir}{os.pathsep}resources',
     ]
-
-    # nssm（可选）
-    nssm_path = PROJECT_ROOT / 'bin' / 'nssm.exe'
-    if nssm_path.exists():
-        args += ['--add-binary', f'{nssm_path}{os.pathsep}.']
-        print(f'[build] 已包含 nssm.exe')
 
     args += [
         '--hidden-import', 'win32ui',

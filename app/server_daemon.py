@@ -13,6 +13,7 @@ from pathlib import Path
 import uvicorn
 
 from app._paths import app_root
+from app.resources import ensure_resources
 
 root = app_root()
 os.chdir(root)
@@ -35,8 +36,11 @@ def write_status(status, **extra):
 
 
 def _find_cert() -> tuple[str | None, str | None]:
-    """查找 SSL 证书：exe 同级 certs/ → 项目目录 certs/"""
-    search_dirs = [os.path.join(app_root(), 'certs')]
+    """查找 SSL 证书：释放的资源目录 → exe 同级 certs/ → 项目目录 certs/"""
+    search_dirs = [
+        os.path.join(app_root(), 'resources', 'certs'),  # ensure_resources 释放位置
+        os.path.join(app_root(), 'certs'),
+    ]
     if getattr(sys, 'frozen', False):
         search_dirs.insert(0, os.path.join(os.path.dirname(sys.executable), 'certs'))
     for d in search_dirs:
@@ -94,6 +98,9 @@ def main():
 
     write_status('starting')
     logger.info('守护进程启动中...')
+
+    # 释放内嵌资源（证书、nssm 等）
+    ensure_resources()
 
     # 定义 FastAPI lifespan，处理优雅关闭
     @asynccontextmanager
