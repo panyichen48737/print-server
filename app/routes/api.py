@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 
 from app.auth import require_auth
 from app._paths import app_root
-from app.upload_helper import handle_file_upload
+from app.services.upload import handle_file_upload
 from app.utils import format_time
 
 api_router = APIRouter()

@@ -14,3 +14,6 @@ certs/
 *.egg-info/
 .DS_Store
 Thumbs.db
+config.json
+bin/
+scripts/

@@ -8,7 +8,7 @@ import pytest
 # 确保项目根在 sys.path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from app.upload_helper import handle_file_upload, UploadResult
+from app.services.upload import handle_file_upload, UploadResult
 
 
 class TestHandleFileUpload:
@@ -49,7 +49,7 @@ class TestHandleFileUpload:
         assert result.success is False
         assert '文件过大' in result.error
 
-    @patch('app.upload_helper.ensure_dir', return_value='/tmp/jobs')
+    @patch('app.services.upload.ensure_dir', return_value='/tmp/jobs')
     @patch('builtins.open', new_callable=MagicMock)
     def test_successful_upload(self, mock_open, mock_ensure_dir, config, queue_mgr):
         """有效文件应成功入队"""
@@ -63,7 +63,7 @@ class TestHandleFileUpload:
 
     def test_upload_with_print_params(self, config, queue_mgr):
         """应传递打印参数到 queue_mgr.add_job"""
-        with patch('app.upload_helper.ensure_dir', return_value='/tmp/jobs'):
+        with patch('app.services.upload.ensure_dir', return_value='/tmp/jobs'):
             with patch('builtins.open', MagicMock()):
                 result = handle_file_upload(
                     'doc.docx', b'doc content', config, queue_mgr,
