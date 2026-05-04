@@ -93,6 +93,19 @@ def main():
                         help='以守护进程模式运行（冻结 EXE 入口）')
     parser.parse_known_args()
 
+    # Windows 命名互斥体：防止启动多个守护进程实例
+    import ctypes
+    MUTEX_NAME = 'iOSPrintServerDaemon'
+    mutex = ctypes.windll.kernel32.CreateMutexW(None, True, MUTEX_NAME)
+    if not mutex:
+        # 不应该发生，但以防万一
+        print('[FATAL] 无法创建互斥体')
+        sys.exit(1)
+    if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+        ctypes.windll.kernel32.CloseHandle(mutex)
+        print('[FATAL] 守护进程已在运行')
+        sys.exit(1)
+
     config = Config()
     logger = setup_logging(level=config.get('log_level', 'INFO'))
 
