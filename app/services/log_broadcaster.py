@@ -8,7 +8,7 @@ class LogBroadcaster:
         self._broadcaster = broadcaster
 
     def write(self, message):
-        if message.strip():
+        if message.strip() and self._broadcaster:
             self._broadcaster.publish('log', {
                 'message': message.strip(),
                 'level': 'INFO',
