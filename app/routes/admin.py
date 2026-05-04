@@ -97,12 +97,15 @@ def settings():
             config.set('excel_print_all_sheets', request.form.get('excel_print_all_sheets') == '1')
             config.set('ppt_output_type', request.form.get('ppt_output_type', 'slides'))
             config.set('paper_size', request.form.get('paper_size', 'A4'))
-            config.set('quark_api_key_id', request.form.get('quark_api_key_id', ''))
-            config.set('quark_api_key', request.form.get('quark_api_key', ''))
+
+            # 密钥类字段：表单留空则不修改（不覆盖已存在的值）
+            for secret_field in ('quark_api_key_id', 'quark_api_key', 'dingtalk_webhook', 'bark_key'):
+                val = request.form.get(secret_field, '')
+                if val:
+                    config.set(secret_field, val)
+
             config.set('notify_channel', request.form.get('notify_channel', 'disabled'))
-            config.set('dingtalk_webhook', request.form.get('dingtalk_webhook', ''))
             config.set('dingtalk_level', request.form.get('dingtalk_level', 'error'))
-            config.set('bark_key', request.form.get('bark_key', ''))
             config.set('bark_server', request.form.get('bark_server', 'https://api.day.app'))
             config.set('auto_retry_count', safe_int(request.form.get('auto_retry_count'), 0))
             config.set('port', safe_int(request.form.get('port'), 5000))
