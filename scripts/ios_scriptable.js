@@ -249,14 +249,8 @@ async function uploadFile(file) {
     return null;
   }
 
-  const progress = Progress.create();
-  progress.totalUnitCount = 1;
-  progress.completedUnitCount = 0;
-  progress.localizedDescription = "正在上传文件...";
-
   try {
     const response = await req.loadJSON();
-    progress.completedUnitCount = 1;
 
     if (response && response.job_id) {
       console.log(`上传成功，任务 ID: ${response.job_id}`);
