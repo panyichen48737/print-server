@@ -78,8 +78,8 @@ def bootstrap(config: Config, lifespan=None):
                     if not is_print_related_error(error):
                         return
                     notifier.notify_job_failed(filename, error, time_str)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f'通知回调异常: {e}')
         broadcaster.on('job_status', _on_job_status)
 
     # 启动工作线程
