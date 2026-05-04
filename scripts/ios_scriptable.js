@@ -19,7 +19,7 @@ async function main() {
     const dialog = new Alert();
     dialog.title = "iOS 云打印";
     dialog.message = "请通过分享表单使用此脚本：\n\n1. 在文件 App 或 Safari 中选择一个或多个文件\n2. 点击分享按钮\n3. 选择「共享」→ Scriptable\n4. 选择此脚本";
-    dialog.addOKButton("知道了");
+    dialog.addAction("知道了");
     await dialog.present();
     return;
   }
@@ -41,7 +41,7 @@ async function main() {
     dialog.title = "没有可打印的文件";
     dialog.message = `所选文件类型均不在允许列表中。\n\n允许的类型: ${ALLOWED_EXTENSIONS.join(", ")}`;
     if (errors.length > 0) dialog.message += `\n\n${errors.join("\n")}`;
-    dialog.addOKButton();
+    dialog.addAction("OK");
     await dialog.present();
     return;
   }
@@ -281,7 +281,7 @@ async function uploadFile(file) {
       const dialog = new Alert();
       dialog.title = "上传失败";
       dialog.message = "服务器返回了意外的响应";
-      dialog.addOKButton();
+      dialog.addAction("OK");
       await dialog.present();
       return null;
     }
@@ -289,7 +289,7 @@ async function uploadFile(file) {
     const dialog = new Alert();
     dialog.title = "上传失败";
     dialog.message = `无法连接到服务器: ${error}`;
-    dialog.addOKButton();
+    dialog.addAction("OK");
     await dialog.present();
     return null;
   }

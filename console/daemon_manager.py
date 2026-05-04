@@ -30,6 +30,17 @@ def read_daemon_status():
         return {'status': 'stopped', 'pid': None}
 
 
+def _win_process_exists(pid):
+    """Windows API 检查进程是否存在（比 os.kill(pid,0) 更可靠）"""
+    import ctypes
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if handle:
+        kernel32.CloseHandle(handle)
+        return True
+    return False
+
+
 def is_daemon_alive():
     """检查守护进程是否存活（直接检查 server_daemon PID）"""
     status = read_daemon_status()
@@ -37,8 +48,7 @@ def is_daemon_alive():
     if not pid or status.get('status') != 'running':
         return False
     try:
-        os.kill(pid, 0)
-        return True
+        return _win_process_exists(pid)
     except (OSError, PermissionError):
         return False
 
@@ -53,26 +63,31 @@ def start_daemon():
     log_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        CREATE_NO_WINDOW = 0x08000000
         # 冻结 EXE 模式下没有 .py 入口，直接用 --server-daemon 调自己
         if getattr(sys, 'frozen', False):
             cmd = [sys.executable, '--server-daemon']
             cwd = os.path.dirname(sys.executable)
         else:
             cmd = [sys.executable, DAEMON_SCRIPT]
-            cwd = os.path.dirname(DAEMON_SCRIPT)
+            # cwd 设为项目根目录而非 app/，避免子进程导入时路径问题
+            cwd = os.path.dirname(os.path.dirname(DAEMON_SCRIPT))
+
+        CREATE_NEW_PROCESS_GROUP = 0x00000200
+        DETACHED_PROCESS = 0x00000008
+        flags = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+
         proc = subprocess.Popen(
             cmd,
             cwd=cwd,
-            creationflags=CREATE_NO_WINDOW,
-            stdout=open(log_dir / 'daemon_stdout.log', 'a'),
-            stderr=open(log_dir / 'daemon_stderr.log', 'a'),
+            creationflags=flags,
+            stdout=open(log_dir / 'daemon_stdout.log', 'a', encoding='utf-8'),
+            stderr=open(log_dir / 'daemon_stderr.log', 'a', encoding='utf-8'),
         )
         # 轮询等待 server_daemon 写入 daemon.json
         for _ in range(12):
             if is_daemon_alive():
                 return True, f'守护进程已启动 (PID: {proc.pid})'
-            time.sleep(0.5)
+            time.sleep(1)
         return False, '守护进程启动超时'
     except Exception as e:
         return False, f'启动失败: {e}'
@@ -103,9 +118,9 @@ def stop_daemon():
             except Exception:
                 pass
             try:
-                os.kill(server_pid, 0)
-                subprocess.run(['taskkill', '/F', '/PID', str(server_pid)],
-                               capture_output=True, timeout=5, check=False)
+                if _win_process_exists(server_pid):
+                    subprocess.run(['taskkill', '/F', '/PID', str(server_pid)],
+                                   capture_output=True, timeout=5, check=False)
             except (OSError, PermissionError):
                 pass
 
