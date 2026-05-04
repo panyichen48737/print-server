@@ -1,4 +1,5 @@
 import os
+import time
 import threading
 import queue
 import logging
@@ -317,7 +318,7 @@ class QueueManager:
         return tmp.name
 
     def _execute_print(self, temp_path, job, print_engine, job_id):
-        """执行打印，COM 任务 1s 轮询检测取消，非 COM 任务也检测"""
+        """执行打印，所有任务类型统一 1s 轮询检测取消 + deadline 超时"""
         from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 
         print_params = {
@@ -328,32 +329,32 @@ class QueueManager:
             'paper_size': job.get('paper_size') or '',
         }
         timeout = self.config.get('job_timeout', 300)
+        deadline = time.monotonic() + timeout
         pool = ThreadPoolExecutor(max_workers=1)
         try:
             fut = pool.submit(
                 print_engine.print_file,
                 temp_path, job['file_type'], job_id, self._word_lock, print_params
             )
-            is_com = job.get('file_type') in ('.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx')
 
-            if is_com:
-                while not self._stop_evt.is_set():
-                    try:
-                        success = fut.result(timeout=1)
-                        break
-                    except FuturesTimeout:
-                        if self._is_cancelled(job_id):
-                            if self._print_engine:
-                                self._print_engine.cancel_active_job(job_id)
-                            return 'cancelled'
-            else:
-                success = fut.result(timeout=timeout)
-                if self._is_cancelled(job_id):
-                    return 'cancelled'
+            while not self._stop_evt.is_set():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise FuturesTimeout()
+                try:
+                    success = fut.result(timeout=min(1.0, remaining))
+                    break
+                except FuturesTimeout:
+                    if self._is_cancelled(job_id):
+                        if self._print_engine:
+                            self._print_engine.cancel_active_job(job_id)
+                        return 'cancelled'
 
             return 'completed' if success else 'failed'
         except FuturesTimeout:
             return 'timeout'
+        finally:
+            pool.shutdown(wait=False)
 
     def _finalize_job(self, job_id, original_path, temp_path, result, job):
         """打印结束后：清理文件 + 返回 (ok, error_msg)"""
