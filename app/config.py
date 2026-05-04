@@ -150,7 +150,7 @@ class Config:
 
     def save(self) -> None:
         with self._lock:
-            data = self._schema.model_dump(exclude={'quark_api_key_id', 'quark_api_key'}, indent=4, ensure_ascii=False)
+            data = self._schema.model_dump_json(indent=4, ensure_ascii=False)
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 f.write(data)
 
