@@ -78,10 +78,20 @@ def install_autostart() -> tuple[bool, str]:
     if is_autostart_installed():
         return True, '开机自启已注册'
 
-    if _nssm_available():
+    # 非管理员运行下 nssm 创建服务会失败，直接跳过用 schtasks
+    if _nssm_available() and _is_admin():
         return _install_nssm()
     else:
         return _install_schtasks()
+
+
+def _is_admin() -> bool:
+    """检查是否以管理员身份运行（Windows）"""
+    try:
+        import ctypes
+        return ctypes.windll.shell32.IsUserAnAdmin() != 0
+    except Exception:
+        return False
 
 
 def _install_nssm() -> tuple[bool, str]:

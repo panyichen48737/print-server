@@ -34,10 +34,23 @@ def write_status(status, **extra):
         pass
 
 
+def _find_cert() -> tuple[str | None, str | None]:
+    """查找 SSL 证书：exe 同级 certs/ → 项目目录 certs/"""
+    search_dirs = [os.path.join(app_root(), 'certs')]
+    if getattr(sys, 'frozen', False):
+        search_dirs.insert(0, os.path.join(os.path.dirname(sys.executable), 'certs'))
+    for d in search_dirs:
+        cf = os.path.join(d, 'cert.pem')
+        kf = os.path.join(d, 'key.pem')
+        if os.path.isfile(cf) and os.path.isfile(kf):
+            return cf, kf
+    return None, None
+
+
 def _health_check_loop(app, config, logger):
     port = config.get('port', 5000)
-    cert_path = Path(app_root()) / 'certs' / 'cert.pem'
-    proto = 'https' if cert_path.exists() else 'http'
+    cert_file, _ = _find_cert()
+    proto = 'https' if cert_file else 'http'
     ctx = None
     if proto == 'https':
         ctx = ssl.create_default_context()
@@ -99,8 +112,7 @@ def main():
 
     port = config.get('port', 5000)
 
-    cert_file = os.path.join(root, 'certs', 'cert.pem')
-    key_file = os.path.join(root, 'certs', 'key.pem')
+    cert_file, key_file = _find_cert()
 
     # 启动健康检查线程
     health_thread = threading.Thread(
@@ -112,7 +124,7 @@ def main():
         app, host='0.0.0.0', port=port,
         log_level='info', access_log=False,
     )
-    if os.path.isfile(cert_file) and os.path.isfile(key_file):
+    if cert_file and key_file and os.path.isfile(cert_file) and os.path.isfile(key_file):
         uvicorn_config.ssl_certfile = cert_file
         uvicorn_config.ssl_keyfile = key_file
         logger.info(f'守护进程运行在 https://0.0.0.0:{port} (SSL)')
