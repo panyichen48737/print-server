@@ -61,7 +61,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: iOS 云打印服务器 ${{ github.ref_name }}
-          body_path: CHANGELOG.md
+          generate_release_notes: true
           files: |
             iOSPrintServer-${{ github.ref_name }}.zip
-          generate_release_notes: true
