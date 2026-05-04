@@ -35,9 +35,10 @@ templates.env.globals['url_for'] = _url_for
 
 @admin_router.get('/', name='dashboard')
 async def dashboard(request: Request):
-    query_svc = request.app.state.job_query
-    stats = query_svc.get_stats()
-    recent_jobs = query_svc.list_jobs(limit=10, offset=0)
+    repo = request.app.state.job_repo
+    job_queue = request.app.state.job_queue
+    stats = repo.get_stats()
+    recent_jobs = repo.get_jobs(limit=10, offset=0)
     return templates.TemplateResponse(
         'admin/dashboard.html',
         {'request': request, 'stats': stats, 'recent_jobs': recent_jobs}
@@ -53,17 +54,17 @@ async def history(
     date_from: str = '',
     date_to: str = '',
 ):
-    query_svc = request.app.state.job_query
+    repo = request.app.state.job_repo
     per_page = 20
 
     status_param = status or None
     search_param = search or None
 
-    total = query_svc.count_jobs(status=status_param, search=search_param)
+    total = repo.count_jobs(status=status_param, search=search_param)
     total_pages = max(1, (total + per_page - 1) // per_page)
     offset = (page - 1) * per_page
 
-    jobs = query_svc.list_jobs(status=status_param, search=search_param, limit=per_page, offset=offset)
+    jobs = repo.get_jobs(status=status_param, search=search_param, limit=per_page, offset=offset)
 
     return templates.TemplateResponse('admin/history.html', {
         'request': request, 'jobs': jobs,
@@ -176,8 +177,7 @@ async def upload_page(request: Request):
 @admin_router.get('/api/stats')
 async def api_stats(request: Request):
     """HTMX: 返回统计面板 HTML 片段"""
-    query_svc = request.app.state.job_query
-    stats = query_svc.get_stats()
+    stats = request.app.state.job_repo.get_stats()
     return templates.TemplateResponse('admin/_stats.html', {
         'request': request, 'stats': stats,
     })

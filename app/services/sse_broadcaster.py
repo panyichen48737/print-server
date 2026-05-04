@@ -69,10 +69,6 @@ class SSEBroadcaster:
             logger.info(f'移除 {removed} 个过期 SSE 订阅者')
         return removed
 
-    def cleanup(self) -> int:
-        """清理过期订阅者，返回移除数量"""
-        return self.remove_stale_subscribers()
-
 
 def init_app(app: Any, maxsize: int = 100) -> SSEBroadcaster:
     """初始化 SSE 广播器并注册到 app.state"""

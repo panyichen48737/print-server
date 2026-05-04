@@ -2,7 +2,6 @@
 import os
 import queue
 import threading
-import uuid
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
@@ -61,10 +60,6 @@ class JobQueue:
 
     def queue_size(self) -> int:
         return self._queue.qsize()
-
-    # ── 内部队列（给 WorkerPool 创建 JobWorker 用）──
-    def _get_raw_queue(self) -> queue.Queue:
-        return self._queue
 
     # ── 取消业务 ──
 
@@ -170,8 +165,7 @@ class JobQueue:
 
     def _notify_cancelled(self, job: dict, print_engine: Any) -> None:
         """当打印中的任务被取消时触发通知"""
-        from datetime import datetime as dt
-        time_str = dt.now().strftime('%Y-%m-%d %H:%M:%S')
+        time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         # Notifier hooks are handled via EventBus in bootstrap
         if self._event_bus:
             self._event_bus.emit('notification', {

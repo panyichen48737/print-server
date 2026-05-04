@@ -65,6 +65,3 @@ class WorkerPool:
             w.join(timeout=10)
         self._workers = []
         logger.info('工作线程已全部停止')
-
-    def shutdown(self) -> None:
-        self.stop()

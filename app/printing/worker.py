@@ -5,7 +5,6 @@ import threading
 import tempfile
 import shutil
 import datetime
-import queue as _queue
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from typing import Any
 from loguru import logger
@@ -175,8 +174,6 @@ class JobWorker:
                         continue
                     self._process(job_id)
                     self._job_queue.task_done()
-                except _queue.Empty:
-                    continue
                 except Exception as e:
                     logger.error(f'工作线程 {self.worker_id} 异常: {e}')
         finally:

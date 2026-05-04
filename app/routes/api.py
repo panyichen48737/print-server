@@ -7,17 +7,17 @@ from fastapi.responses import StreamingResponse
 
 from app.auth import require_auth
 from app._paths import app_root
+from app.upload_helper import handle_file_upload
 
 api_router = APIRouter()
 
 
 @api_router.get('/health')
 async def health(request: Request):
-    query_svc = request.app.state.job_query
     return {
         'status': 'ok',
         'version': '1.0.0',
-        'queue_size': query_svc.get_queue_size(),
+        'queue_size': request.app.state.job_queue.queue_size(),
     }
 
 
@@ -47,23 +47,23 @@ async def print_file(
     auth=Depends(require_auth),
 ):
     """提交打印任务（iOS 端使用）"""
-    ps = request.app.state.print_service
+    config = request.app.state.app_config
+    job_queue = request.app.state.job_queue
     content = await file.read()
-    result = ps.submit_print(
-        file.filename, content, source='ios',
-        printer=printer, copies=copies, duplex=duplex,
-        color=color, paper_size=paper_size,
+    result = handle_file_upload(
+        file.filename, content, config, job_queue,
+        source='ios', printer=printer, copies=copies,
+        duplex=duplex, color=color, paper_size=paper_size,
     )
-    if not result['success']:
-        raise HTTPException(status_code=400, detail=result['error'])
-    return {'status': 'queued', 'job_id': result['job_id']}
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.error)
+    return {'status': 'queued', 'job_id': result.job_id}
 
 
 @api_router.get('/status/{job_id}')
 async def get_status(job_id: str, request: Request):
     """查询任务状态"""
-    query_svc = request.app.state.job_query
-    job = query_svc.get_job(job_id)
+    job = request.app.state.job_repo.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail='任务不存在')
     result = {'success': True, 'status': job['status'], 'job_id': job['id']}
@@ -121,10 +121,10 @@ async def upload_file(
         printer=printer, copies=copies, duplex=duplex,
         color=color, paper_size=paper_size,
     )
-    if not result['success']:
-        raise HTTPException(status_code=400, detail=result['error'])
-    logger.info(f'Web 上传成功: job_id={result["job_id"]}')
-    return {'success': True, 'job_id': result['job_id']}
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.error)
+    logger.info(f'Web 上传成功: job_id={result.job_id}')
+    return {'success': True, 'job_id': result.job_id}
 
 
 @api_router.post('/set_default_printer')

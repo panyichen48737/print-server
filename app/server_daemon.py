@@ -91,7 +91,7 @@ def main():
         yield
         logger.info('守护进程关闭中...')
         printer_monitor.stop()
-        worker_pool.shutdown()
+        worker_pool.stop()
         write_status('stopped')
 
     app, job_queue, worker_pool, print_engine, printer_monitor = bootstrap(config, lifespan=server_lifespan)
