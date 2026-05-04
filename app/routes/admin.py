@@ -36,7 +36,6 @@ templates.env.globals['url_for'] = _url_for
 @admin_router.get('/', name='dashboard')
 async def dashboard(request: Request):
     repo = request.app.state.job_repo
-    job_queue = request.app.state.job_queue
     stats = repo.get_stats()
     recent_jobs = repo.get_jobs(limit=10, offset=0)
     return templates.TemplateResponse(

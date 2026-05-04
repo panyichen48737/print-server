@@ -166,7 +166,6 @@ class JobQueue:
     def _notify_cancelled(self, job: dict, print_engine: Any) -> None:
         """当打印中的任务被取消时触发通知"""
         time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        # Notifier hooks are handled via EventBus in bootstrap
         if self._event_bus:
             self._event_bus.emit('notification', {
                 'type': 'job_cancelled',
