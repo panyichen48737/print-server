@@ -26,6 +26,16 @@ from .autostart import install_autostart, uninstall_autostart, is_autostart_inst
 from .tui import TUI
 
 
+def _ensure_single_instance() -> None:
+    """Windows 命名互斥体：防止启动多个控制台窗口"""
+    import ctypes
+    mutex = ctypes.windll.kernel32.CreateMutexW(None, True, 'iOSPrintServerConsole')
+    if mutex and ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+        ctypes.windll.kernel32.CloseHandle(mutex)
+        print('控制台已在运行')
+        sys.exit(0)
+
+
 def main() -> None:
     # 冻结 EXE 入口：--server-daemon 参数直接路由到服务器入口
     if '--server-daemon' in sys.argv:
@@ -78,7 +88,8 @@ def main() -> None:
         print(msg)
         return 0 if ok else 1
 
-    # 默认：启动控制台 TUI
+    # 默认：启动控制台 TUI（只允许一个实例）
+    _ensure_single_instance()
     config = Config()
     setup_logging(level=config.log_level)
 
