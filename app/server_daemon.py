@@ -62,9 +62,12 @@ def _health_check_loop(app, config, logger):
             consecutive_failures += 1
             logger.warning(f'健康检查失败 ({consecutive_failures}/{max_failures})')
             if consecutive_failures >= max_failures:
-                logger.critical('健康检查连续失败，进程退出')
+                logger.critical('健康检查连续失败，触发优雅关闭')
                 write_status('crashed')
-                os._exit(1)
+                server = getattr(app.state, '_server', None)
+                if server:
+                    server.should_exit = True
+                return
 
 
 def main():
@@ -83,6 +86,7 @@ def main():
     @asynccontextmanager
     async def server_lifespan(app):
         write_status('running', port=config.get('port', 5000))
+        app.state._server = server
         yield
         logger.info('守护进程关闭中...')
         printer_monitor.stop()
@@ -99,18 +103,26 @@ def main():
     key_file = os.path.join(root, 'certs', 'key.pem')
 
     # 启动健康检查线程
-    health_thread = threading.Thread(target=_health_check_loop, args=(app, config, logger), daemon=True)
+    health_thread = threading.Thread(
+        target=_health_check_loop, args=(app, config, logger), daemon=True)
     health_thread.start()
 
+    # 使用 uvicorn.Server 以便通过 should_exit 触发优雅关闭
+    uvicorn_config = uvicorn.Config(
+        app, host='0.0.0.0', port=port,
+        log_level='info', access_log=False,
+    )
     if os.path.isfile(cert_file) and os.path.isfile(key_file):
+        uvicorn_config.ssl_certfile = cert_file
+        uvicorn_config.ssl_keyfile = key_file
         logger.info(f'守护进程运行在 https://0.0.0.0:{port} (SSL)')
-        uvicorn.run(app, host='0.0.0.0', port=port,
-                    ssl_certfile=cert_file, ssl_keyfile=key_file,
-                    log_level='info', access_log=False)
     else:
         logger.info(f'守护进程运行在 http://0.0.0.0:{port} (无 SSL)')
-        uvicorn.run(app, host='0.0.0.0', port=port,
-                    log_level='info', access_log=False)
+
+    server = uvicorn.Server(uvicorn_config)
+    server.run()
+
+    logger.info('守护进程已完全关闭')
 
 
 if __name__ == '__main__':

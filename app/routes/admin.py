@@ -206,12 +206,8 @@ async def admin_test_notification(request: Request, background_tasks: Background
 
 @admin_router.post('/api/restart', response_model=AdminActionResponse)
 async def api_restart(request: Request, auth=Depends(require_auth)):
-    """重启后台服务——通过 os._exit(1) 让守护进程管理器自动重启"""
-    import os
-    import threading
-    import time
-    def _delayed_exit():
-        time.sleep(1)
-        os._exit(1)
-    threading.Thread(target=_delayed_exit, daemon=True).start()
+    """重启后台服务——通过 uvicorn.Server.should_exit 触发 lifespan 优雅关闭"""
+    server = getattr(request.app.state, '_server', None)
+    if server:
+        server.should_exit = True
     return {'success': True}
