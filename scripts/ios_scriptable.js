@@ -11,6 +11,7 @@ const POLL_INTERVAL = 3;                               // 轮询间隔（秒）
 const POLL_MAX_RETRIES = 60;                           // 最大轮询次数（约3分钟）
 const ALLOWED_EXTENSIONS = [".doc", ".docx", ".pdf", ".xls", ".xlsx", ".ppt", ".pptx", ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif", ".heic", ".heif"];
 const ACTIVE_JOBS_KEY = "PrintServer_ActiveJobs";
+const WS_TIMEOUT = 8;  // WebSocket 等待超时（秒），超时后回退到轮询
 // ==============================================================
 
 async function main() {
@@ -113,7 +114,7 @@ async function main() {
     let failed = 0;
     for (const j of uploadedJobs) {
       try {
-        await pollStatus(j.id);
+        await waitForJob(j.id);
         completed++;
       } catch (e) {
         failed++;
@@ -258,7 +259,7 @@ async function waitForCompletion(jobId) {
   }
 
   try {
-    await pollStatus(jobId);
+    await waitForJob(jobId);
     clearActiveJobs();
     const n = new Notification();
     n.title = "✅ 打印完成";
@@ -327,6 +328,66 @@ async function uploadFile(file) {
     await dialog.present();
     return null;
   }
+}
+
+// ── WebSocket + 轮询混合等待 ──
+
+function waitForJob(jobId) {
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+    const wsUrl = SERVER_URL.replace('https://', 'wss://').replace('http://', 'ws://');
+
+    function fallback() {
+      if (!resolved) {
+        resolved = true;
+        pollStatus(jobId).then(resolve).catch(reject);
+      }
+    }
+
+    const ws = new WebSocket(`${wsUrl}/ws/events`);
+    const wsTimeout = setTimeout(() => {
+      console.log("WebSocket 连接超时，降级到轮询");
+      try { ws.close(); } catch(e) {}
+      fallback();
+    }, WS_TIMEOUT * 1000);
+
+    ws.onopen = () => { console.log("WebSocket 已连接"); };
+
+    ws.onmessage = (msg) => {
+      try {
+        const event = JSON.parse(msg);
+        if (event.event === 'job_status' && event.data.job_id === jobId) {
+          if (event.data.status === 'completed') {
+            resolved = true;
+            clearTimeout(wsTimeout);
+            ws.close();
+            resolve();
+          } else if (event.data.status === 'failed') {
+            resolved = true;
+            clearTimeout(wsTimeout);
+            ws.close();
+            reject(new Error(event.data.error || '打印失败'));
+          }
+        }
+      } catch (e) {
+        console.log(`WS 消息解析失败: ${e}`);
+      }
+    };
+
+    ws.onerror = (err) => {
+      console.log(`WebSocket 错误: ${err}`);
+      clearTimeout(wsTimeout);
+      try { ws.close(); } catch(e) {}
+      fallback();
+    };
+
+    ws.onclose = () => {
+      if (!resolved) {
+        clearTimeout(wsTimeout);
+        fallback();
+      }
+    };
+  });
 }
 
 function pollStatus(jobId) {

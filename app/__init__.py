@@ -30,4 +30,7 @@ def create_app(lifespan=_default_lifespan) -> FastAPI:
     from app.services.sse_broadcaster import init_app
     init_app(app)
 
+    from app.routes.ws import register_ws_routes
+    register_ws_routes(app)
+
     return app
