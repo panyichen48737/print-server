@@ -141,27 +141,28 @@ class JobRepository:
             return [dict(r) for r in rows]
 
     def get_stats(self) -> dict:
-        """获取统计信息"""
         with sqlite3.connect(self.db_path) as conn:
             today = datetime.now().strftime('%Y-%m-%d')
-            queued = conn.execute("SELECT COUNT(*) FROM jobs WHERE status='queued'").fetchone()[0]
-            printing = conn.execute("SELECT COUNT(*) FROM jobs WHERE status='printing'").fetchone()[0]
-            today_completed = conn.execute(
-                "SELECT COUNT(*) FROM jobs WHERE status='completed' AND created_at >= ?", (today,)
-            ).fetchone()[0]
-            today_failed = conn.execute(
-                "SELECT COUNT(*) FROM jobs WHERE status='failed' AND created_at >= ?", (today,)
-            ).fetchone()[0]
-            total = conn.execute('SELECT COUNT(*) FROM jobs').fetchone()[0]
-            success_total = conn.execute("SELECT COUNT(*) FROM jobs WHERE status='completed'").fetchone()[0]
-            failed_total = conn.execute("SELECT COUNT(*) FROM jobs WHERE status='failed'").fetchone()[0]
+            row = conn.execute('''
+                SELECT
+                    COUNT(CASE WHEN status='queued' THEN 1 END) AS queued,
+                    COUNT(CASE WHEN status='printing' THEN 1 END) AS printing,
+                    COUNT(CASE WHEN status='completed' THEN 1 END) AS completed_total,
+                    COUNT(CASE WHEN status='failed' THEN 1 END) AS failed_total,
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN status='completed' AND created_at >= ? THEN 1 ELSE 0 END) AS today_completed,
+                    SUM(CASE WHEN status='failed' AND created_at >= ? THEN 1 ELSE 0 END) AS today_failed
+                FROM jobs
+            ''', (today, today)).fetchone()
+            success_total = row[3]
+            failed_total = row[4]
             success_rate = (success_total / (success_total + failed_total) * 100) if (success_total + failed_total) > 0 else 100
             return {
-                'queued': queued,
-                'printing': printing,
-                'today_completed': today_completed,
-                'today_failed': today_failed,
-                'total': total,
+                'queued': row[0],
+                'printing': row[1],
+                'today_completed': row[5],
+                'today_failed': row[6],
+                'total': row[4],
                 'success_rate': success_rate
             }
 

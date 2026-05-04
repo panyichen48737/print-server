@@ -4,6 +4,8 @@ import time
 import threading
 import tempfile
 import shutil
+import datetime
+import queue as _queue
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from typing import Any, Optional
 from loguru import logger
@@ -50,8 +52,7 @@ class JobExecutor:
         finally:
             if temp_path:
                 try:
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
+                    os.remove(temp_path)
                 except Exception as e:
                     logger.warning(f'删除临时文件失败: {temp_path} - {e}')
 
@@ -61,7 +62,7 @@ class JobExecutor:
             data = {
                 'job_id': job_id, 'filename': filename,
                 'status': status, 'source': source,
-                'ts': __import__('datetime').datetime.now().isoformat()
+                'ts': datetime.datetime.now().isoformat()
             }
             if error_message:
                 data['error'] = error_message
@@ -74,7 +75,6 @@ class JobExecutor:
         return tmp.name
 
     def _execute_print(self, temp_path, job, job_id):
-        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
         print_params = {
             'printer_name': job.get('printer_name') or '',
             'copies': job.get('copies') or 1,
@@ -127,8 +127,9 @@ class JobExecutor:
             return False, error_msg
 
         try:
-            if os.path.exists(original_path):
-                os.remove(original_path)
+            os.remove(original_path)
+        except FileNotFoundError:
+            pass
         except Exception as e:
             logger.warning(f'删除上传文件失败: {original_path} - {e}')
 
@@ -182,7 +183,7 @@ class JobWorker:
                     continue
                 self._process(job_id)
                 self._queue.task_done()
-            except __import__('queue').Empty:
+            except _queue.Empty:
                 continue
             except Exception as e:
                 logger.error(f'工作线程 {self.worker_id} 异常: {e}')

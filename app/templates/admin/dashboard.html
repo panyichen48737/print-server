@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="stats-grid">
-    <div class="stat-card" title="当前排队等待打印的任务数">
+    <div class="stat-card color-blue" title="当前排队等待打印的任务数">
         <div class="d-flex justify-content-between align-items-start">
             <div>
                 <div class="stat-label">排队中</div>
@@ -18,7 +18,7 @@
             </div>
         </div>
     </div>
-    <div class="stat-card" title="当前正在打印的任务数">
+    <div class="stat-card color-amber" title="当前正在打印的任务数">
         <div class="d-flex justify-content-between align-items-start">
             <div>
                 <div class="stat-label">打印中</div>
@@ -32,7 +32,7 @@
             </div>
         </div>
     </div>
-    <div class="stat-card" title="今日成功完成的打印任务数">
+    <div class="stat-card color-green" title="今日成功完成的打印任务数">
         <div class="d-flex justify-content-between align-items-start">
             <div>
                 <div class="stat-label">今日完成</div>
@@ -45,7 +45,7 @@
             </div>
         </div>
     </div>
-    <div class="stat-card" title="今日打印失败的任务数">
+    <div class="stat-card color-red" title="今日打印失败的任务数">
         <div class="d-flex justify-content-between align-items-start">
             <div>
                 <div class="stat-label">今日失败</div>
@@ -59,7 +59,7 @@
             </div>
         </div>
     </div>
-    <div class="stat-card" title="打印成功率 = 已完成 / (已完成 + 失败)">
+    <div class="stat-card color-green" title="打印成功率 = 已完成 / (已完成 + 失败)">
         <div class="d-flex justify-content-between align-items-start">
             <div>
                 <div class="stat-label">成功率</div>
@@ -73,7 +73,7 @@
             </div>
         </div>
     </div>
-    <div class="stat-card" title="系统运行以来累计处理的任务总数">
+    <div class="stat-card color-blue" title="系统运行以来累计处理的任务总数">
         <div class="d-flex justify-content-between align-items-start">
             <div>
                 <div class="stat-label">总计任务</div>
@@ -96,7 +96,7 @@
     <div class="card-header">
         <span>打印机状态</span>
         <div class="d-flex align-items-center gap-2">
-            <span id="printerCount" style="font-size: 13px; color: var(--text-muted);"></span>
+            <span id="printerCount" class="td-muted"></span>
             <button class="btn btn-ghost btn-sm" id="refreshPrinters" onclick="refreshPrinterStatus()" title="刷新打印机状态" aria-label="刷新打印机状态">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <polyline points="23 4 23 10 17 10"></polyline>
@@ -124,14 +124,14 @@
 <div class="card">
     <div class="card-header">
         <span>最近任务</span>
-        <a href="{{ url_for('admin.history') }}" style="font-size: 13px; color: var(--accent-blue); text-decoration: none;">
+        <a href="{{ url_for('admin.history') }}" class="link-accent">
             查看全部
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;" aria-hidden="true">
                 <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
         </a>
     </div>
-    <div class="card-body" style="padding: 0;">
+    <div class="card-body p-0">
         {% if recent_jobs %}
         <div class="table-container">
             <table class="table">
@@ -165,8 +165,8 @@
                                 {{ job.filename }}
                             </div>
                         </td>
-                        <td style="color: var(--text-muted); font-size: 12px;">{{ job.file_type }}</td>
-                        <td style="color: var(--text-muted); font-size: 13px;">
+                        <td class="td-muted-sm">{{ job.file_type }}</td>
+                        <td class="td-muted">
                             {% if job.file_size >= 1048576 %}
                                 {{ "%.1f"|format(job.file_size / 1048576) }} MB
                             {% elif job.file_size >= 1024 %}
@@ -185,7 +185,7 @@
                                 {% else %}{{ job.status }}{% endif %}
                             </span>
                         </td>
-                        <td style="color: var(--text-muted); font-size: 13px;">{{ job.created_at }}</td>
+                        <td class="td-muted">{{ job.created_at }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -299,15 +299,9 @@
 
         if (nameEl) nameEl.textContent = p.name || '';
         if (statusEl) {
-            statusEl.textContent = statusTextMap[overall] || overall;
-            if (overall === 'ready') statusEl.style.color = '';
-            else if (overall === 'error') statusEl.style.color = '';
-            else if (overall === 'warning') statusEl.style.color = '';
-            else if (overall === 'busy') statusEl.style.color = '';
-            else statusEl.style.color = '';
-            statusEl.className = 'printer-status-text status-indicator';
             var dotClass = overall === 'ready' ? 'ready' : overall === 'error' ? 'error' : overall === 'warning' ? 'warning' : overall === 'busy' ? 'busy' : overall === 'offline' ? 'offline' : 'ready';
-            statusEl.innerHTML = '<span class="dot ' + dotClass + '"></span> ' + statusTextMap[overall] || overall;
+            statusEl.className = 'printer-status-text status-indicator';
+            statusEl.innerHTML = '<span class="dot ' + dotClass + '"></span> ' + (statusTextMap[overall] || overall);
         }
         if (detailEl) {
             var labels = (p.statuses || []).map(function(s) { return s.label; });

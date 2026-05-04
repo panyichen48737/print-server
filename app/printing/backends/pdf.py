@@ -15,6 +15,7 @@ class PdfBackend(PrinterBackend):
         self.config = config
         self._active_jobs = {}
         self._active_jobs_lock = threading.Lock()
+        self._chrome_path = None
 
     def print_file(self, filepath, job_id, print_params, lock=None):
         chrome_path = self._find_chromium()
@@ -59,28 +60,24 @@ class PdfBackend(PrinterBackend):
         return True
 
     def get_active_job(self, job_id: str) -> dict | None:
-        """公开方法获取活跃任务信息，避免外部直接访问私有属性"""
         with self._active_jobs_lock:
             return self._active_jobs.get(job_id)
 
     def _find_chromium(self):
-        """查找 Edge 或 Chrome 的安装路径（优先 Edge）"""
-        try:
-            result = subprocess.run(['where', 'msedge.exe'], capture_output=True, text=True)
-            if result.returncode == 0:
-                path = result.stdout.strip().split('\n')[0]
-                if os.path.exists(path):
-                    return path
-        except Exception:
-            pass
-        try:
-            result = subprocess.run(['where', 'chrome.exe'], capture_output=True, text=True)
-            if result.returncode == 0:
-                path = result.stdout.strip().split('\n')[0]
-                if os.path.exists(path):
-                    return path
-        except Exception:
-            pass
+        if self._chrome_path:
+            return self._chrome_path
+
+        browsers = ['msedge.exe', 'chrome.exe']
+        for browser in browsers:
+            try:
+                result = subprocess.run(['where', browser], capture_output=True, text=True)
+                if result.returncode == 0:
+                    path = result.stdout.strip().split('\n')[0]
+                    if os.path.exists(path):
+                        self._chrome_path = path
+                        return path
+            except Exception:
+                pass
 
         candidates = [
             os.path.expandvars(r'%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe'),
@@ -93,5 +90,6 @@ class PdfBackend(PrinterBackend):
         for path in candidates:
             expanded = os.path.expandvars(path)
             if os.path.exists(expanded):
+                self._chrome_path = expanded
                 return expanded
         return None

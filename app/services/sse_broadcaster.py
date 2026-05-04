@@ -16,7 +16,6 @@ class SSEBroadcaster:
         self._lock = threading.Lock()
 
     def subscribe(self) -> tuple[str, queue.Queue]:
-        """注册新订阅者，返回 (sub_id, Queue)"""
         q = queue.Queue(maxsize=self._maxsize)
         sub_id = str(uuid.uuid4())
         with self._lock:
@@ -24,19 +23,16 @@ class SSEBroadcaster:
         return sub_id, q
 
     def unsubscribe(self, sub_id: str) -> None:
-        """注销订阅者"""
         with self._lock:
             self._subscribers.pop(sub_id, None)
 
     def publish(self, event_type: str, data: Any) -> None:
-        """发布事件到所有订阅者（丢弃已满队列，不阻塞）"""
         with self._lock:
             subs = list(self._subscribers.items())
         for sub_id, q in subs:
             try:
                 q.put_nowait((event_type, data))
             except queue.Full:
-                # 慢客户端：丢弃最旧事件，腾出空间
                 try:
                     q.get_nowait()
                     q.put_nowait((event_type, data))
@@ -45,22 +41,8 @@ class SSEBroadcaster:
                     pass
 
 
-_broadcaster: SSEBroadcaster | None = None
-_broadcaster_lock = threading.Lock()
-
-
-def get_broadcaster(maxsize: int = 100) -> SSEBroadcaster:
-    """获取模块级单例"""
-    global _broadcaster
-    if _broadcaster is None:
-        with _broadcaster_lock:
-            if _broadcaster is None:
-                _broadcaster = SSEBroadcaster(maxsize=maxsize)
-    return _broadcaster
-
-
 def init_app(app: Any, maxsize: int = 100) -> SSEBroadcaster:
     """初始化 SSE 广播器并注册到 app.state"""
     broadcaster = SSEBroadcaster(maxsize=maxsize)
-    app.state.sse = broadcaster  # was: app.extensions['sse'] = broadcaster
+    app.state.sse = broadcaster
     return broadcaster

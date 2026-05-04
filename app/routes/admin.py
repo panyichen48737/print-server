@@ -118,14 +118,22 @@ async def settings_post(
             except (ValueError, TypeError):
                 return default
 
-        config.set('api_key', api_key)
-        config.set('default_printer', default_printer)
-        config.set('default_copies', safe_int(default_copies, 1))
-        config.set('default_duplex', default_duplex == '1')
-        config.set('default_color', default_color == '1')
-        config.set('excel_print_all_sheets', excel_print_all_sheets == '1')
-        config.set('ppt_output_type', ppt_output_type)
-        config.set('paper_size', paper_size)
+        updates = {
+            'api_key': api_key,
+            'default_printer': default_printer,
+            'default_copies': safe_int(default_copies, 1),
+            'default_duplex': default_duplex == '1',
+            'default_color': default_color == '1',
+            'excel_print_all_sheets': excel_print_all_sheets == '1',
+            'ppt_output_type': ppt_output_type,
+            'paper_size': paper_size,
+            'notify_channel': notify_channel,
+            'dingtalk_level': dingtalk_level,
+            'bark_server': bark_server,
+            'auto_retry_count': safe_int(auto_retry_count, 0),
+            'port': safe_int(port, 5000),
+            'log_level': log_level,
+        }
 
         for secret_field, val in [
             ('quark_api_key_id', quark_api_key_id),
@@ -134,14 +142,9 @@ async def settings_post(
             ('bark_key', bark_key),
         ]:
             if val:
-                config.set(secret_field, val)
+                updates[secret_field] = val
 
-        config.set('notify_channel', notify_channel)
-        config.set('dingtalk_level', dingtalk_level)
-        config.set('bark_server', bark_server)
-        config.set('auto_retry_count', safe_int(auto_retry_count, 0))
-        config.set('port', safe_int(port, 5000))
-        config.set('log_level', log_level)
+        config.set_many(updates)
         config.save()
         logger.info('配置已保存')
         return {'success': True}

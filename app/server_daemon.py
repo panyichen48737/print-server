@@ -35,13 +35,19 @@ def write_status(status, **extra):
 
 
 def _health_check_loop(app, config, logger):
-    """Background thread that self-polls the health endpoint. 3 failures -> os._exit(1) (nssm restarts)."""
     import urllib.request
     import time
-    from pathlib import Path
     from app._paths import app_root
 
     port = config.get('port', 5000)
+    cert_path = Path(app_root()) / 'certs' / 'cert.pem'
+    proto = 'https' if cert_path.exists() else 'http'
+    ctx = None
+    if proto == 'https':
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+
     consecutive_failures = 0
     max_failures = 3
     check_interval = 30
@@ -49,12 +55,6 @@ def _health_check_loop(app, config, logger):
     while True:
         time.sleep(check_interval)
         try:
-            proto = 'https' if (Path(app_root()) / 'certs' / 'cert.pem').exists() else 'http'
-            ctx = None
-            if proto == 'https':
-                ctx = ssl.create_default_context()
-                ctx.check_hostname = False
-                ctx.verify_mode = ssl.CERT_NONE
             req = urllib.request.Request(
                 f'{proto}://127.0.0.1:{port}/api/health',
                 method='GET',
@@ -99,10 +99,8 @@ def main():
 
     port = config.get('port', 5000)
 
-    # 查找证书（开发模式在项目根目录，冻结模式在 EXE 同目录）
-    root_dir = root if not getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(sys.executable))
-    cert_file = os.path.join(root_dir, 'certs', 'cert.pem')
-    key_file = os.path.join(root_dir, 'certs', 'key.pem')
+    cert_file = os.path.join(root, 'certs', 'cert.pem')
+    key_file = os.path.join(root, 'certs', 'key.pem')
 
     # 启动健康检查线程
     health_thread = threading.Thread(target=_health_check_loop, args=(app, config, logger), daemon=True)

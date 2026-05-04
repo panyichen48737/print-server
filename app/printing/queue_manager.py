@@ -127,6 +127,27 @@ class QueueManager:
         self._workers = []
         logger.info('工作线程已全部停止')
 
+    def queue_size(self) -> int:
+        return self._queue.qsize()
+
+    def _emit_job_status(self, job: dict, status: str, error: str = '') -> None:
+        if self._event_bus:
+            self._event_bus.emit('job_status', {
+                'job_id': job['id'], 'filename': job['filename'],
+                'status': status, 'error': error,
+                'source': job.get('source', 'api')
+            })
+
+    def _safe_remove(self, filepath: str | None, label: str = '') -> None:
+        if not filepath:
+            return
+        try:
+            os.remove(filepath)
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            logger.warning(f'删除{label}失败: {filepath} - {e}')
+
     def cancel_job(self, job_id: str) -> tuple[bool, str | None]:
         job = self.get_job(job_id)
         if not job:
@@ -138,24 +159,12 @@ class QueueManager:
 
         if job['status'] == 'queued':
             self.update_status(job_id, 'failed', '用户取消')
-            if self._event_bus:
-                self._event_bus.emit('job_status', {
-                    'job_id': job_id, 'filename': job['filename'],
-                    'status': 'failed', 'error': '用户取消',
-                    'source': job.get('source', 'api')
-                })
+            self._emit_job_status(job, 'failed', '用户取消')
         else:
-            # printing — send cancel to PrintEngine
             if self._print_engine:
                 self._print_engine.cancel_active_job(job_id)
             self.update_status(job_id, 'failed', '用户取消')
-            if self._event_bus:
-                self._event_bus.emit('job_status', {
-                    'job_id': job_id, 'filename': job['filename'],
-                    'status': 'failed', 'error': '用户取消',
-                    'source': job.get('source', 'api')
-                })
-            # Send cancelled notification (skip iOS sources)
+            self._emit_job_status(job, 'failed', '用户取消')
             source = job.get('source', 'api')
             if source != 'ios' and self._notifier:
                 try:
@@ -164,14 +173,7 @@ class QueueManager:
                 except Exception:
                     pass
 
-        # Delete job file
-        try:
-            filepath = job.get('filepath')
-            if filepath and os.path.exists(filepath):
-                os.remove(filepath)
-        except Exception as e:
-            logger.warning(f'删除取消任务文件失败: {e}')
-
+        self._safe_remove(job.get('filepath'), '取消任务文件')
         logger.info(f'任务已取消: {job_id}')
         return True, None
 
@@ -182,17 +184,8 @@ class QueueManager:
             if not self._is_cancelled(job['id']):
                 self._mark_cancelled(job['id'])
                 self.update_status(job['id'], 'failed', '用户取消')
-                if self._event_bus:
-                    self._event_bus.emit('job_status', {
-                        'job_id': job['id'], 'filename': job['filename'],
-                        'status': 'failed', 'error': '用户取消',
-                        'source': job.get('source', 'api')
-                    })
-                try:
-                    if job.get('filepath') and os.path.exists(job['filepath']):
-                        os.remove(job['filepath'])
-                except Exception as e:
-                    logger.warning(f'删除取消任务文件失败: {e}')
+                self._emit_job_status(job, 'failed', '用户取消')
+                self._safe_remove(job.get('filepath'), '取消任务文件')
                 count += 1
         logger.info(f'批量取消完成: {count} 个任务')
         return count

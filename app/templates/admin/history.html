@@ -151,8 +151,8 @@
                                 {{ job.filename }}
                             </div>
                         </td>
-                        <td style="color: var(--text-muted); font-size: 12px;">{{ job.file_type }}</td>
-                        <td style="color: var(--text-muted); font-size: 13px;">
+                        <td class="td-muted-sm">{{ job.file_type }}</td>
+                        <td class="td-muted">
                             {% if job.file_size >= 1048576 %}
                                 {{ "%.1f"|format(job.file_size / 1048576) }} MB
                             {% elif job.file_size >= 1024 %}
@@ -178,8 +178,8 @@
                             <span style="font-size: 11px; color: var(--text-muted); margin-left: 4px;">重试 {{ job.retry_count }} 次</span>
                             {% endif %}
                         </td>
-                        <td style="color: var(--text-muted); font-size: 13px;">{{ job.created_at }}</td>
-                        <td style="color: var(--text-muted); font-size: 13px;">{{ job.completed_at or '-' }}</td>
+                        <td class="td-muted">{{ job.created_at }}</td>
+                        <td class="td-muted">{{ job.completed_at or '-' }}</td>
                         <td>
                             {% if job.status == 'failed' and job.error_message != '用户取消' %}
                             <button class="btn btn-primary btn-sm" onclick="retryJob('{{ job.id }}')">

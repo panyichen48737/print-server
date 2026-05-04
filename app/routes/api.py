@@ -15,12 +15,11 @@ api_router = APIRouter()
 
 @api_router.get('/health')
 async def health(request: Request):
-    """健康检查端点"""
     queue_mgr = request.app.state.queue_manager
     return {
         'status': 'ok',
         'version': '1.0.0',
-        'queue_size': queue_mgr._queue.qsize() if hasattr(queue_mgr, '_queue') else 0,
+        'queue_size': queue_mgr.queue_size(),
     }
 
 
