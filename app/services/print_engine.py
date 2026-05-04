@@ -2,9 +2,14 @@ import os
 import logging
 import io
 import threading
+from contextlib import contextmanager
 from .quark_enhancer import QuarkEnhancer
 
 logger = logging.getLogger('print_server')
+
+# GDI Device Caps 常量
+HORZRES = 110
+VERTRES = 111
 
 
 class PrintEngine:
@@ -16,6 +21,41 @@ class PrintEngine:
         self._quark = QuarkEnhancer(config)
         self._active_jobs = {}
         self._active_jobs_lock = threading.Lock()
+
+    @contextmanager
+    def _com_context(self, app_name, lock, job_id, print_params, display_alerts=None):
+        """统一 COM 初始化/清理上下文，消除三个打印方法的重复样板代码"""
+        printer_name = print_params.get('printer_name') or self.config.get('default_printer', '')
+        with self._active_jobs_lock:
+            self._active_jobs[job_id] = {
+                'printer': printer_name,
+                'method': 'com'
+            }
+        with lock:
+            import win32com.client
+            import pythoncom
+            app = None
+            try:
+                pythoncom.CoInitialize()
+                app = win32com.client.Dispatch(app_name)
+                app.Visible = False
+                if display_alerts is not None:
+                    app.DisplayAlerts = display_alerts
+                if printer_name:
+                    app.ActivePrinter = printer_name
+                yield app
+            finally:
+                try:
+                    if app:
+                        app.Quit(SaveChanges=0)
+                except Exception:
+                    pass
+                try:
+                    pythoncom.CoUninitialize()
+                except Exception:
+                    pass
+                with self._active_jobs_lock:
+                    self._active_jobs.pop(job_id, None)
 
     def print_file(self, filepath, file_type, job_id, word_lock, print_params=None):
         """根据文件类型分发到对应的打印方法"""
@@ -37,168 +77,46 @@ class PrintEngine:
         """通过 win32com 调用 Word 打印"""
         if print_params is None:
             print_params = {}
-        # Get printer name for tracking
-        _printer_com = print_params.get('printer_name') if print_params else None
-        if not _printer_com:
-            _printer_com = self.config.get('default_printer', '')
-        with self._active_jobs_lock:
-            self._active_jobs[job_id] = {
-                'printer': _printer_com,
-                'method': 'com'
-            }
-        with word_lock:
-            import win32com.client
-            import pythoncom
-            word = None
-            try:
-                pythoncom.CoInitialize()
-                word = win32com.client.Dispatch('Word.Application')
-                word.Visible = False
-                word.DisplayAlerts = 0  # wdAlertsNone
-
-                doc = word.Documents.Open(os.path.abspath(filepath))
-
-                printer = print_params.get('printer_name') or self.config.get('default_printer', '')
-                if printer:
-                    word.ActivePrinter = printer
-
-                copies = print_params.get('copies') or self.config.get('default_copies', 1)
-                doc.PrintOut(Background=False, Copies=copies)
-
-                doc.Close(SaveChanges=0)  # wdDoNotSaveChanges
-                word.Quit(SaveChanges=0)  # wdDoNotSaveChanges
-                word = None
-                return True
-            except Exception as e:
-                logger.error(f'Word 打印失败: {e}')
-                raise
-            finally:
-                try:
-                    if word:
-                        word.Quit(SaveChanges=0)
-                except Exception:
-                    pass
-                try:
-                    pythoncom.CoUninitialize()
-                except Exception:
-                    pass
-                with self._active_jobs_lock:
-                    self._active_jobs.pop(job_id, None)
+        with self._com_context('Word.Application', word_lock, job_id, print_params, display_alerts=0) as word:
+            doc = word.Documents.Open(os.path.abspath(filepath))
+            copies = print_params.get('copies') or self.config.get('default_copies', 1)
+            doc.PrintOut(Background=False, Copies=copies)
+            doc.Close(SaveChanges=0)
+        return True
 
     def _print_excel(self, filepath, job_id, print_params=None):
         """通过 win32com 调用 Excel 打印"""
         if print_params is None:
             print_params = {}
-        # Get printer name for tracking
-        _printer_com = print_params.get('printer_name') if print_params else None
-        if not _printer_com:
-            _printer_com = self.config.get('default_printer', '')
-        with self._active_jobs_lock:
-            self._active_jobs[job_id] = {
-                'printer': _printer_com,
-                'method': 'com'
-            }
-        with self.excel_lock:
-            import win32com.client
-            import pythoncom
-            excel = None
-            try:
-                pythoncom.CoInitialize()
-                excel = win32com.client.Dispatch('Excel.Application')
-                excel.Visible = False
-                excel.DisplayAlerts = False
-                workbook = excel.Workbooks.Open(os.path.abspath(filepath))
-
-                printer = print_params.get('printer_name') or self.config.get('default_printer', '')
-                if printer:
-                    excel.ActivePrinter = printer
-
-                copies = print_params.get('copies') or self.config.get('default_copies', 1)
-                all_sheets = self.config.get('excel_print_all_sheets', True)
-
-                if all_sheets:
-                    for ws in workbook.Worksheets:
-                        ws.Select(False)
-                workbook.PrintOut(Copies=copies)
-
-                workbook.Close(SaveChanges=False)
-                excel.Quit()
-                excel = None
-                return True
-            except Exception as e:
-                logger.error(f'Excel 打印失败: {e}')
-                raise
-            finally:
-                try:
-                    if excel:
-                        excel.Quit()
-                except Exception:
-                    pass
-                try:
-                    pythoncom.CoUninitialize()
-                except Exception:
-                    pass
-                with self._active_jobs_lock:
-                    self._active_jobs.pop(job_id, None)
+        with self._com_context('Excel.Application', self.excel_lock, job_id, print_params, display_alerts=False) as excel:
+            workbook = excel.Workbooks.Open(os.path.abspath(filepath))
+            copies = print_params.get('copies') or self.config.get('default_copies', 1)
+            all_sheets = self.config.get('excel_print_all_sheets', True)
+            if all_sheets:
+                for ws in workbook.Worksheets:
+                    ws.Select(False)
+            workbook.PrintOut(Copies=copies)
+            workbook.Close(SaveChanges=False)
+        return True
 
     def _print_ppt(self, filepath, job_id, print_params=None):
         """通过 win32com 调用 PowerPoint 打印"""
         if print_params is None:
             print_params = {}
-        # Get printer name for tracking
-        _printer_com = print_params.get('printer_name') if print_params else None
-        if not _printer_com:
-            _printer_com = self.config.get('default_printer', '')
-        with self._active_jobs_lock:
-            self._active_jobs[job_id] = {
-                'printer': _printer_com,
-                'method': 'com'
+        with self._com_context('PowerPoint.Application', self.ppt_lock, job_id, print_params) as ppt:
+            presentation = ppt.Presentations.Open(os.path.abspath(filepath))
+            copies = print_params.get('copies') or self.config.get('default_copies', 1)
+            output_type = self.config.get('ppt_output_type', 'slides')
+            output_map = {
+                'slides': 1,
+                'handout2': 2,
+                'handout3': 3,
+                'handout6': 4,
             }
-        with self.ppt_lock:
-            import win32com.client
-            import pythoncom
-            ppt = None
-            try:
-                pythoncom.CoInitialize()
-                ppt = win32com.client.Dispatch('PowerPoint.Application')
-                ppt.Visible = False
-                presentation = ppt.Presentations.Open(os.path.abspath(filepath))
-
-                printer = print_params.get('printer_name') or self.config.get('default_printer', '')
-                if printer:
-                    ppt.ActivePrinter = printer
-
-                copies = print_params.get('copies') or self.config.get('default_copies', 1)
-                output_type = self.config.get('ppt_output_type', 'slides')
-
-                output_map = {
-                    'slides': 1,       # ppOutputTypeSlides
-                    'handout2': 2,     # ppOutputTypeTwoSlideHandout
-                    'handout3': 3,     # ppOutputTypeThreeSlideHandout
-                    'handout6': 4,     # ppOutputTypeSixSlideHandout
-                }
-                presentation.PrintOptions.OutputType = output_map.get(output_type, 1)
-                presentation.PrintOut(Copies=copies)
-
-                presentation.Close(SaveChanges=0)
-                ppt.Quit()
-                ppt = None
-                return True
-            except Exception as e:
-                logger.error(f'PPT 打印失败: {e}')
-                raise
-            finally:
-                try:
-                    if ppt:
-                        ppt.Quit()
-                except Exception:
-                    pass
-                try:
-                    pythoncom.CoUninitialize()
-                except Exception:
-                    pass
-                with self._active_jobs_lock:
-                    self._active_jobs.pop(job_id, None)
+            presentation.PrintOptions.OutputType = output_map.get(output_type, 1)
+            presentation.PrintOut(Copies=copies)
+            presentation.Close(SaveChanges=0)
+        return True
 
     def _print_pdf(self, filepath, job_id, print_params=None):
         """使用 Chromium (Chrome/Edge) headless 模式直接打印 PDF，质量最佳"""
@@ -408,8 +326,8 @@ class PrintEngine:
             try:
                 hdc.StartPage()
 
-                page_width = hdc.GetDeviceCaps(110)   # HORZRES
-                page_height = hdc.GetDeviceCaps(111)  # VERTRES
+                page_width = hdc.GetDeviceCaps(HORZRES)
+                page_height = hdc.GetDeviceCaps(VERTRES)
 
                 # Color handling — use per-job value if set
                 color_val = print_params.get('color')
