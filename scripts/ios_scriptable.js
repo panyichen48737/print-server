@@ -16,11 +16,11 @@ async function main() {
   const files = getFiles();
   if (!files || files.length === 0) {
     // 手动运行时显示使用说明
-    const alert = new Alert();
-    alert.title = "iOS 云打印";
-    alert.message = "请通过分享表单使用此脚本：\n\n1. 在文件 App 或 Safari 中选择一个或多个文件\n2. 点击分享按钮\n3. 选择「共享」→ Scriptable\n4. 选择此脚本";
-    alert.addOKButton("知道了");
-    await alert.present();
+    const dialog = new Alert();
+    dialog.title = "iOS 云打印";
+    dialog.message = "请通过分享表单使用此脚本：\n\n1. 在文件 App 或 Safari 中选择一个或多个文件\n2. 点击分享按钮\n3. 选择「共享」→ Scriptable\n4. 选择此脚本";
+    dialog.addOKButton("知道了");
+    await dialog.present();
     return;
   }
 
@@ -37,33 +37,33 @@ async function main() {
   }
 
   if (validFiles.length === 0) {
-    const alert = new Alert();
-    alert.title = "没有可打印的文件";
-    alert.message = `所选文件类型均不在允许列表中。\n\n允许的类型: ${ALLOWED_EXTENSIONS.join(", ")}`;
-    if (errors.length > 0) alert.message += `\n\n${errors.join("\n")}`;
-    alert.addOKButton();
-    await alert.present();
+    const dialog = new Alert();
+    dialog.title = "没有可打印的文件";
+    dialog.message = `所选文件类型均不在允许列表中。\n\n允许的类型: ${ALLOWED_EXTENSIONS.join(", ")}`;
+    if (errors.length > 0) dialog.message += `\n\n${errors.join("\n")}`;
+    dialog.addOKButton();
+    await dialog.present();
     return;
   }
 
   if (errors.length > 0) {
-    const alert = new Alert();
-    alert.title = `${errors.length} 个文件被跳过`;
-    alert.message = errors.join("\n") + "\n\n继续打印其余文件？";
-    alert.addAction("继续");
-    alert.addCancelAction("取消");
-    const btn = await alert.present();
+    const dialog = new Alert();
+    dialog.title = `${errors.length} 个文件被跳过`;
+    dialog.message = errors.join("\n") + "\n\n继续打印其余文件？";
+    dialog.addAction("继续");
+    dialog.addCancelAction("取消");
+    const btn = await dialog.present();
     if (btn === -1) return;
   }
 
   // Show progress
   const total = validFiles.length;
-  const alert = new Alert();
-  alert.title = total > 1 ? `打印 ${total} 个文件` : "正在打印...";
-  alert.message = `正在上传 (0/${total})...`;
-  alert.addCancelAction("取消全部");
+  const dialog = new Alert();
+  dialog.title = total > 1 ? `打印 ${total} 个文件` : "正在打印...";
+  dialog.message = `正在上传 (0/${total})...`;
+  dialog.addCancelAction("取消全部");
 
-  const btnPromise = alert.present();
+  const btnPromise = dialog.present();
 
   // Upload files sequentially
   const jobIds = [];
@@ -74,7 +74,7 @@ async function main() {
       Promise.resolve({ type: 'continue' })
     ]);
     if (race.type === 'cancel' && race.btn === -1) {
-      alert.dismiss();
+      dialog.dismiss();
       // Cancel already submitted jobs
       for (const jid of jobIds) {
         try { await cancelJob(jid); } catch(e) {}
@@ -87,7 +87,7 @@ async function main() {
       return;
     }
 
-    alert.message = `正在上传 (${i + 1}/${total}): ${validFiles[i].name}`;
+    dialog.message = `正在上传 (${i + 1}/${total}): ${validFiles[i].name}`;
 
     // Upload single file
     const jobId = await uploadFile(validFiles[i]);
@@ -96,8 +96,8 @@ async function main() {
     }
   }
 
-  // Dismiss the alert — files are submitted
-  alert.dismiss();
+  // Dismiss the dialog — files are submitted
+  dialog.dismiss();
 
   // Wait for completion
   if (total === 1 && jobIds.length === 1) {
@@ -148,14 +148,14 @@ function getExtension(filename) {
 }
 
 async function waitForCompletion(jobId) {
-  const alert = new Alert();
-  alert.title = "🖨 正在打印...";
-  alert.message = "任务已提交，等待打印机响应";
-  alert.addAction("等待完成");
-  alert.addCancelAction("取消打印");
+  const dialog = new Alert();
+  dialog.title = "🖨 正在打印...";
+  dialog.message = "任务已提交，等待打印机响应";
+  dialog.addAction("等待完成");
+  dialog.addCancelAction("取消打印");
 
   const btn = await Promise.race([
-    alert.present(),
+    dialog.present(),
     new Promise(r => setTimeout(() => r(0), 3000))
   ]);
 
@@ -278,19 +278,19 @@ async function uploadFile(file) {
       console.log(`上传成功，任务 ID: ${response.job_id}`);
       return response.job_id;
     } else {
-      const alert = new Alert();
-      alert.title = "上传失败";
-      alert.message = "服务器返回了意外的响应";
-      alert.addOKButton();
-      await alert.present();
+      const dialog = new Alert();
+      dialog.title = "上传失败";
+      dialog.message = "服务器返回了意外的响应";
+      dialog.addOKButton();
+      await dialog.present();
       return null;
     }
   } catch (error) {
-    const alert = new Alert();
-    alert.title = "上传失败";
-    alert.message = `无法连接到服务器: ${error}`;
-    alert.addOKButton();
-    await alert.present();
+    const dialog = new Alert();
+    dialog.title = "上传失败";
+    dialog.message = `无法连接到服务器: ${error}`;
+    dialog.addOKButton();
+    await dialog.present();
     return null;
   }
 }
