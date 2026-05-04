@@ -20,7 +20,7 @@ else:
     os.chdir(os.path.dirname(os.path.abspath(sys.executable)))
 
 from app.config import Config, setup_logging
-from app import bootstrap
+from app.bootstrap import bootstrap
 
 
 def write_status(status, **extra):

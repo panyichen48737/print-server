@@ -36,7 +36,7 @@ a = Analysis(
         'ctypes',
         'win32api',
         'app.config', 'app.routes.api', 'app.routes.admin',
-        'app.services.queue_manager', 'app.services.print_engine',
+        'app.printing.queue_manager', 'app.printing.engine',
         'app.services.dingtalk',
         'app._paths',
         'console.conflicts', 'console.daemon_manager', 'console.autostart', 'console.log_handler', 'console.tui',

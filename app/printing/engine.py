@@ -3,7 +3,7 @@ import logging
 import io
 import threading
 from contextlib import contextmanager
-from .quark_enhancer import QuarkEnhancer
+from .enhancer import QuarkEnhancer
 
 logger = logging.getLogger('print_server')
 

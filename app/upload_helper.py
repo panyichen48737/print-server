@@ -3,7 +3,6 @@
 import os
 import uuid
 import logging
-from typing import Optional
 from werkzeug.utils import secure_filename
 from app._paths import app_root, ensure_dir
 

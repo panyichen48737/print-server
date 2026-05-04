@@ -5,7 +5,7 @@ import queue
 import logging
 from datetime import datetime, timedelta
 
-from app.services.job_repository import JobRepository
+from app.printing.repository import JobRepository
 from app.services.notifier import Notifier
 
 logger = logging.getLogger('print_server')

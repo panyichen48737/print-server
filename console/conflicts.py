@@ -17,7 +17,7 @@ def _get_pid_file():
 
 
 def get_local_ips():
-    """获取本机所有非回环 IP 地址"""
+    """获取本机所有非回环 IP 地址，IPv4 优先"""
     ips = []
     hostname = socket.gethostname()
     try:
@@ -38,7 +38,10 @@ def get_local_ips():
                         ips.append(addr.address)
         except ImportError:
             pass
-    return ips
+    # IPv4 优先排列
+    v4 = [ip for ip in ips if '.' in ip]
+    v6 = [ip for ip in ips if ':' in ip]
+    return v4 + v6
 
 
 def check_port_available(port):
