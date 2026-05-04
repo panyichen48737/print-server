@@ -26,8 +26,8 @@ class QuarkEnhancer:
             None: 增强失败或未配置
         """
         try:
-            client_id = self.config.quark_api_key_id
-            client_secret = self.config.quark_api_key
+            client_id = self.config.schema.quark_api_key_id
+            client_secret = self.config.schema.quark_api_key
             if not client_id or not client_secret:
                 logger.warning('Quark API 未配置，跳过图片增强')
                 return None

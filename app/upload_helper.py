@@ -46,12 +46,12 @@ def handle_file_upload(
 
     ext = os.path.splitext(filename)[1].lower()
 
-    if ext not in config.allowed_extensions:
+    if ext not in config.schema.allowed_extensions:
         return UploadResult(success=False, error=f'不支持的文件类型: {ext}')
 
-    max_size = config.max_file_size_mb * 1024 * 1024
+    max_size = config.schema.max_file_size_mb * 1024 * 1024
     if len(file_bytes) > max_size:
-        return UploadResult(success=False, error=f'文件过大，最大 {config.max_file_size_mb}MB')
+        return UploadResult(success=False, error=f'文件过大，最大 {config.schema.max_file_size_mb}MB')
 
     safe_name = filename  # FastAPI's UploadFile already handles sanitization
     job_id = str(uuid.uuid4())

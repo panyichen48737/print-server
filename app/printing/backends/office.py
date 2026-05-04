@@ -31,10 +31,8 @@ class OfficeBackend(PrinterBackend):
             }
         with lock:
             import win32com.client
-            import pythoncom
             app = None
             try:
-                pythoncom.CoInitialize()
                 app = win32com.client.Dispatch(app_name)
                 app.Visible = False
                 if display_alerts is not None:
@@ -46,10 +44,6 @@ class OfficeBackend(PrinterBackend):
                 try:
                     if app:
                         app.Quit(SaveChanges=0)
-                except Exception:
-                    pass
-                try:
-                    pythoncom.CoUninitialize()
                 except Exception:
                     pass
                 with self._active_jobs_lock:

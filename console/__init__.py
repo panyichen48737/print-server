@@ -42,7 +42,7 @@ def main() -> None:
 
     if args.start:
         config = Config()
-        setup_logging(level=config.log_level)
+        setup_logging(level=config.schema.log_level)
         ok, msg = start_daemon()
         print(msg)
         return 0 if ok else 1
@@ -78,7 +78,7 @@ def main() -> None:
 
     # 默认：启动控制台 TUI
     config = Config()
-    setup_logging(level=config.log_level)
+    setup_logging(level=config.schema.log_level)
 
     tui_handler = TUILogHandler()
     logger.add(tui_handler, format='{time:HH:mm:ss} {level} {message}', level='INFO')

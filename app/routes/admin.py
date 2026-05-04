@@ -174,7 +174,7 @@ async def upload_page(request: Request):
         'request': request,
         'config': config,
         'printers': printer_list,
-        'allowed_extensions': config.allowed_extensions,
+        'allowed_extensions': config.schema.allowed_extensions,
     })
 
 

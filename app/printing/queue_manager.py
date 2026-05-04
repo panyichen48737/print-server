@@ -9,6 +9,7 @@ from loguru import logger
 from app.printing.repository import JobRepository
 from app.printing.worker import JobWorker
 from app.services.notifier import Notifier
+from app.services.heartbeat import HeartbeatMonitor
 
 
 class QueueManager:
@@ -30,6 +31,7 @@ class QueueManager:
         self._ppt_lock = threading.Lock()
 
         self._repo = JobRepository(db_path)
+        self._heartbeat: HeartbeatMonitor | None = None
 
     def _is_cancelled(self, job_id: str) -> bool:
         with self._cancelled_lock:
@@ -97,7 +99,7 @@ class QueueManager:
     def start_workers(self, print_engine: Any) -> None:
         self._print_engine = print_engine
         self._stop_evt.clear()
-        count = self.config.worker_count
+        count = self.config.schema.worker_count
         self._workers = []
         for i in range(count):
             worker = JobWorker(i, self.config, self._queue, self._repo, self._event_bus,
@@ -107,18 +109,12 @@ class QueueManager:
             self._workers.append(worker)
         logger.info(f'启动 {count} 个工作线程')
 
-        self._heartbeat_thread = threading.Thread(target=self._heartbeat_loop, daemon=True)
-        self._heartbeat_thread.start()
-        logger.info('心跳检测线程已启动')
-
-    def _heartbeat_loop(self) -> None:
-        """每 30 秒执行一次 cleanup_old_jobs"""
-        while not self._stop_evt.is_set():
-            try:
-                self.cleanup_old_jobs()
-            except Exception as e:
-                logger.error(f'心跳检测异常: {e}')
-            self._stop_evt.wait(30)
+        self._heartbeat = HeartbeatMonitor(
+            interval=30,
+            cleanup_fn=lambda: self.cleanup_old_jobs(),
+            recover_stuck_fn=self._recover_stuck_jobs,
+        )
+        self._heartbeat.start()
 
     def stop_workers(self) -> None:
         self._stop_evt.set()
@@ -210,12 +206,12 @@ class QueueManager:
         return new_job_id, None
 
     def cleanup_old_jobs(self) -> None:
-        """清理过期任务 + 恢复卡住的 printing 任务"""
-        # 清理过期历史记录（委托给 repo）
+        """清理过期任务（心跳检测也调用此方法）"""
         retention_days = self.config.get('job_retention_days', 30)
         self._repo.cleanup_old_jobs(retention_days)
 
-        # 心跳检测：找回卡在 printing 超过 5 分钟的任务，重新入队
+    def _recover_stuck_jobs(self) -> None:
+        """恢复卡在 printing 超过 5 分钟的任务"""
         heartbeat = (datetime.now() - timedelta(minutes=5)).isoformat()
         stuck_jobs = self._repo.get_jobs_by_status('printing')
         stuck_ids = [j['id'] for j in stuck_jobs if j['created_at'] < heartbeat]
@@ -227,6 +223,8 @@ class QueueManager:
 
     def shutdown(self) -> None:
         self._stop_evt.set()
+        if self._heartbeat:
+            self._heartbeat.stop()
         for w in self._workers:
             w.join(timeout=10)
         self._workers = []

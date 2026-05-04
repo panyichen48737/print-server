@@ -124,12 +124,10 @@ class Config:
                 except (ValueError, TypeError):
                     logger.warning(f'环境变量 {env_key}={env_val} 转换失败，跳过')
 
-    def __getattr__(self, name: str) -> Any:
-        """属性访问代理到 ConfigSchema 字段"""
-        with self._lock:
-            if '_schema' in self.__dict__ and hasattr(self._schema, name):
-                return getattr(self._schema, name)
-        raise AttributeError(f"'Config' object has no attribute '{name}'")
+    @property
+    def schema(self):
+        """类型安全的配置访问。优先使用 config.schema.field 而非 config.get('field')。"""
+        return self._schema
 
     def load(self) -> None:
         with self._lock:
@@ -152,8 +150,9 @@ class Config:
 
     def save(self) -> None:
         with self._lock:
+            data = self._schema.model_dump(exclude={'quark_api_key_id', 'quark_api_key'}, indent=4, ensure_ascii=False)
             with open(self.config_path, 'w', encoding='utf-8') as f:
-                f.write(self._schema.model_dump_json(indent=4, ensure_ascii=False))
+                f.write(data)
 
     def reload(self) -> None:
         self.load()
