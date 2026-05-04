@@ -1,5 +1,4 @@
 """图片打印后端（现代化方式：PIL 排版 → PDF → Chromium 打印）"""
-import os
 import io
 import tempfile
 from loguru import logger
@@ -9,6 +8,7 @@ from PIL import Image, ImageOps
 from app.printing.backends.base import PrinterBackend
 from app.printing.backends.pdf import PdfBackend
 from app.printing.enhancer import QuarkEnhancer
+from app.utils import safe_remove
 
 
 class ImageBackend(PrinterBackend):
@@ -20,10 +20,10 @@ class ImageBackend(PrinterBackend):
         'A3':     (11.69, 16.54),
     }
 
-    def __init__(self, config, pdf_backend: PdfBackend = None):
+    def __init__(self, config, pdf_backend: PdfBackend):
         self.config = config
         self._quark = QuarkEnhancer(config)
-        self._pdf_backend = pdf_backend or PdfBackend(config)
+        self._pdf_backend = pdf_backend
 
     def print_file(self, filepath, job_id, print_params, lock=None):
         return self._print_image(filepath, job_id, print_params)
@@ -88,10 +88,7 @@ class ImageBackend(PrinterBackend):
                 logger.info(f'图片已渲染为 PDF 临时文件: {temp_pdf.name}')
                 return self._pdf_backend.print_file(temp_pdf.name, job_id, print_params)
             finally:
-                try:
-                    os.unlink(temp_pdf.name)
-                except Exception as e:
-                    logger.warning(f'删除临时 PDF 失败: {temp_pdf.name} - {e}')
+                safe_remove(temp_pdf.name, '临时 PDF')
 
         except Exception as e:
             logger.error(f'图片打印失败: {e}')

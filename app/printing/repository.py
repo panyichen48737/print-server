@@ -24,10 +24,21 @@ class JobRepository:
         self._conn.execute('PRAGMA synchronous=NORMAL')
         self.init_db()
 
+    def _ensure_connection(self) -> None:
+        try:
+            self._conn.execute('SELECT 1')
+        except sqlite3.Error:
+            logger.warning('Database connection lost, reconnecting...')
+            self._conn.close()
+            self._conn = sqlite3.connect(self.db_path, timeout=5.0, check_same_thread=False)
+            self._conn.execute('PRAGMA journal_mode=WAL')
+            self._conn.execute('PRAGMA synchronous=NORMAL')
+
     def _execute(self, query, params=None, *, fetchone=False, fetchall=False,
                  row_factory=False, commit=False, executemany=False):
         """统一数据库执行，复用连接 + 线程安全"""
         with self._lock:
+            self._ensure_connection()
             if row_factory:
                 self._conn.row_factory = sqlite3.Row
             else:

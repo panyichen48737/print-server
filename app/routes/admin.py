@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.auth import require_auth
 from app._paths import data_root
-from app.utils import safe_int as _safe_int
+from app.utils import safe_int as _safe_int, format_time
 
 admin_router = APIRouter()
 templates = Jinja2Templates(directory=os.path.join(data_root(), 'app', 'templates'))
@@ -185,13 +185,16 @@ async def api_stats(request: Request):
 @admin_router.post('/api/test_notification')
 async def admin_test_notification(request: Request):
     """HTMX: 发送测试通知，返回 HTML 片段"""
-    ps = request.app.state.print_service
     config = request.app.state.app_config
     channel = config.schema.notify_channel
     dingtalk = getattr(request.app.state, 'dingtalk', None)
     bark = getattr(request.app.state, 'bark', None)
+    time_str = format_time()
     try:
-        ps.test_notification(channel, dingtalk, bark)
+        if channel == 'dingtalk' and dingtalk:
+            dingtalk.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}', level='info')
+        elif channel == 'bark' and bark:
+            bark.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}')
         return HTMLResponse(f'<span style="color: var(--text-success);">✓ 测试通知已发送 ({channel})</span>')
     except Exception as e:
         return HTMLResponse(f'<span style="color: var(--text-danger);">✗ 发送失败: {e}</span>')

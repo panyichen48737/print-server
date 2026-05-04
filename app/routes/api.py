@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from app.auth import require_auth
 from app._paths import app_root
 from app.upload_helper import handle_file_upload
+from app.utils import format_time
 
 api_router = APIRouter()
 
@@ -114,10 +115,12 @@ async def upload_file(
     auth=Depends(require_auth),
 ):
     """Web 上传打印"""
-    ps = request.app.state.print_service
+    config = request.app.state.app_config
+    job_queue = request.app.state.job_queue
     content = await file.read()
-    result = ps.submit_print(
-        file.filename, content, source='web',
+    result = handle_file_upload(
+        file.filename, content, config, job_queue,
+        source='web',
         printer=printer, copies=copies, duplex=duplex,
         color=color, paper_size=paper_size,
     )
@@ -133,9 +136,10 @@ async def set_default_printer(
     body: dict,
     auth=Depends(require_auth),
 ):
-    ps = request.app.state.print_service
+    config = request.app.state.app_config
     printer = body.get('printer', '')
-    ps.set_default_printer(printer)
+    config.set('default_printer', printer)
+    config.save()
     logger.info(f'默认打印机已设置: {printer}')
     return {'success': True}
 
@@ -158,13 +162,16 @@ async def test_notification(
     request: Request,
     auth=Depends(require_auth),
 ):
-    ps = request.app.state.print_service
     config = request.app.state.app_config
     channel = config.get('notify_channel', 'disabled')
     dingtalk = getattr(request.app.state, 'dingtalk', None)
     bark = getattr(request.app.state, 'bark', None)
+    time_str = format_time()
     try:
-        ps.test_notification(channel, dingtalk, bark)
+        if channel == 'dingtalk' and dingtalk:
+            dingtalk.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}', level='info')
+        elif channel == 'bark' and bark:
+            bark.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}')
     except Exception as e:
         logger.warning(f'发送测试通知失败: {e}')
         raise HTTPException(status_code=500, detail=f'发送失败: {e}')

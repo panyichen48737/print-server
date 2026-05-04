@@ -87,10 +87,11 @@ def main():
         yield
         logger.info('守护进程关闭中...')
         printer_monitor.stop()
+        heartbeat.stop()
         worker_pool.stop()
         write_status('stopped')
 
-    app, job_queue, worker_pool, print_engine, printer_monitor = bootstrap(config, lifespan=server_lifespan)
+    app, job_queue, worker_pool, print_engine, printer_monitor, heartbeat = bootstrap(config, lifespan=server_lifespan)
     printer_monitor.start()
 
     port = config.get('port', 5000)

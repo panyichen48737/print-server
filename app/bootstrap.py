@@ -1,5 +1,7 @@
 """服务装配：初始化所有服务并组装 app"""
 
+import threading
+
 from loguru import logger
 
 from app.config import Config
@@ -17,7 +19,6 @@ def bootstrap(config: Config, lifespan=None):
     from app.services.dingtalk import DingTalk
     from app.services.printer_monitor import PrinterMonitor
     from app.services.bark import BarkNotifier
-    from app.services.print_service import PrintService
     from app.services.printer_discovery_service import PrinterDiscoveryService
 
     app = create_app(lifespan=lifespan)
@@ -38,15 +39,26 @@ def bootstrap(config: Config, lifespan=None):
     broadcaster = app.state.sse
     logger.add(LogBroadcaster(broadcaster), format='{message}', level='INFO')
 
+    # COM 互斥锁 — 确保 Office COM 组件串行访问
+    word_lock = threading.Lock()
+    excel_lock = threading.Lock()
+    ppt_lock = threading.Lock()
+
     repo = JobRepository()
     job_queue = JobQueue(repo, event_bus=broadcaster)
-    worker_pool = WorkerPool(config, event_bus=broadcaster)
-    print_engine = PrintEngine(
-        config,
-        excel_lock=worker_pool.excel_lock(),
-        ppt_lock=worker_pool.ppt_lock()
-    )
+    worker_pool = WorkerPool(config, event_bus=broadcaster, word_lock=word_lock)
+    print_engine = PrintEngine(config, excel_lock=excel_lock, ppt_lock=ppt_lock)
     printer_monitor = PrinterMonitor(broadcaster=broadcaster)
+
+    # 心跳：定时清理过期任务 + 恢复卡住任务
+    from app.services.heartbeat import HeartbeatMonitor
+    heartbeat = HeartbeatMonitor(
+        interval=30,
+        cleanup_fn=lambda: job_queue.cleanup_old_jobs(
+            config.get('job_retention_days', 30)),
+        recover_stuck_fn=job_queue.recover_stuck_jobs,
+    )
+    heartbeat.start()
 
     # 事件驱动通知 — 通过 SSEBroadcaster 解耦 Worker 与 Notifier
     if notifier:
@@ -73,7 +85,6 @@ def bootstrap(config: Config, lifespan=None):
     # 启动工作线程
     worker_pool.start(print_engine, repo, job_queue)
 
-    print_service = PrintService(config, job_queue, notifier)
     printer_discovery = PrinterDiscoveryService(printer_monitor)
 
     # Register on app.state
@@ -85,9 +96,8 @@ def bootstrap(config: Config, lifespan=None):
     app.state.bark = bark
     app.state.printer_monitor = printer_monitor
     app.state.sse_broadcaster = broadcaster
-    app.state.print_service = print_service
     app.state.printer_discovery = printer_discovery
 
     job_queue.cleanup_old_jobs(config.get('job_retention_days', 30))
 
-    return app, job_queue, worker_pool, print_engine, printer_monitor
+    return app, job_queue, worker_pool, print_engine, printer_monitor, heartbeat

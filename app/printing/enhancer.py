@@ -10,15 +10,21 @@ from loguru import logger
 from PIL import Image
 import httpx
 
-# 共享长连接客户端（Quark API 超时较长）
-_client = httpx.Client(timeout=60)
-
 
 class QuarkEnhancer:
     """夸克扫描王 API 图片增强"""
 
     def __init__(self, config: Any) -> None:
         self.config = config
+        self._client = httpx.Client(timeout=60)
+
+    def __del__(self) -> None:
+        """安全关闭 httpx 客户端，避免连接泄漏"""
+        try:
+            if hasattr(self, '_client'):
+                self._client.close()
+        except Exception:
+            pass
 
     def enhance(self, filepath: str) -> Optional[bytes]:
         """
@@ -80,7 +86,7 @@ class QuarkEnhancer:
                 'signature': signature,
             }
 
-            resp = _client.post(
+            resp = self._client.post(
                 'https://scan-business.quark.cn/vision',
                 json=payload,
                 timeout=60,
