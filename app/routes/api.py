@@ -9,6 +9,11 @@ from app.auth import require_auth
 from app._paths import app_root
 from app.services.upload import handle_file_upload
 from app.utils import format_time
+from app.schemas import (
+    HealthResponse, PrintResponse, StatusResponse, CancelResponse, CancelAllResponse,
+    PrinterListResponse, PrinterStatusResponse, RetryResponse, LogsResponse,
+    NotificationTestResponse, SetDefaultPrinterRequest,
+)
 
 api_router = APIRouter()
 
@@ -27,7 +32,7 @@ async def _handle_upload(request, file, printer, copies, duplex, color, paper_si
     return {'success': True, 'job_id': result.job_id}
 
 
-@api_router.get('/health')
+@api_router.get('/health', response_model=HealthResponse)
 async def health(request: Request):
     return {
         'status': 'ok',
@@ -36,7 +41,7 @@ async def health(request: Request):
     }
 
 
-@api_router.get('/logs')
+@api_router.get('/logs', response_model=LogsResponse)
 async def api_logs(request: Request, lines: int = 50):
     """获取最新日志行"""
     log_file = os.path.join(app_root(), 'logs', 'print_server.log')
@@ -50,7 +55,7 @@ async def api_logs(request: Request, lines: int = 50):
         return {'lines': [f'[ERROR] 读取日志失败: {e}']}
 
 
-@api_router.post('/print')
+@api_router.post('/print', response_model=PrintResponse)
 async def print_file(
     request: Request,
     file: UploadFile = File(...),
@@ -65,7 +70,7 @@ async def print_file(
     return await _handle_upload(request, file, printer, copies, duplex, color, paper_size, 'ios')
 
 
-@api_router.get('/status/{job_id}')
+@api_router.get('/status/{job_id}', response_model=StatusResponse)
 async def get_status(job_id: str, request: Request):
     """查询任务状态"""
     job = request.app.state.job_repo.get_job(job_id)
@@ -77,14 +82,14 @@ async def get_status(job_id: str, request: Request):
     return result
 
 
-@api_router.get('/printers')
+@api_router.get('/printers', response_model=PrinterListResponse)
 async def list_printers(request: Request):
     """获取可用打印机列表"""
     pd = request.app.state.printer_discovery
     return {'printers': pd.list_printers()}
 
 
-@api_router.get('/printers/status')
+@api_router.get('/printers/status', response_model=PrinterStatusResponse)
 async def printer_status(request: Request):
     """获取全部打印机实时状态"""
     pd = getattr(request.app.state, 'printer_discovery', None)
@@ -93,7 +98,7 @@ async def printer_status(request: Request):
     return {'printers': pd.get_all_statuses()}
 
 
-@api_router.post('/cancel/{job_id}')
+@api_router.post('/cancel/{job_id}', response_model=CancelResponse)
 async def cancel_job_api(
     job_id: str,
     request: Request,
@@ -108,7 +113,7 @@ async def cancel_job_api(
     return {'success': True}
 
 
-@api_router.post('/upload')
+@api_router.post('/upload', response_model=PrintResponse)
 async def upload_file(
     request: Request,
     file: UploadFile = File(...),
@@ -128,18 +133,17 @@ async def upload_file(
 @api_router.post('/set_default_printer')
 async def set_default_printer(
     request: Request,
-    body: dict,
+    body: SetDefaultPrinterRequest,
     auth=Depends(require_auth),
 ):
     config = request.app.state.app_config
-    printer = body.get('printer', '')
-    config.set('default_printer', printer)
+    config.set('default_printer', body.printer)
     config.save()
-    logger.info(f'默认打印机已设置: {printer}')
+    logger.info(f'默认打印机已设置: {body.printer}')
     return {'success': True}
 
 
-@api_router.post('/retry/{job_id}')
+@api_router.post('/retry/{job_id}', response_model=RetryResponse)
 async def retry_job(
     job_id: str,
     request: Request,
@@ -152,7 +156,7 @@ async def retry_job(
     return {'success': True, 'new_job_id': new_id}
 
 
-@api_router.post('/test_notification')
+@api_router.post('/test_notification', response_model=NotificationTestResponse)
 async def test_notification(
     request: Request,
     auth=Depends(require_auth),
@@ -173,7 +177,7 @@ async def test_notification(
     return {'success': True, 'channel': channel}
 
 
-@api_router.post('/cancel_all_queued')
+@api_router.post('/cancel_all_queued', response_model=CancelAllResponse)
 async def cancel_all_queued(
     request: Request,
     auth=Depends(require_auth),
