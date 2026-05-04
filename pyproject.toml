@@ -22,3 +22,19 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/panyichen48737/print-server"
+
+[project.scripts]
+ios-print-server = "console:main"
+
+[tool.hatch.build]
+include = [
+    "app/**/*.py",
+    "app/**/*.html",
+    "app/**/*.css",
+    "app/**/*.js",
+    "console/**/*.py",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -1,0 +1,67 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # v1.0.0, v1.1.0, ...
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # git describe needs tags
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pyinstaller
+
+      - name: Build with PyInstaller
+        run: |
+          python scripts/build.py --release
+        env:
+          RELEASE_VERSION: ${{ github.ref_name }}
+
+      - name: Archive build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: iOSPrintServer-${{ github.ref_name }}
+          path: dist/iOSPrintServer/
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: iOSPrintServer-${{ github.ref_name }}
+          path: iOSPrintServer-${{ github.ref_name }}
+
+      - name: Create ZIP archive
+        run: |
+          zip -r "iOSPrintServer-${{ github.ref_name }}.zip" "iOSPrintServer-${{ github.ref_name }}"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: iOS 云打印服务器 ${{ github.ref_name }}
+          body_path: CHANGELOG.md
+          files: |
+            iOSPrintServer-${{ github.ref_name }}.zip
+          generate_release_notes: true

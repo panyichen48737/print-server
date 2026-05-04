@@ -18,4 +18,4 @@ certs/
 Thumbs.db
 config.json
 bin/
-scripts/
+*.spec
