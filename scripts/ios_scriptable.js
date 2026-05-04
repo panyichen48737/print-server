@@ -58,6 +58,17 @@ async function main() {
 
   const total = validFiles.length;
 
+  // Confirm before multi-file upload
+  if (total > 1) {
+    const confirm = new Alert();
+    confirm.title = `打印 ${total} 个文件`;
+    confirm.message = `文件列表:\n${validFiles.map(f => f.name).join("\n")}`;
+    confirm.addAction("开始打印");
+    confirm.addCancelAction("取消");
+    const btn = await confirm.present();
+    if (btn === -1) return;
+  }
+
   // Upload files sequentially
   const jobIds = [];
   for (let i = 0; i < total; i++) {
@@ -72,7 +83,24 @@ async function main() {
   if (total === 1 && jobIds.length === 1) {
     await waitForCompletion(jobIds[0]);
   } else if (jobIds.length > 0) {
-    // Multi-file: wait via polling in background, notify summary
+    // Multi-file: confirm before starting to wait
+    const confirmWait = new Alert();
+    confirmWait.title = `已上传 ${jobIds.length} 个文件`;
+    confirmWait.message = "等待打印完成？";
+    confirmWait.addAction("等待完成");
+    confirmWait.addCancelAction("后台运行");
+    const waitBtn = await confirmWait.present();
+    if (waitBtn === -1) {
+      // User chose to run in background, just notify submission
+      const n = new Notification();
+      n.title = `📨 ${jobIds.length} 个文件已提交打印`;
+      n.body = "文件已上传到服务器，打印完成后会通知";
+      n.sound = "default";
+      await n.schedule();
+      return;
+    }
+
+    // Wait for all jobs
     let completed = 0;
     let failed = 0;
     for (const jid of jobIds) {
