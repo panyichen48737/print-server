@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 from app.auth import require_auth
 from app._paths import data_root
 from app.utils import safe_int as _safe_int, format_time
+from app.schemas import AdminActionResponse, SettingsResponse
 
 admin_router = APIRouter()
 templates = Jinja2Templates(directory=os.path.join(data_root(), 'app', 'templates'))
@@ -89,7 +90,7 @@ async def settings_get(request: Request):
     )
 
 
-@admin_router.post('/settings')
+@admin_router.post('/settings', response_model=SettingsResponse)
 async def settings_post(
     request: Request,
     api_key: str = Form(''),
@@ -199,7 +200,7 @@ async def admin_test_notification(request: Request):
         return HTMLResponse(f'<span style="color: var(--text-danger);">✗ 发送失败: {e}</span>')
 
 
-@admin_router.post('/api/restart')
+@admin_router.post('/api/restart', response_model=AdminActionResponse)
 async def api_restart(request: Request, auth=Depends(require_auth)):
     """重启后台服务——通过 os._exit(1) 让守护进程管理器自动重启"""
     import os

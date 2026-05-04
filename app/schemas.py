@@ -61,3 +61,13 @@ class NotificationTestResponse(BaseModel):
 
 class SetDefaultPrinterRequest(BaseModel):
     printer: str
+
+
+# ── 管理后台 ──
+
+class AdminActionResponse(BaseModel):
+    success: bool
+
+
+class SettingsResponse(BaseModel):
+    success: bool
