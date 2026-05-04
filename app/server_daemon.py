@@ -18,7 +18,8 @@ if not getattr(sys, 'frozen', False):
     os.chdir(root)
     sys.path.insert(0, root)
 else:
-    os.chdir(os.path.dirname(os.path.abspath(sys.executable)))
+    root = os.path.dirname(os.path.abspath(sys.executable))
+    os.chdir(root)
 
 from app.config import Config, setup_logging
 from app.bootstrap import bootstrap

@@ -61,6 +61,7 @@ class PrintEngine:
 
         lock = word_lock if backend_name == 'office' else None
         params = dict(print_params)
+        params['_file_type'] = file_type
 
         with self._active_jobs_lock:
             self._active_jobs[job_id] = {'backend_name': backend_name, 'backend': backend}
@@ -77,7 +78,6 @@ class PrintEngine:
             if not info:
                 return False
             backend = info['backend']
-            backend_info = dict(info)
             del self._active_jobs[job_id]
 
-        return backend.cancel(job_id, backend_info)
+        return backend.cancel(job_id, {})

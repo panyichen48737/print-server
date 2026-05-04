@@ -50,13 +50,16 @@ class PdfBackend(PrinterBackend):
         return True
 
     def cancel(self, job_id, info):
-        pid = info.get('pid')
-        if pid:
-            try:
-                subprocess.run(['taskkill', '/F', '/PID', str(pid)], capture_output=True, timeout=5)
-            except Exception:
-                pass
-        cancel_all_spooler_jobs(info['printer'])
+        with self._active_jobs_lock:
+            job_info = self._active_jobs.get(job_id)
+        if job_info:
+            pid = job_info.get('pid')
+            if pid:
+                try:
+                    subprocess.run(['taskkill', '/F', '/PID', str(pid)], capture_output=True, timeout=5)
+                except Exception:
+                    pass
+            cancel_all_spooler_jobs(job_info['printer'])
         return True
 
     def get_active_job(self, job_id: str) -> dict | None:

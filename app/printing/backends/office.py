@@ -123,5 +123,8 @@ class OfficeBackend(PrinterBackend):
     #  取消
     # ------------------------------------------------------------------ #
     def cancel(self, job_id, info):
-        cancel_all_spooler_jobs(info['printer'])
+        with self._active_jobs_lock:
+            job_info = self._active_jobs.get(job_id)
+        if job_info:
+            cancel_all_spooler_jobs(job_info['printer'])
         return True

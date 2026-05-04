@@ -154,8 +154,8 @@ class JobRepository:
                     SUM(CASE WHEN status='failed' AND created_at >= ? THEN 1 ELSE 0 END) AS today_failed
                 FROM jobs
             ''', (today, today)).fetchone()
-            success_total = row[3]
-            failed_total = row[4]
+            success_total = row[2]
+            failed_total = row[3]
             success_rate = (success_total / (success_total + failed_total) * 100) if (success_total + failed_total) > 0 else 100
             return {
                 'queued': row[0],

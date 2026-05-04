@@ -11,6 +11,13 @@ admin_router = APIRouter()
 templates = Jinja2Templates(directory=os.path.join(data_root(), 'app', 'templates'))
 
 
+def _safe_int(val: str, default: int) -> int:
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return default
+
+
 # -- Custom url_for for Jinja2 templates (Flask blueprint compatibility) --
 
 @pass_context
@@ -112,16 +119,10 @@ async def settings_post(
 ):
     config = request.app.state.app_config
     try:
-        def safe_int(val, default):
-            try:
-                return int(val)
-            except (ValueError, TypeError):
-                return default
-
         updates = {
             'api_key': api_key,
             'default_printer': default_printer,
-            'default_copies': safe_int(default_copies, 1),
+            'default_copies': _safe_int(default_copies, 1),
             'default_duplex': default_duplex == '1',
             'default_color': default_color == '1',
             'excel_print_all_sheets': excel_print_all_sheets == '1',
@@ -130,8 +131,8 @@ async def settings_post(
             'notify_channel': notify_channel,
             'dingtalk_level': dingtalk_level,
             'bark_server': bark_server,
-            'auto_retry_count': safe_int(auto_retry_count, 0),
-            'port': safe_int(port, 5000),
+            'auto_retry_count': _safe_int(auto_retry_count, 0),
+            'port': max(1024, min(65535, _safe_int(port, 5000))),
             'log_level': log_level,
         }
 
@@ -175,3 +176,16 @@ async def upload_page(request: Request):
         'printers': printer_list,
         'allowed_extensions': config.allowed_extensions,
     })
+
+
+@admin_router.post('/api/restart')
+async def api_restart(request: Request, auth=Depends(require_auth)):
+    """重启后台服务——通过 os._exit(1) 让守护进程管理器自动重启"""
+    import os as _os
+    import threading
+    import time
+    def _delayed_exit():
+        time.sleep(1)
+        _os._exit(1)
+    threading.Thread(target=_delayed_exit, daemon=True).start()
+    return {'success': True}

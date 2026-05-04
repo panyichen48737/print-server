@@ -8,8 +8,8 @@ def cancel_all_spooler_jobs(printer_name: str) -> None:
     try:
         handle = win32print.OpenPrinter(printer_name)
         try:
-            info = win32print.GetPrinter(handle, 2)
-            for job in info.get('cJobs', []):
+            jobs = win32print.EnumJobs(handle, 0, 0xFFFFFFFF, 1)
+            for job in jobs:
                 win32print.SetJob(handle, job['JobId'], 0, win32print.JOB_CONTROL_DELETE)
         finally:
             win32print.ClosePrinter(handle)
