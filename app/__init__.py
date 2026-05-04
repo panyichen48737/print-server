@@ -1,21 +1,22 @@
+"""FastAPI 应用工厂"""
 import os
-import logging
-from flask import Flask
-from app._paths import app_root, ensure_dir
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from app._paths import app_root, ensure_dir, data_root
 
 
-def create_app():
-    from app._paths import data_root
-    dr = data_root()
-    app = Flask(__name__,
-                static_folder=os.path.join(dr, 'app', 'static'),
-                template_folder=os.path.join(dr, 'app', 'templates'))
+def create_app() -> FastAPI:
+    app = FastAPI(title='iOSPrintServer', version='1.0.0')
 
-    from app.routes.api import api_bp
-    from app.routes.admin import admin_bp
+    static_dir = os.path.join(data_root(), 'app', 'static')
+    if os.path.isdir(static_dir):
+        app.mount('/static', StaticFiles(directory=static_dir), name='static')
 
-    app.register_blueprint(api_bp, url_prefix='/api')
-    app.register_blueprint(admin_bp, url_prefix='/admin')
+    from app.routes.api import api_router
+    from app.routes.admin import admin_router
+
+    app.include_router(api_router, prefix='/api')
+    app.include_router(admin_router, prefix='/admin')
 
     ensure_dir(app_root(), 'jobs')
     ensure_dir(app_root(), 'logs')

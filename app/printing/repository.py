@@ -1,11 +1,10 @@
 import os
 import sqlite3
 import uuid
-import logging
 from typing import Optional
 from datetime import datetime, timedelta
 
-logger = logging.getLogger('print_server')
+from loguru import logger
 
 
 class JobRepository:

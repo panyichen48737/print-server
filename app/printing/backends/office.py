@@ -1,12 +1,10 @@
 """Office 文档打印后端（Word/Excel/PPT via win32com）"""
 import os
-import logging
 import threading
 from contextlib import contextmanager
+from loguru import logger
 
 from app.printing.backends.base import PrinterBackend
-
-logger = logging.getLogger('print_server')
 
 
 def _cancel_all_spooler_jobs(printer_name):

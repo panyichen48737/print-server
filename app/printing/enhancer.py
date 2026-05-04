@@ -1,21 +1,20 @@
-import logging
 import hashlib
 import uuid
 import time
 import base64
 import io
 import os
-from typing import Optional
+from typing import Optional, Any
+
+from loguru import logger
 from PIL import Image
 import requests
-
-logger = logging.getLogger('print_server')
 
 
 class QuarkEnhancer:
     """夸克扫描王 API 图片增强"""
 
-    def __init__(self, config) -> None:
+    def __init__(self, config: Any) -> None:
         self.config = config
 
     def enhance(self, filepath: str) -> Optional[bytes]:

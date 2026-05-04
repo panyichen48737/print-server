@@ -2,26 +2,28 @@ import os
 import time
 import threading
 import queue
-import logging
 from datetime import datetime, timedelta
+from typing import Any
+
+from loguru import logger
 
 from app.printing.repository import JobRepository
 from app.services.notifier import Notifier, is_print_related_error
 
-logger = logging.getLogger('print_server')
-
 
 class QueueManager:
-    def __init__(self, config, event_bus=None, db_path=None, notifier: Notifier | None = None):
+    def __init__(self, config: Any, event_bus: Any = None,
+                 db_path: str | None = None,
+                 notifier: Notifier | None = None) -> None:
         self.config = config
         self._event_bus = event_bus
         self._notifier = notifier
         self._print_engine = None
         self._lock = threading.Lock()
-        self._queue = queue.Queue()
-        self._workers = []
+        self._queue: queue.Queue = queue.Queue()
+        self._workers: list[threading.Thread] = []
         self._stop_evt = threading.Event()
-        self._cancelled_ids = set()
+        self._cancelled_ids: set[str] = set()
         self._cancelled_lock = threading.Lock()
         self._word_lock = threading.Lock()
         self._excel_lock = threading.Lock()
@@ -29,21 +31,23 @@ class QueueManager:
 
         self._repo = JobRepository(db_path)
 
-    def _is_cancelled(self, job_id):
+    def _is_cancelled(self, job_id: str) -> bool:
         with self._cancelled_lock:
             return job_id in self._cancelled_ids
 
-    def _mark_cancelled(self, job_id):
+    def _mark_cancelled(self, job_id: str) -> None:
         with self._cancelled_lock:
             self._cancelled_ids.add(job_id)
 
-    def _clear_cancelled(self, job_id):
+    def _clear_cancelled(self, job_id: str) -> None:
         with self._cancelled_lock:
             self._cancelled_ids.discard(job_id)
 
-    def add_job(self, filename, filepath, file_size=0, file_type='',
-                duplex=None, color=None, copies=None, paper_size=None, printer_name=None,
-                source='api'):
+    def add_job(self, filename: str, filepath: str, file_size: int = 0, file_type: str = '',
+                duplex: int | None = None, color: int | None = None,
+                copies: int | None = None, paper_size: str | None = None,
+                printer_name: str | None = None,
+                source: str = 'api') -> str:
         job_id = self._repo.add_job(filename, filepath, file_size, file_type,
                                     duplex=duplex, color=color, copies=copies,
                                     paper_size=paper_size, printer_name=printer_name,
@@ -52,25 +56,26 @@ class QueueManager:
         logger.info(f'任务已入队: {job_id} - {filename}')
         return job_id
 
-    def get_job(self, job_id):
+    def get_job(self, job_id: str) -> dict | None:
         return self._repo.get_job(job_id)
 
-    def update_status(self, job_id, status, error_message=None):
+    def update_status(self, job_id: str, status: str, error_message: str | None = None) -> None:
         self._repo.update_status(job_id, status, error_message)
 
-    def get_jobs(self, status=None, search=None, limit=50, offset=0):
+    def get_jobs(self, status: str | None = None, search: str | None = None,
+                 limit: int = 50, offset: int = 0) -> list[dict]:
         return self._repo.get_jobs(status, search, limit, offset)
 
-    def count_jobs(self, status=None, search=None):
+    def count_jobs(self, status: str | None = None, search: str | None = None) -> int:
         return self._repo.count_jobs(status, search)
 
-    def get_jobs_by_status(self, status):
+    def get_jobs_by_status(self, status: str) -> list[dict]:
         return self._repo.get_jobs_by_status(status)
 
-    def get_stats(self):
+    def get_stats(self) -> dict:
         return self._repo.get_stats()
 
-    def get_printers(self):
+    def get_printers(self) -> list[str]:
         """获取 Windows 可用打印机列表"""
         try:
             import win32print
@@ -80,16 +85,16 @@ class QueueManager:
             logger.error(f'获取打印机列表失败: {e}')
             return []
 
-    def word_lock(self):
+    def word_lock(self) -> threading.Lock:
         return self._word_lock
 
-    def excel_lock(self):
+    def excel_lock(self) -> threading.Lock:
         return self._excel_lock
 
-    def ppt_lock(self):
+    def ppt_lock(self) -> threading.Lock:
         return self._ppt_lock
 
-    def start_workers(self, print_engine):
+    def start_workers(self, print_engine: Any) -> None:
         self._print_engine = print_engine
         self._stop_evt.clear()
         count = self.config.worker_count
@@ -105,7 +110,7 @@ class QueueManager:
         self._heartbeat_thread.start()
         logger.info('心跳检测线程已启动')
 
-    def _heartbeat_loop(self):
+    def _heartbeat_loop(self) -> None:
         """每 30 秒执行一次 cleanup_old_jobs"""
         while not self._stop_evt.is_set():
             try:
@@ -114,14 +119,14 @@ class QueueManager:
                 logger.error(f'心跳检测异常: {e}')
             self._stop_evt.wait(30)
 
-    def stop_workers(self):
+    def stop_workers(self) -> None:
         self._stop_evt.set()
         for w in self._workers:
             w.join(timeout=10)
         self._workers = []
         logger.info('工作线程已全部停止')
 
-    def _worker_loop(self, print_engine, worker_id):
+    def _worker_loop(self, print_engine: Any, worker_id: int) -> None:
         import pythoncom
         pythoncom.CoInitialize()
         logger.info(f'工作线程 {worker_id} 已启动')
@@ -142,8 +147,9 @@ class QueueManager:
         pythoncom.CoUninitialize()
         logger.info(f'工作线程 {worker_id} 已停止')
 
-    def _process_job(self, job_id, print_engine, worker_id):
+    def _process_job(self, job_id: str, print_engine: Any, worker_id: int) -> None:
         max_retries = self.config.get('auto_retry_count', 0)
+        error_msg = ''
         for attempt in range(max_retries + 1):
             job = self.get_job(job_id)
             if not job or self._is_cancelled(job_id):
@@ -161,7 +167,7 @@ class QueueManager:
         if job:
             self._notify_all('failed', job['filename'], source=job.get('source', 'api'), error=error_msg)
 
-    def _do_print(self, job_id, print_engine, worker_id, attempt=0):
+    def _do_print(self, job_id: str, print_engine: Any, worker_id: int, attempt: int = 0) -> tuple[bool, str | None]:
         job = self.get_job(job_id)
         if not job or self._is_cancelled(job_id):
             return True, None
@@ -194,7 +200,7 @@ class QueueManager:
                 except Exception as e:
                     logger.warning(f'删除临时文件失败: {temp_path} - {e}')
 
-    def cancel_job(self, job_id):
+    def cancel_job(self, job_id: str) -> tuple[bool, str | None]:
         job = self.get_job(job_id)
         if not job:
             return False, '任务不存在'
@@ -235,7 +241,7 @@ class QueueManager:
         logger.info(f'任务已取消: {job_id}')
         return True, None
 
-    def cancel_all_queued(self):
+    def cancel_all_queued(self) -> int:
         jobs = self.get_jobs_by_status('queued')
         count = 0
         for job in jobs:
@@ -257,7 +263,7 @@ class QueueManager:
         logger.info(f'批量取消完成: {count} 个任务')
         return count
 
-    def retry_job(self, job_id):
+    def retry_job(self, job_id: str) -> tuple[str | None, str | None]:
         """重试失败的任务"""
         job = self.get_job(job_id)
         if not job:
@@ -276,7 +282,7 @@ class QueueManager:
         logger.info(f'任务重试: {job_id} -> {new_job_id}')
         return new_job_id, None
 
-    def _notify_all(self, event_type, filename, source='api', **kwargs):
+    def _notify_all(self, event_type: str, filename: str, source: str = 'api', **kwargs: Any) -> None:
         if source == 'ios':
             logger.debug(f'iOS 来源任务不发送通知: {filename}')
             return
@@ -302,11 +308,13 @@ class QueueManager:
 
     # ── _do_print 辅助方法 ──────────────────────────────────────────
 
-    def _update_and_broadcast(self, job_id, status, error_message=None, filename='', source='api'):
+    def _update_and_broadcast(self, job_id: str, status: str,
+                              error_message: str | None = None,
+                              filename: str = '', source: str = 'api') -> None:
         """统一状态更新 + SSE 广播，消除 do_print 中 4 处重复"""
         self.update_status(job_id, status, error_message)
         if self._event_bus:
-            data = {
+            data: dict[str, Any] = {
                 'job_id': job_id, 'filename': filename,
                 'status': status, 'source': source,
                 'ts': datetime.now().isoformat()
@@ -315,7 +323,7 @@ class QueueManager:
                 data['error'] = error_message
             self._event_bus.emit('job_status', data)
 
-    def _make_temp_copy(self, original_path, filename):
+    def _make_temp_copy(self, original_path: str, filename: str) -> str:
         """创建临时文件副本用于打印"""
         import tempfile
         import shutil
@@ -324,7 +332,7 @@ class QueueManager:
         shutil.copy2(original_path, tmp.name)
         return tmp.name
 
-    def _execute_print(self, temp_path, job, print_engine, job_id):
+    def _execute_print(self, temp_path: str, job: dict, print_engine: Any, job_id: str) -> str:
         """执行打印，所有任务类型统一 1s 轮询检测取消 + deadline 超时"""
         from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 
@@ -363,7 +371,8 @@ class QueueManager:
         finally:
             pool.shutdown(wait=False)
 
-    def _finalize_job(self, job_id, original_path, temp_path, result, job):
+    def _finalize_job(self, job_id: str, original_path: str, temp_path: str,
+                      result: str, job: dict) -> tuple[bool, str | None]:
         """打印结束后：清理文件 + 返回 (ok, error_msg)"""
         if result == 'cancelled':
             self._clear_cancelled(job_id)
@@ -395,7 +404,7 @@ class QueueManager:
 
         return True, None
 
-    def cleanup_old_jobs(self):
+    def cleanup_old_jobs(self) -> None:
         """清理过期任务 + 恢复卡住的 printing 任务"""
         # 清理过期历史记录（委托给 repo）
         retention_days = self.config.get('job_retention_days', 30)
@@ -411,7 +420,7 @@ class QueueManager:
                 self._queue.put(jid)
             logger.warning(f'心跳检测: 已将 {len(stuck_ids)} 个卡住的打印任务恢复为排队状态')
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         self._stop_evt.set()
         for w in self._workers:
             w.join(timeout=10)

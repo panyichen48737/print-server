@@ -1,12 +1,10 @@
 """PDF 打印后端（Chromium headless）"""
 import os
-import logging
 import subprocess
 import threading
+from loguru import logger
 
 from app.printing.backends.base import PrinterBackend
-
-logger = logging.getLogger('print_server')
 
 
 def _cancel_all_spooler_jobs(printer_name):

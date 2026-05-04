@@ -1,58 +1,40 @@
-"""图片打印后端（PIL 排版 + GDI 渲染）"""
+"""图片打印后端（现代化方式：PIL 排版 → PDF → Chromium 打印）"""
 import os
 import io
-import logging
-import threading
+import tempfile
+from loguru import logger
 
-from PIL import Image, ImageOps, ImageWin
-import win32print
-import win32ui
-import win32gui
-import win32con
+from PIL import Image, ImageOps
 
 from app.printing.backends.base import PrinterBackend
+from app.printing.backends.pdf import PdfBackend
 from app.printing.enhancer import QuarkEnhancer
-
-logger = logging.getLogger('print_server')
-
-HORZRES = 110
-VERTRES = 111
-
-
-def _cancel_all_spooler_jobs(printer_name):
-    try:
-        handle = win32print.OpenPrinter(printer_name)
-        try:
-            info = win32print.GetPrinter(handle, 2)
-            for job in info.get('cJobs', []):
-                win32print.SetJob(handle, job['JobId'], 0, win32print.JOB_CONTROL_DELETE)
-        finally:
-            win32print.ClosePrinter(handle)
-    except Exception as e:
-        logger.warning(f'取消 Spooler 作业失败: {e}')
 
 
 class ImageBackend(PrinterBackend):
-    """图片打印：Quark API 预处理 → PIL 排版 → GDI 渲染"""
+    """图片打印：Quark API 预处理 → PIL 排版 → PDF 中间格式 → Chromium 打印
+
+    相较于传统 GDI 方案：
+    - 色彩管理由 Chrome 引擎处理，更准确
+    - 打印机驱动兼容性更好（不依赖 GDI 设备上下文）
+    - 支持更高级的渲染特性（ICC 配置文件、抗锯齿等）
+    - 复用 PdfBackend，减少重复代码
+    """
 
     def __init__(self, config):
         self.config = config
         self._quark = QuarkEnhancer(config)
-        self._active_jobs = {}
-        self._active_jobs_lock = threading.Lock()
+        self._pdf_backend = PdfBackend(config)
 
     def print_file(self, filepath, job_id, print_params, lock=None):
         return self._print_image(filepath, job_id, print_params)
 
     def cancel(self, job_id, info):
-        if info['method'] == 'gdi':
-            handle = win32print.OpenPrinter(info['printer'])
-            try:
-                win32print.SetJob(handle, info['spool_job_id'], 0, win32print.JOB_CONTROL_DELETE)
-                logger.info(f'GDI Spooler 作业 #{info["spool_job_id"]} 已取消')
-            finally:
-                win32print.ClosePrinter(handle)
-            return True
+        """委托给 PdfBackend 的取消逻辑（kill Chrome PID + 清理 Spooler）"""
+        with self._pdf_backend._active_jobs_lock:
+            pdf_info = self._pdf_backend._active_jobs.get(job_id)
+        if pdf_info:
+            return self._pdf_backend.cancel(job_id, pdf_info)
         return False
 
     def _print_image(self, filepath, job_id, print_params=None):
@@ -75,7 +57,7 @@ class ImageBackend(PrinterBackend):
                 except Exception:
                     pass
 
-            # Step 3: 适配 A4 居中
+            # Step 3: 适配纸张尺寸（dpi 决定页面物理大小）
             dpi = self.config.get('print_dpi', 300)
             paper_size = print_params.get('paper_size') or self.config.get('paper_size', 'A4')
             if paper_size == 'A4':
@@ -87,10 +69,12 @@ class ImageBackend(PrinterBackend):
             else:
                 pw, ph = int(8.27 * dpi), int(11.69 * dpi)
 
+            # 自动匹配方向：横图横排，竖图竖排
             img_w, img_h = img.size
             if (img_w > img_h and pw < ph) or (img_w < img_h and pw > ph):
                 pw, ph = ph, pw
 
+            # 等比缩放并居中
             scale = min(pw / img_w, ph / img_h)
             new_w = int(img_w * scale)
             new_h = int(img_h * scale)
@@ -118,92 +102,20 @@ class ImageBackend(PrinterBackend):
             else:
                 canvas.paste(img_resized, (x, y))
 
-            # Step 4: Print via GDI
-            self._send_to_printer(canvas, job_id, print_params)
-
-            return True
+            # Step 4: 保存为 PDF 临时文件 → 委托 PdfBackend 打印
+            temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+            try:
+                canvas.save(temp_pdf, 'PDF', resolution=dpi)
+                temp_pdf.close()
+                logger.info(f'图片已渲染为 PDF 临时文件: {temp_pdf.name}')
+                return self._pdf_backend.print_file(temp_pdf.name, job_id, print_params)
+            finally:
+                try:
+                    if os.path.exists(temp_pdf.name):
+                        os.unlink(temp_pdf.name)
+                except Exception as e:
+                    logger.warning(f'删除临时 PDF 失败: {temp_pdf.name} - {e}')
 
         except Exception as e:
             logger.error(f'图片打印失败: {e}')
             raise
-
-    def _send_to_printer(self, pil_image, job_id, print_params=None):
-        if print_params is None:
-            print_params = {}
-
-        printer_name = print_params.get('printer_name') or self.config.get('default_printer', '')
-        if not printer_name:
-            printer_name = win32print.GetDefaultPrinter()
-
-        logger.info(f'ImageBackend: image={pil_image.size} mode={pil_image.mode} printer={printer_name}')
-
-        img_w, img_h = pil_image.size
-        need_landscape = img_w > img_h
-
-        handle = win32print.OpenPrinter(printer_name)
-        try:
-            dm = win32print.GetPrinter(handle, 2)['pDevMode']
-            dm.Orientation = 2 if need_landscape else 1
-            dm.Fields = dm.Fields | win32con.DM_ORIENTATION
-
-            duplex_val = print_params.get('duplex')
-            if duplex_val is not None:
-                dm.Duplex = 2 if duplex_val else 1
-                dm.Fields = dm.Fields | win32con.DM_DUPLEX
-            elif self.config.get('default_duplex', False):
-                dm.Duplex = 2
-                dm.Fields = dm.Fields | win32con.DM_DUPLEX
-            else:
-                dm.Duplex = 1
-                dm.Fields = dm.Fields | win32con.DM_DUPLEX
-
-            dc_handle = win32gui.CreateDC('WINSPOOL', printer_name, dm)
-        finally:
-            win32print.ClosePrinter(handle)
-
-        hdc = win32ui.CreateDCFromHandle(dc_handle)
-
-        try:
-            spool_job_id = hdc.StartDoc('Print Job')
-            with self._active_jobs_lock:
-                self._active_jobs[job_id] = {
-                    'printer': printer_name,
-                    'spool_job_id': spool_job_id,
-                    'method': 'gdi'
-                }
-            try:
-                hdc.StartPage()
-
-                page_width = hdc.GetDeviceCaps(HORZRES)
-                page_height = hdc.GetDeviceCaps(VERTRES)
-
-                color_val = print_params.get('color')
-                if color_val is not None:
-                    use_color = bool(color_val)
-                else:
-                    use_color = self.config.get('default_color', True)
-
-                if use_color:
-                    img = pil_image.convert('RGB')
-                else:
-                    img = pil_image.convert('L')
-
-                img_w, img_h = img.size
-                scale = min(page_width / img_w, page_height / img_h)
-                draw_w = int(img_w * scale)
-                draw_h = int(img_h * scale)
-                x = (page_width - draw_w) // 2
-                y = (page_height - draw_h) // 2
-
-                dib = ImageWin.Dib(img)
-                dib.draw(hdc.GetHandleOutput(), (x, y, x + draw_w, y + draw_h))
-
-                hdc.EndPage()
-                hdc.EndDoc()
-                logger.info(f'GDI 打印发送成功: 页面 {page_width}x{page_height}, 图片 {draw_w}x{draw_h}')
-            except Exception:
-                raise
-        finally:
-            hdc.DeleteDC()
-            with self._active_jobs_lock:
-                self._active_jobs.pop(job_id, None)

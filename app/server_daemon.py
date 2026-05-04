@@ -9,6 +9,8 @@ import argparse
 import threading
 from pathlib import Path
 
+import uvicorn
+
 from app._paths import app_root
 
 # 确保在项目根目录
@@ -116,19 +118,19 @@ def main():
     cert_file = os.path.join(root_dir, 'certs', 'cert.pem')
     key_file = os.path.join(root_dir, 'certs', 'key.pem')
 
-    if os.path.isfile(cert_file) and os.path.isfile(key_file):
-        ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        ssl_context.load_cert_chain(cert_file, key_file)
-        logger.info(f'守护进程运行在 https://0.0.0.0:{port} (SSL)')
-    else:
-        ssl_context = None
-        logger.info(f'守护进程运行在 http://0.0.0.0:{port} (无 SSL)')
-
     # 启动健康检查线程
     health_thread = threading.Thread(target=_health_check_loop, args=(app, config, logger), daemon=True)
     health_thread.start()
 
-    app.run(host='0.0.0.0', port=port, ssl_context=ssl_context, debug=False, threaded=True)
+    if os.path.isfile(cert_file) and os.path.isfile(key_file):
+        logger.info(f'守护进程运行在 https://0.0.0.0:{port} (SSL)')
+        uvicorn.run(app, host='0.0.0.0', port=port,
+                    ssl_certfile=cert_file, ssl_keyfile=key_file,
+                    log_level='info', access_log=False)
+    else:
+        logger.info(f'守护进程运行在 http://0.0.0.0:{port} (无 SSL)')
+        uvicorn.run(app, host='0.0.0.0', port=port,
+                    log_level='info', access_log=False)
 
 
 if __name__ == '__main__':

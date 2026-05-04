@@ -5,21 +5,20 @@ import json
 import time
 import signal
 import subprocess
-import logging
 from pathlib import Path
 
-logger = logging.getLogger('print_server')
+from loguru import logger
 
 
 DAEMON_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'app', 'server_daemon.py')
 
 
-def _daemon_json_path():
+def _daemon_json_path() -> Path:
     from app._paths import app_root
     return Path(app_root()) / 'logs' / 'daemon.json'
 
 
-def read_daemon_status():
+def read_daemon_status() -> dict:
     """读取守护进程状态 JSON"""
     f = _daemon_json_path()
     if not f.exists():
@@ -30,7 +29,7 @@ def read_daemon_status():
         return {'status': 'stopped', 'pid': None}
 
 
-def _win_process_exists(pid):
+def _win_process_exists(pid: int) -> bool:
     """Windows API 检查进程是否存在（比 os.kill(pid,0) 更可靠）"""
     import ctypes
     kernel32 = ctypes.windll.kernel32
@@ -41,7 +40,7 @@ def _win_process_exists(pid):
     return False
 
 
-def is_daemon_alive():
+def is_daemon_alive() -> bool:
     """检查守护进程是否存活（直接检查 server_daemon PID）"""
     status = read_daemon_status()
     pid = status.get('pid')
@@ -53,7 +52,7 @@ def is_daemon_alive():
         return False
 
 
-def start_daemon():
+def start_daemon() -> tuple[bool, str]:
     """以隐藏控制台窗口启动后台守护进程"""
     if is_daemon_alive():
         return True, '守护进程已在运行'
@@ -93,7 +92,7 @@ def start_daemon():
         return False, f'启动失败: {e}'
 
 
-def stop_daemon():
+def stop_daemon() -> tuple[bool, str]:
     """停止后台守护进程"""
     if not is_daemon_alive():
         _cleanup_json()
@@ -130,14 +129,14 @@ def stop_daemon():
         return False, f'停止失败: {e}'
 
 
-def restart_daemon():
+def restart_daemon() -> tuple[bool, str]:
     """重启守护进程"""
     ok, msg = stop_daemon()
     time.sleep(1)
     return start_daemon()
 
 
-def _cleanup_json():
+def _cleanup_json() -> None:
     for path_fn in [_daemon_json_path]:
         f = path_fn()
         try:

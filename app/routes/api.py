@@ -1,71 +1,86 @@
-from flask import Blueprint, request, jsonify, current_app, Response, stream_with_context
+import os
 import json
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 
 from app.auth import require_auth
+from app.upload_helper import handle_file_upload
 
-api_bp = Blueprint('api', __name__)
-
-
-def get_job_service():
-    return current_app.config['job_service']
+api_router = APIRouter()
 
 
-def get_config():
-    return current_app.config['app_config']
-
-
-@api_bp.route('/print', methods=['POST'])
-@require_auth
-def print_file():
-    """提交打印任务"""
-    config = get_config()
-    job_service = get_job_service()
-    result = job_service.submit(request, source='ios')
+@api_router.post('/print')
+async def print_file(
+    request: Request,
+    file: UploadFile = File(...),
+    printer: str = Form(None),
+    copies: str = Form(None),
+    duplex: str = Form(None),
+    color: str = Form(None),
+    paper_size: str = Form(None),
+    auth=Depends(require_auth),
+):
+    """提交打印任务（iOS 端使用）"""
+    config = request.app.state.app_config
+    queue_mgr = request.app.state.queue_manager
+    content = await file.read()
+    result = handle_file_upload(
+        file.filename, content, config, queue_mgr, source='ios',
+        printer=printer, copies=copies, duplex=duplex,
+        color=color, paper_size=paper_size,
+    )
     if not result['success']:
-        return jsonify({'success': False, 'error': result['error']}), 400
-    return jsonify({'status': 'queued', 'job_id': result['job_id']}), 200
+        raise HTTPException(status_code=400, detail=result['error'])
+    return {'status': 'queued', 'job_id': result['job_id']}
 
 
-@api_bp.route('/status/<job_id>', methods=['GET'])
-def get_status(job_id):
+@api_router.get('/status/{job_id}')
+async def get_status(job_id: str, request: Request):
     """查询任务状态"""
-    job_service = get_job_service()
-    result = job_service.get_status(job_id)
-    if not result:
-        return jsonify({'success': False, 'error': '任务不存在'}), 404
-    return jsonify({'success': True, **result}), 200
+    queue_mgr = request.app.state.queue_manager
+    job = queue_mgr.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail='任务不存在')
+    result = {'success': True, 'status': job['status'], 'job_id': job['id']}
+    if job['status'] == 'failed' and job.get('error_message'):
+        result['error'] = job['error_message']
+    return result
 
 
-@api_bp.route('/printers', methods=['GET'])
-def list_printers():
+@api_router.get('/printers')
+async def list_printers(request: Request):
     """获取可用打印机列表"""
-    job_service = get_job_service()
-    printers = job_service.list_printers()
-    return jsonify({'printers': printers}), 200
+    queue_mgr = request.app.state.queue_manager
+    return {'printers': queue_mgr.get_printers()}
 
 
-@api_bp.route('/printers/status', methods=['GET'])
-def printer_status():
+@api_router.get('/printers/status')
+async def printer_status(request: Request):
     """获取全部打印机实时状态"""
-    job_service = get_job_service()
-    return jsonify({'printers': job_service.get_printer_statuses()})
+    pm = getattr(request.app.state, 'printer_monitor', None)
+    if not pm:
+        return {'printers': {}}
+    return {'printers': pm.get_all_statuses()}
 
 
-@api_bp.route('/cancel/<job_id>', methods=['POST'])
-@require_auth
-def cancel_job_api(job_id):
-    """API 取消任务（带鉴权）"""
-    job_service = get_job_service()
-    success, error = job_service.cancel(job_id)
+@api_router.post('/cancel/{job_id}')
+async def cancel_job_api(
+    job_id: str,
+    request: Request,
+    auth=Depends(require_auth),
+):
+    """取消任务"""
+    queue_mgr = request.app.state.queue_manager
+    success, error = queue_mgr.cancel_job(job_id)
     if not success:
-        return jsonify({'success': False, 'error': error}), 400
-    return jsonify({'success': True})
+        raise HTTPException(status_code=400, detail=error)
+    return {'success': True}
 
 
-@api_bp.route('/events')
-def sse_events():
-    """Server-Sent Events endpoint — multiplexes all real-time event types."""
-    broadcaster = current_app.extensions['sse']
+@api_router.get('/events')
+async def sse_events(request: Request):
+    """Server-Sent Events endpoint"""
+    broadcaster = request.app.state.sse
     sub_id, q = broadcaster.subscribe()
 
     def generate():
@@ -76,12 +91,4 @@ def sse_events():
         except GeneratorExit:
             broadcaster.unsubscribe(sub_id)
 
-    return Response(
-        stream_with_context(generate()),
-        mimetype='text/event-stream',
-        headers={
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-            'X-Accel-Buffering': 'no',
-        }
-    )
+    return StreamingResponse(generate(), media_type='text/event-stream')

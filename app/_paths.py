@@ -3,7 +3,7 @@ import os
 import sys
 
 
-def app_root():
+def app_root() -> str:
     """返回项目根目录（开发模式或打包模式）"""
     if getattr(sys, 'frozen', False):
         # PyInstaller 打包：exe 所在目录
@@ -12,14 +12,14 @@ def app_root():
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def data_root():
+def data_root() -> str:
     """返回内置数据文件目录（模板/静态文件等只读资源）"""
     if getattr(sys, 'frozen', False):
         return sys._MEIPASS
     return app_root()
 
 
-def ensure_dir(*parts):
+def ensure_dir(*parts: str) -> str:
     path = os.path.join(*parts)
     os.makedirs(path, exist_ok=True)
     return path

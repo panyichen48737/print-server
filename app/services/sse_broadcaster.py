@@ -2,10 +2,9 @@
 import queue
 import threading
 import uuid
-import logging
 from typing import Any
 
-logger = logging.getLogger('print_server')
+from loguru import logger
 
 
 class SSEBroadcaster:
@@ -13,7 +12,7 @@ class SSEBroadcaster:
 
     def __init__(self, maxsize: int = 100) -> None:
         self._maxsize = maxsize
-        self._subscribers = {}
+        self._subscribers: dict[str, queue.Queue] = {}
         self._lock = threading.Lock()
 
     def subscribe(self) -> tuple[str, queue.Queue]:
@@ -46,7 +45,7 @@ class SSEBroadcaster:
                     pass
 
 
-_broadcaster = None
+_broadcaster: SSEBroadcaster | None = None
 _broadcaster_lock = threading.Lock()
 
 
@@ -60,8 +59,8 @@ def get_broadcaster(maxsize: int = 100) -> SSEBroadcaster:
     return _broadcaster
 
 
-def init_app(app, maxsize: int = 100) -> SSEBroadcaster:
-    """初始化 SSE 广播器并注册到 app.extensions"""
+def init_app(app: Any, maxsize: int = 100) -> SSEBroadcaster:
+    """初始化 SSE 广播器并注册到 app.state"""
     broadcaster = SSEBroadcaster(maxsize=maxsize)
-    app.extensions['sse'] = broadcaster
+    app.state.sse = broadcaster  # was: app.extensions['sse'] = broadcaster
     return broadcaster

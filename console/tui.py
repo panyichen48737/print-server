@@ -2,6 +2,7 @@ import threading
 import time
 import msvcrt
 import sys
+from typing import Any
 
 from rich.console import Console
 from rich.layout import Layout
@@ -20,11 +21,11 @@ from .autostart import install_autostart, uninstall_autostart, is_autostart_inst
 class TUI:
     """控制台监控面板 — 管理后台守护进程"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.console = Console()
         self.layout = self._build_layout()
 
-    def _build_layout(self):
+    def _build_layout(self) -> Layout:
         layout = Layout()
         layout.split_column(
             Layout(name="header", size=4),
@@ -41,7 +42,7 @@ class TUI:
         )
         return layout
 
-    def _render_header(self):
+    def _render_header(self) -> Panel:
         alive = is_daemon_alive()
         status = read_daemon_status()
         port = status.get('port', '-')
@@ -49,13 +50,13 @@ class TUI:
 
         if alive:
             status_style = "bold green"
-            status_text = "● 运行中"
+            status_text = "运行中"
             ips = get_local_ips()
             ip_str = ips[0] if ips else "0.0.0.0"
             extra = f" 管理地址: [bold yellow]http://{ip_str}:{port}[/bold yellow]"
         else:
             status_style = "bold red"
-            status_text = "○ 已停止"
+            status_text = "已停止"
             extra = f" 端口: {port}"
 
         return Panel(
@@ -69,18 +70,18 @@ class TUI:
             border_style="bright_blue",
         )
 
-    def _render_stats(self):
+    def _render_stats(self) -> Panel:
         status = read_daemon_status()
         alive = is_daemon_alive()
         t = Table(show_header=False, border_style="blue", box=None, padding=(0, 2))
         t.add_column("项目", style="cyan")
         t.add_column("值", style="white")
-        t.add_row("守护进程", "● 运行中" if alive else "○ 已停止")
+        t.add_row("守护进程", "运行中" if alive else "已停止")
         t.add_row("PID", str(status.get('pid', '-')))
         t.add_row("端口", str(status.get('port', '-')))
         return Panel(t, title="服务状态", border_style="green")
 
-    def _render_printer_status(self):
+    def _render_printer_status(self) -> Panel:
         t = Table(show_header=False, border_style="blue", box=None, padding=(0, 2))
         t.add_column("项目", style="cyan")
         t.add_column("值", style="white")
@@ -90,7 +91,7 @@ class TUI:
         t.add_row("管理地址", f"[bold yellow]http://{get_local_ips()[0] if get_local_ips() else 'localhost'}:{read_daemon_status().get('port', '')}[/bold yellow]")
         return Panel(t, title="快速入口", border_style="cyan")
 
-    def _render_log(self):
+    def _render_log(self) -> Panel:
         if LOG_BUFFER:
             lines = list(LOG_BUFFER)[-30:]
         else:
@@ -100,7 +101,7 @@ class TUI:
             lines.append('')
         return Panel("\n".join(lines), title="日志", border_style="dim")
 
-    def _render_footer(self):
+    def _render_footer(self) -> Panel:
         alive = is_daemon_alive()
         autostart = is_autostart_installed()
         u_label = "卸载自启" if autostart else "注册自启"
@@ -113,14 +114,14 @@ class TUI:
             title="操作", border_style="yellow",
         )
 
-    def _update(self):
+    def _update(self) -> None:
         self.layout["header"].update(self._render_header())
         self.layout["stats"].update(self._render_stats())
         self.layout["printer"].update(self._render_printer_status())
         self.layout["log"].update(self._render_log())
         self.layout["footer"].update(self._render_footer())
 
-    def run(self):
+    def run(self) -> None:
         self._update()
         with Live(self.layout, console=self.console, refresh_per_second=4, screen=True):
             while True:

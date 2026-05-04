@@ -1,16 +1,16 @@
-import logging
+from typing import Any
+
+from loguru import logger
 import requests
 
 from app.services.notifier import Notifier, format_error_message
 
-logger = logging.getLogger('print_server')
-
 
 class BarkNotifier(Notifier):
-    def __init__(self, config):
+    def __init__(self, config: Any) -> None:
         self.config = config
 
-    def send_notification(self, title, message, level='info'):
+    def send_notification(self, title: str, message: str, level: str = 'info') -> None:
         if self.config.get('notify_channel', 'disabled') != 'bark':
             return
         key = self.config.get('bark_key', '')
@@ -27,12 +27,12 @@ class BarkNotifier(Notifier):
         except Exception as e:
             logger.warning(f'Bark 通知异常: {e}')
 
-    def notify_job_completed(self, filename, time_str):
-        self.send_notification('✅ 打印任务完成', f'文件: {filename}\n时间: {time_str}')
+    def notify_job_completed(self, filename: str, time_str: str) -> None:
+        self.send_notification('打印任务完成', f'文件: {filename}\n时间: {time_str}')
 
-    def notify_job_failed(self, filename, error, time_str):
+    def notify_job_failed(self, filename: str, error: str, time_str: str) -> None:
         friendly = format_error_message(error)
-        self.send_notification('❌ 打印任务失败', f'文件: {filename}\n原因: {friendly}\n时间: {time_str}')
+        self.send_notification('打印任务失败', f'文件: {filename}\n原因: {friendly}\n时间: {time_str}')
 
-    def notify_job_cancelled(self, filename, time_str):
-        self.send_notification('⏹ 打印已取消', f'文件: {filename}\n时间: {time_str}')
+    def notify_job_cancelled(self, filename: str, time_str: str) -> None:
+        self.send_notification('打印已取消', f'文件: {filename}\n时间: {time_str}')

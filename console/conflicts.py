@@ -3,12 +3,15 @@ import socket
 import ctypes
 import subprocess
 import time
-import logging
 from pathlib import Path
+from typing import Any
 
-PID_FILE = None  # lazy init
+from loguru import logger
 
-def _get_pid_file():
+PID_FILE: Path | None = None  # lazy init
+
+
+def _get_pid_file() -> Path:
     global PID_FILE
     if PID_FILE is None:
         from app._paths import app_root
@@ -16,9 +19,9 @@ def _get_pid_file():
     return PID_FILE
 
 
-def get_local_ips():
+def get_local_ips() -> list[str]:
     """获取本机所有非回环 IP 地址，IPv4 优先"""
-    ips = []
+    ips: list[str] = []
     hostname = socket.gethostname()
     try:
         for addrs in socket.getaddrinfo(hostname, None):
@@ -44,7 +47,7 @@ def get_local_ips():
     return v4 + v6
 
 
-def check_port_available(port):
+def check_port_available(port: int) -> bool:
     """检测端口是否可用"""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -56,14 +59,14 @@ def check_port_available(port):
         return True
 
 
-def write_pid():
+def write_pid() -> None:
     """写入当前进程 PID 到文件"""
     pf = _get_pid_file()
     pf.parent.mkdir(parents=True, exist_ok=True)
     pf.write_text(str(os.getpid()))
 
 
-def cleanup_pid():
+def cleanup_pid() -> None:
     """删除 PID 文件"""
     try:
         pf = _get_pid_file()
@@ -73,7 +76,7 @@ def cleanup_pid():
         pass
 
 
-def check_conflicts(config, logger):
+def check_conflicts(config: Any, logger: Any) -> bool:
     """启动前冲突检测，返回 True 可继续"""
     port = config.get('port', 5000)
 

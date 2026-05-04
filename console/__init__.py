@@ -8,8 +8,10 @@
 """
 import sys
 import os
-import logging
 import argparse
+from typing import Any
+
+from loguru import logger
 
 from app._paths import app_root
 
@@ -22,7 +24,7 @@ from .autostart import install_autostart, uninstall_autostart, is_autostart_inst
 from .tui import TUI
 
 
-def main():
+def main() -> None:
     # 冻结 EXE 入口：--server-daemon 参数直接路由到服务器入口
     if '--server-daemon' in sys.argv:
         from app.server_daemon import main as daemon_main
@@ -40,7 +42,7 @@ def main():
 
     if args.start:
         config = Config()
-        logger = setup_logging(level=config.log_level)
+        setup_logging(level=config.log_level)
         ok, msg = start_daemon()
         print(msg)
         return 0 if ok else 1
@@ -58,7 +60,7 @@ def main():
     if args.status:
         status = read_daemon_status()
         alive = is_daemon_alive()
-        print(f'状态: {"● 运行中" if alive else "○ 已停止"}')
+        print(f'状态: {"运行中" if alive else "已停止"}')
         print(f'PID: {status.get("pid", "-")}')
         print(f'端口: {status.get("port", "-")}')
         print(f'自启: {"已注册" if is_autostart_installed() else "未注册"}')
@@ -76,13 +78,10 @@ def main():
 
     # 默认：启动控制台 TUI
     config = Config()
-    logger = setup_logging(level=config.log_level)
+    setup_logging(level=config.log_level)
 
     tui_handler = TUILogHandler()
-    tui_handler.setFormatter(
-        logging.Formatter('%(asctime)s  %(levelname)s  %(message)s', datefmt='%H:%M:%S')
-    )
-    logging.getLogger('print_server').addHandler(tui_handler)
+    logger.add(tui_handler, format='{time:HH:mm:ss} {level} {message}', level='INFO')
 
     # 自动启动后台守护进程
     ok, msg = start_daemon()

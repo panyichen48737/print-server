@@ -2,74 +2,67 @@
 
 import os
 import uuid
-import logging
-from werkzeug.utils import secure_filename
+from loguru import logger
 from app._paths import app_root, ensure_dir
 
-logger = logging.getLogger('print_server')
 
-
-def handle_file_upload(request, config, queue_mgr, *, source: str = 'api') -> dict:
-    """
-    处理文件上传的统一逻辑
+def handle_file_upload(
+    filename: str,
+    file_bytes: bytes,
+    config,
+    queue_mgr,
+    *,
+    source: str = 'api',
+    printer: str | None = None,
+    copies: str | None = None,
+    duplex: str | None = None,
+    color: str | None = None,
+    paper_size: str | None = None,
+) -> dict:
+    """处理文件上传的统一逻辑（不依赖 Flask request 对象）
 
     参数:
-        request: Flask request 对象
+        filename: 原始文件名
+        file_bytes: 文件二进制内容
         config: Config 实例
         queue_mgr: QueueManager 实例
         source: 来源标识，'api' 或 'web'
+        printer/copies/duplex/color/paper_size: 打印参数
 
     返回:
         {'success': True, 'job_id': '...'} 或 {'success': False, 'error': '...'}
     """
-    if 'file' not in request.files:
-        return {'success': False, 'error': '未提供文件'}
-
-    file = request.files['file']
-    if not file.filename:
+    if not filename:
         return {'success': False, 'error': '文件名为空'}
 
-    original_name = file.filename
-    ext = os.path.splitext(original_name)[1].lower()
+    ext = os.path.splitext(filename)[1].lower()
 
     if ext not in config.allowed_extensions:
         return {'success': False, 'error': f'不支持的文件类型: {ext}'}
 
     max_size = config.max_file_size_mb * 1024 * 1024
-    content_length = request.headers.get('Content-Length')
-    if content_length and int(content_length) > max_size:
+    if len(file_bytes) > max_size:
         return {'success': False, 'error': f'文件过大，最大 {config.max_file_size_mb}MB'}
 
-    safe_name = secure_filename(original_name) or f"file{ext}"
+    safe_name = filename  # FastAPI's UploadFile already handles sanitization
     job_id = str(uuid.uuid4())
     jobs_dir = ensure_dir(app_root(), 'jobs')
     save_path = os.path.join(jobs_dir, f'{job_id}_{safe_name}')
-    file.save(save_path)
-    file_size = os.path.getsize(save_path)
 
-    if file_size > max_size:
-        os.remove(save_path)
-        return {'success': False, 'error': f'文件过大，最大 {config.max_file_size_mb}MB'}
+    with open(save_path, 'wb') as f:
+        f.write(file_bytes)
 
-    printer = request.form.get('printer') or None
-    copies_s = request.form.get('copies')
-    copies = int(copies_s) if copies_s and copies_s.isdigit() else None
-    duplex_s = request.form.get('duplex')
-    duplex = int(duplex_s) if duplex_s in ('0', '1') else None
-    color_s = request.form.get('color')
-    color = int(color_s) if color_s in ('0', '1') else None
-    paper_size = request.form.get('paper_size') or None
-
-    if copies is not None and (copies < 1 or copies > 99):
-        os.remove(save_path)
-        return {'success': False, 'error': '打印份数必须在 1-99 之间'}
+    file_size = len(file_bytes)
 
     actual_job_id = queue_mgr.add_job(
-        original_name, save_path, file_size, ext,
-        duplex=duplex, color=color, copies=copies,
-        paper_size=paper_size, printer_name=printer,
-        source=source
+        filename, save_path, file_size, ext,
+        duplex=int(duplex) if duplex in ('0', '1') else None,
+        color=int(color) if color in ('0', '1') else None,
+        copies=int(copies) if copies and copies.isdigit() else None,
+        paper_size=paper_size or None,
+        printer_name=printer or None,
+        source=source,
     )
 
-    logger.info(f'Upload success: {original_name} -> job_id={actual_job_id}')
+    logger.info(f'Upload success: {filename} -> job_id={actual_job_id}')
     return {'success': True, 'job_id': actual_job_id}

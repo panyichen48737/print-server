@@ -7,7 +7,7 @@ from app.services.sse_broadcaster import SSEBroadcaster
 class EventBus:
     """通用事件总线，业务代码不直接依赖 SSE 实现"""
 
-    def __init__(self, broadcaster: SSEBroadcaster):
+    def __init__(self, broadcaster: SSEBroadcaster) -> None:
         self._broadcaster = broadcaster
 
     def emit(self, event_type: str, data: Any) -> None:

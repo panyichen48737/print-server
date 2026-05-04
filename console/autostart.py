@@ -3,15 +3,15 @@ import os
 import sys
 import shutil
 import subprocess
-import logging
+from typing import Any
 
-logger = logging.getLogger('print_server')
+from loguru import logger
 
 SERVICE_NAME = 'iOSPrintServer'
 TASK_NAME = 'iOSPrintServer'
 
 
-def _nssm_path():
+def _nssm_path() -> str | None:
     """查找 nssm.exe（打包目录优先，回退 PATH）"""
     # 冻结模式：nssm 在 sys._MEIPASS 中
     if getattr(sys, 'frozen', False):
@@ -31,11 +31,11 @@ def _nssm_path():
     return None
 
 
-def _nssm_available():
+def _nssm_available() -> bool:
     return _nssm_path() is not None
 
 
-def _project_root():
+def _project_root() -> str:
     """项目根目录"""
     if getattr(sys, 'frozen', False):
         meipass = getattr(sys, '_MEIPASS', None)
@@ -44,7 +44,7 @@ def _project_root():
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def _get_python_cmd():
+def _get_python_cmd() -> str:
     """获取 schtasks 用启动命令"""
     this_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if getattr(sys, 'frozen', False):
@@ -53,7 +53,7 @@ def _get_python_cmd():
         return f'"{sys.executable}" "{this_dir}\\server_daemon.py"'
 
 
-def is_autostart_installed():
+def is_autostart_installed() -> bool:
     """检查是否已注册自启（nssm 服务优先）"""
     nssm = _nssm_path()
     if nssm:
@@ -76,7 +76,7 @@ def is_autostart_installed():
         return False
 
 
-def install_autostart():
+def install_autostart() -> tuple[bool, str]:
     """注册开机自启 — 优先 nssm Windows Service，回退 schtasks"""
     if is_autostart_installed():
         return True, '开机自启已注册'
@@ -87,7 +87,7 @@ def install_autostart():
         return _install_schtasks()
 
 
-def _install_nssm():
+def _install_nssm() -> tuple[bool, str]:
     """通过 nssm 注册为 Windows Service（系统级，开机自启，崩溃自动重启）"""
     nssm = _nssm_path()
     try:
@@ -143,7 +143,7 @@ def _install_nssm():
         return False, f'nssm 注册异常: {e}'
 
 
-def _install_schtasks():
+def _install_schtasks() -> tuple[bool, str]:
     """回退方案：通过 schtasks 注册开机自启"""
     cmd = _get_python_cmd()
     task_cmd = f'cmd /c start /b "" {cmd}'
@@ -167,7 +167,7 @@ def _install_schtasks():
         return False, f'schtasks 异常: {e}'
 
 
-def uninstall_autostart():
+def uninstall_autostart() -> tuple[bool, str]:
     """卸载开机自启"""
     removed = False
     nssm = _nssm_path()

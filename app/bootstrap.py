@@ -1,27 +1,21 @@
 """服务装配：初始化所有服务并组装 app"""
 
-import logging
+from loguru import logger
 
 from app.config import Config
 from app import create_app
 
 
 def bootstrap(config: Config):
-    """初始化所有服务并返回 (app, queue_mgr, print_engine, printer_monitor) 元组"""
-    logger = logging.getLogger('print_server')
+    """初始化所有服务并返回 (app, queue_mgr, print_engine, printer_monitor)"""
 
     from app.printing.queue_manager import QueueManager
     from app.printing.engine import PrintEngine
     from app.services.dingtalk import DingTalk
     from app.services.printer_monitor import PrinterMonitor
     from app.services.bark import BarkNotifier
-    from app.services.event_bus import EventBus
-    from app.services.job_service import JobService
 
     app = create_app()
-
-    broadcaster = app.extensions['sse']
-    event_bus = EventBus(broadcaster)
 
     channel = config.get('notify_channel', 'disabled')
     dingtalk = None
@@ -36,9 +30,10 @@ def bootstrap(config: Config):
 
     # 日志实时推送
     from app.services.log_broadcaster import LogBroadcaster
-    logging.getLogger('print_server').addHandler(LogBroadcaster(broadcaster))
+    broadcaster = app.state.sse
+    logger.add(LogBroadcaster(broadcaster), format='{message}', level='INFO')
 
-    queue_mgr = QueueManager(config, event_bus=event_bus, notifier=notifier)
+    queue_mgr = QueueManager(config, event_bus=None, notifier=notifier)
     print_engine = PrintEngine(
         config,
         dingtalk=dingtalk,
@@ -46,16 +41,14 @@ def bootstrap(config: Config):
         ppt_lock=queue_mgr.ppt_lock()
     )
     printer_monitor = PrinterMonitor(broadcaster=broadcaster)
-    job_service = JobService(queue_mgr, config, printer_monitor=printer_monitor)
 
-    app.config['queue_manager'] = queue_mgr
-    app.config['job_service'] = job_service
-    app.config['app_config'] = config
-    app.config['dingtalk'] = dingtalk
-    app.config['bark'] = bark
-    app.config['printer_monitor'] = printer_monitor
-    app.config['sse_broadcaster'] = broadcaster
-    app.config['MAX_CONTENT_LENGTH'] = config.max_file_size_mb * 1024 * 1024
+    # Register on app.state instead of app.config
+    app.state.queue_manager = queue_mgr
+    app.state.app_config = config
+    app.state.dingtalk = dingtalk
+    app.state.bark = bark
+    app.state.printer_monitor = printer_monitor
+    app.state.sse_broadcaster = broadcaster
 
     queue_mgr.cleanup_old_jobs()
 

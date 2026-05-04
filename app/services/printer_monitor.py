@@ -1,9 +1,9 @@
 """打印机状态监控 — 每30s轮询 win32print, 通过 SSE 广播器推送"""
-import logging
+from typing import Any
+
+from loguru import logger
 import threading
 import win32print
-
-logger = logging.getLogger('print_server')
 
 # 打印机状态位常量
 PRINTER_STATUS_PAUSED = 0x00000001
@@ -31,7 +31,7 @@ PRINTER_STATUS_OUT_OF_MEMORY = 0x00200000
 PRINTER_STATUS_DOOR_OPEN = 0x00400000
 PRINTER_STATUS_POWER_SAVE = 0x01000000
 
-STATUS_BITS = {
+STATUS_BITS: dict[str, tuple[int, str]] = {
     'paused':            (PRINTER_STATUS_PAUSED, '已暂停'),
     'error':             (PRINTER_STATUS_ERROR, '错误'),
     'pending_deletion':  (PRINTER_STATUS_PENDING_DELETION, '待删除'),
@@ -59,16 +59,16 @@ STATUS_BITS = {
 }
 
 # overall 分类
-ERROR_BITS = {'offline', 'error', 'paper_jam', 'paper_out', 'no_toner', 'door_open', 'not_available', 'out_of_memory'}
-WARNING_BITS = {'toner_low', 'user_intervention', 'output_bin_full', 'manual_feed', 'paper_problem', 'power_save', 'paused'}
-BUSY_BITS = {'printing', 'busy', 'io_active', 'processing', 'initializing', 'warming_up'}
+ERROR_BITS: set[str] = {'offline', 'error', 'paper_jam', 'paper_out', 'no_toner', 'door_open', 'not_available', 'out_of_memory'}
+WARNING_BITS: set[str] = {'toner_low', 'user_intervention', 'output_bin_full', 'manual_feed', 'paper_problem', 'power_save', 'paused'}
+BUSY_BITS: set[str] = {'printing', 'busy', 'io_active', 'processing', 'initializing', 'warming_up'}
 
 
-def parse_status(status):
+def parse_status(status: int) -> tuple[str, list[dict[str, str]]]:
     """解析 win32print status 位掩码，返回 (overall, active_statuses)"""
     if status == 0:
         return 'ready', []
-    active = []
+    active: list[dict[str, str]] = []
     for key, (bit, label) in STATUS_BITS.items():
         if status & bit:
             active.append({'key': key, 'label': label})
@@ -88,14 +88,14 @@ def parse_status(status):
 
 
 class PrinterMonitor:
-    def __init__(self, broadcaster=None):
+    def __init__(self, broadcaster: Any = None) -> None:
         self._broadcaster = broadcaster
         self._stop_evt = threading.Event()
-        self._thread = None
-        self._cache = {}  # printer_name -> last_status_dict
+        self._thread: threading.Thread | None = None
+        self._cache: dict[str, dict[str, Any]] = {}
         self._cache_lock = threading.Lock()
 
-    def start(self):
+    def start(self) -> None:
         if self._thread and self._thread.is_alive():
             return
         self._stop_evt.clear()
@@ -103,11 +103,11 @@ class PrinterMonitor:
         self._thread.start()
         logger.info('打印机监控已启动')
 
-    def stop(self):
+    def stop(self) -> None:
         self._stop_evt.set()
         logger.info('打印机监控已停止')
 
-    def _loop(self):
+    def _loop(self) -> None:
         while not self._stop_evt.is_set():
             try:
                 self._poll()
@@ -115,8 +115,8 @@ class PrinterMonitor:
                 logger.error(f'打印机状态轮询异常: {e}')
             self._stop_evt.wait(30)
 
-    def _poll(self):
-        printers = []
+    def _poll(self) -> None:
+        printers: list[dict[str, Any]] = []
         try:
             for p in win32print.EnumPrinters(2):
                 name = p[2]
@@ -137,8 +137,8 @@ class PrinterMonitor:
             return
 
         # 检测变化（在锁内）
-        changed = []
-        removed = []
+        changed: list[dict[str, Any]] = []
+        removed: list[str] = []
         with self._cache_lock:
             current_names = {p['name'] for p in printers}
             for pr in printers:
@@ -166,6 +166,6 @@ class PrinterMonitor:
                 except Exception:
                     pass
 
-    def get_all_statuses(self):
+    def get_all_statuses(self) -> dict[str, dict[str, Any]]:
         with self._cache_lock:
             return dict(self._cache)

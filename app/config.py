@@ -1,7 +1,10 @@
 import json
-import logging
 import os
+import sys
 import threading
+from typing import Any
+
+from loguru import logger
 from pydantic import BaseModel, Field, field_validator
 
 __all__ = ['Config', 'ConfigSchema', 'setup_logging']
@@ -41,7 +44,7 @@ class ConfigSchema(BaseModel):
 
     @field_validator('ppt_output_type')
     @classmethod
-    def validate_ppt_output(cls, v):
+    def validate_ppt_output(cls, v: str) -> str:
         allowed = ('slides', 'handout2', 'handout3', 'handout6')
         if v not in allowed:
             raise ValueError(f'ppt_output_type 必须为 {allowed} 之一')
@@ -49,7 +52,7 @@ class ConfigSchema(BaseModel):
 
     @field_validator('paper_size')
     @classmethod
-    def validate_paper(cls, v):
+    def validate_paper(cls, v: str) -> str:
         allowed = ('A3', 'A4', 'Letter')
         if v not in allowed:
             raise ValueError(f'paper_size 必须为 {allowed} 之一')
@@ -57,7 +60,7 @@ class ConfigSchema(BaseModel):
 
     @field_validator('notify_channel')
     @classmethod
-    def validate_notify_channel(cls, v):
+    def validate_notify_channel(cls, v: str) -> str:
         allowed = ('disabled', 'dingtalk', 'bark')
         if v not in allowed:
             raise ValueError(f'notify_channel 必须为 {allowed} 之一')
@@ -65,7 +68,7 @@ class ConfigSchema(BaseModel):
 
     @field_validator('dingtalk_level')
     @classmethod
-    def validate_dingtalk_level(cls, v):
+    def validate_dingtalk_level(cls, v: str) -> str:
         allowed = ('error', 'warning', 'info')
         if v not in allowed:
             raise ValueError(f'dingtalk_level 必须为 {allowed} 之一')
@@ -73,7 +76,7 @@ class ConfigSchema(BaseModel):
 
     @field_validator('log_level')
     @classmethod
-    def validate_log_level(cls, v):
+    def validate_log_level(cls, v: str) -> str:
         allowed = ('DEBUG', 'INFO', 'WARNING', 'ERROR')
         if v.upper() not in allowed:
             raise ValueError(f'log_level 必须为 {allowed} 之一')
@@ -81,7 +84,7 @@ class ConfigSchema(BaseModel):
 
     @field_validator('allowed_extensions')
     @classmethod
-    def validate_extensions(cls, v):
+    def validate_extensions(cls, v: list[str]) -> list[str]:
         if not v or not all(e.startswith('.') for e in v):
             raise ValueError('allowed_extensions 每个元素必须以 . 开头')
         return v
@@ -90,24 +93,24 @@ class ConfigSchema(BaseModel):
 class Config:
     """配置管理，基于 Pydantic + 线程安全的热加载"""
 
-    def __init__(self, config_path=None):
+    def __init__(self, config_path: str | None = None) -> None:
         if config_path is None:
             from app._paths import app_root
             config_path = os.path.join(app_root(), 'config.json')
         self.config_path = config_path
         self._lock = threading.Lock()
         self._schema = ConfigSchema()
-        self._errors = []
+        self._errors: list[str] = []
         self.load()
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         """属性访问代理到 ConfigSchema 字段"""
         with self._lock:
             if '_schema' in self.__dict__ and hasattr(self._schema, name):
                 return getattr(self._schema, name)
         raise AttributeError(f"'Config' object has no attribute '{name}'")
 
-    def load(self):
+    def load(self) -> None:
         with self._lock:
             try:
                 with open(self.config_path, 'r', encoding='utf-8') as f:
@@ -117,41 +120,39 @@ class Config:
             except FileNotFoundError:
                 self._schema = ConfigSchema()
                 self._errors = []
-                logger = logging.getLogger('print_server')
                 logger.info(f'配置文件不存在，使用默认配置: {self.config_path}')
             except json.JSONDecodeError as e:
                 self._errors.append(str(e))
-                logger = logging.getLogger('print_server')
                 logger.warning(f'配置文件解析失败，使用默认配置: {e}')
                 self._schema = ConfigSchema()
             except Exception as e:
                 self._errors.append(str(e))
-                logger = logging.getLogger('print_server')
                 logger.warning(f'配置校验警告: {e}')
 
-    def save(self):
+    def save(self) -> None:
         with self._lock:
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 f.write(self._schema.model_dump_json(indent=4, ensure_ascii=False))
 
-    def reload(self):
+    def reload(self) -> None:
         self.load()
 
-    def get(self, key, default=None):
+    def get(self, key: str, default: Any = None) -> Any:
         with self._lock:
             return getattr(self._schema, key, default)
 
-    def set(self, key, value):
+    def set(self, key: str, value: Any) -> None:
         with self._lock:
             self._schema = self._schema.model_copy(update={key: value})
 
-    def set_many(self, kwargs):
+    def set_many(self, kwargs: dict[str, Any]) -> None:
         with self._lock:
             self._schema = self._schema.model_copy(update=kwargs)
 
 
-def setup_logging(log_dir=None, level='INFO'):
-    from logging.handlers import TimedRotatingFileHandler
+def setup_logging(log_dir: str | None = None, level: str = 'INFO') -> Any:
+    """配置 loguru 日志"""
+    import loguru
     from app._paths import app_root
 
     if log_dir is None:
@@ -159,24 +160,24 @@ def setup_logging(log_dir=None, level='INFO'):
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, 'print_server.log')
 
-    logger = logging.getLogger('print_server')
-    logger.setLevel(getattr(logging, level.upper(), logging.INFO))
+    # Remove default sink
+    loguru.logger.remove()
 
-    if logger.handlers:
-        logger.handlers.clear()
+    # File sink with rotation
+    loguru.logger.add(
+        log_file,
+        rotation='00:00',  # rotate at midnight
+        retention=7,       # keep 7 days
+        encoding='utf-8',
+        format='{time:YYYY-MM-DD HH:mm:ss} [{level}] {message}',
+        level=level,
+    )
 
-    fh = TimedRotatingFileHandler(log_file, when='midnight', interval=1, backupCount=7, encoding='utf-8')
-    fh.setFormatter(logging.Formatter(
-        '%(asctime)s [%(levelname)s] %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    ))
-    logger.addHandler(fh)
+    # Console sink
+    loguru.logger.add(
+        sys.stderr,
+        format='{time:HH:mm:ss} [{level}] {message}',
+        level=level,
+    )
 
-    ch = logging.StreamHandler()
-    ch.setFormatter(logging.Formatter(
-        '%(asctime)s [%(levelname)s] %(message)s',
-        datefmt='%H:%M:%S'
-    ))
-    logger.addHandler(ch)
-
-    return logger
+    return loguru.logger

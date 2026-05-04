@@ -3,7 +3,7 @@ import re
 
 
 # 已知错误模式 → 中文文案
-KNOWN_ERROR_PATTERNS = [
+KNOWN_ERROR_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r'未找到 Chromium|Chrome.*打印失败|chromium', re.I),
      '未检测到 Chrome/Edge 浏览器，请确认已安装'),
     (re.compile(r'打印超时|timeout', re.I),
@@ -34,7 +34,7 @@ KNOWN_ERROR_PATTERNS = [
 
 
 # 本地系统错误模式（只记日志，不发送通知）
-LOCAL_ERROR_PATTERNS = [
+LOCAL_ERROR_PATTERNS: list[re.Pattern] = [
     re.compile(r'磁盘|space|disk|存储', re.I),
     re.compile(r'权限|permission|denied|access', re.I),
     re.compile(r'nssm.*install|服务.*创建|service', re.I),

@@ -1,16 +1,16 @@
-import logging
+from typing import Any
+
+from loguru import logger
 import requests
 
 from app.services.notifier import Notifier, format_error_message
 
-logger = logging.getLogger('print_server')
-
 
 class DingTalk(Notifier):
-    def __init__(self, config):
+    def __init__(self, config: Any) -> None:
         self.config = config
 
-    def send_notification(self, title, message, level='error'):
+    def send_notification(self, title: str, message: str, level: str = 'error') -> None:
         """发送钉钉通知"""
         webhook = self.config.get('dingtalk_webhook', '')
         if not webhook:
@@ -36,27 +36,27 @@ class DingTalk(Notifier):
         except Exception as e:
             logger.warning(f'钉钉通知异常: {e}')
 
-    def notify_job_failed(self, filename, error, time_str):
+    def notify_job_failed(self, filename: str, error: str, time_str: str) -> None:
         """任务失败通知"""
         friendly = format_error_message(error)
         self.send_notification(
-            '❌ 打印任务失败',
+            '打印任务失败',
             f'文件: {filename}\n原因: {friendly}\n时间: {time_str}',
             level='error'
         )
 
-    def notify_job_completed(self, filename, time_str):
+    def notify_job_completed(self, filename: str, time_str: str) -> None:
         """任务完成通知"""
         self.send_notification(
-            '✅ 打印任务完成',
+            '打印任务完成',
             f'文件: {filename}\n时间: {time_str}',
             level='info'
         )
 
-    def notify_job_cancelled(self, filename, time_str):
+    def notify_job_cancelled(self, filename: str, time_str: str) -> None:
         """任务取消通知"""
         self.send_notification(
-            '⏹ 打印已取消',
+            '打印已取消',
             f'文件: {filename}\n时间: {time_str}',
             level='warning'
         )
