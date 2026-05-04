@@ -1,4 +1,5 @@
 """打印引擎 — 根据文件类型委托给对应的后端策略"""
+import os
 import threading
 from typing import Any, Optional
 
@@ -28,6 +29,7 @@ class PrintEngine:
         self._backends['.pdf'] = pdf_backend
 
         self._office_backend = office_backend
+        self._pdf_backend = pdf_backend
         self._active_jobs: dict[str, dict[str, Any]] = {}
         self._active_jobs_lock = threading.Lock()
 
@@ -43,19 +45,32 @@ class PrintEngine:
                    print_params: Optional[dict[str, Any]] = None) -> Any:
         if print_params is None:
             print_params = {}
-        backend = self._get_backend(file_type)
-        lock = word_lock if backend is self._office_backend else None
         params = dict(print_params)
         params['_file_type'] = file_type
+        ext = file_type.lower()
 
-        with self._active_jobs_lock:
-            self._active_jobs[job_id] = {'backend': backend}
-
-        try:
-            return backend.print_file(filepath, job_id, params, lock=lock)
-        finally:
+        if ext in OFFICE_EXTS:
+            # Office 文件：先转 PDF，再用 PDF 后端打印
+            params['_word_lock'] = word_lock
+            pdf_path = self._office_backend.convert_to_pdf(filepath, params)
+            try:
+                with self._active_jobs_lock:
+                    self._active_jobs[job_id] = {'backend': self._pdf_backend}
+                return self._pdf_backend.print_file(pdf_path, job_id, params)
+            finally:
+                with self._active_jobs_lock:
+                    self._active_jobs.pop(job_id, None)
+                self._cleanup_temp(pdf_path)
+        else:
+            backend = self._get_backend(file_type)
+            lock = word_lock if backend is self._office_backend else None
             with self._active_jobs_lock:
-                self._active_jobs.pop(job_id, None)
+                self._active_jobs[job_id] = {'backend': backend}
+            try:
+                return backend.print_file(filepath, job_id, params, lock=lock)
+            finally:
+                with self._active_jobs_lock:
+                    self._active_jobs.pop(job_id, None)
 
     def cancel_active_job(self, job_id: str) -> bool:
         with self._active_jobs_lock:
@@ -66,3 +81,10 @@ class PrintEngine:
             del self._active_jobs[job_id]
 
         return backend.cancel(job_id, {})
+
+    def _cleanup_temp(self, path: str) -> None:
+        try:
+            if os.path.exists(path):
+                os.unlink(path)
+        except Exception:
+            pass

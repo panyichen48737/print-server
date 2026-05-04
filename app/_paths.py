@@ -5,17 +5,17 @@ import sys
 
 def app_root() -> str:
     """返回项目根目录（开发模式或打包模式）"""
-    if getattr(sys, 'frozen', False):
-        # PyInstaller 打包：exe 所在目录
+    if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
         return os.path.dirname(sys.executable)
-    # 开发模式：项目根目录（print_server/）
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def data_root() -> str:
     """返回内置数据文件目录（模板/静态文件等只读资源）"""
-    if getattr(sys, 'frozen', False):
-        return sys._MEIPASS
+    if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
+        if hasattr(sys, '_MEIPASS'):
+            return sys._MEIPASS
+        return os.path.dirname(sys.executable)
     return app_root()
 
 

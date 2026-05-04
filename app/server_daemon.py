@@ -14,7 +14,7 @@ from app._paths import app_root
 
 root = app_root()
 os.chdir(root)
-if not getattr(sys, 'frozen', False):
+if not getattr(sys, 'frozen', False) and not getattr(sys, '__compiled__', False):
     sys.path.insert(0, root)
 
 from app.config import Config, setup_logging

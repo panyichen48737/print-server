@@ -62,8 +62,8 @@ def start_daemon() -> tuple[bool, str]:
     log_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        # 冻结 EXE 模式下没有 .py 入口，直接用 --server-daemon 调自己
-        if getattr(sys, 'frozen', False):
+        # 冻结/编译 EXE 模式下没有 .py 入口，直接用 --server-daemon 调自己
+        if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
             cmd = [sys.executable, '--server-daemon']
             cwd = os.path.dirname(sys.executable)
         else:

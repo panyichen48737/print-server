@@ -13,13 +13,12 @@ TASK_NAME = 'iOSPrintServer'
 
 def _nssm_path() -> str | None:
     """查找 nssm.exe（打包目录优先，回退 PATH）"""
-    # 冻结模式：nssm 在 sys._MEIPASS 中
-    if getattr(sys, 'frozen', False):
-        meipass = getattr(sys, '_MEIPASS', None)
-        if meipass:
-            candidate = os.path.join(meipass, 'nssm.exe')
-            if os.path.isfile(candidate):
-                return candidate
+    # 打包模式：nssm 在 exe 同级目录
+    if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
+        exe_dir = os.path.dirname(sys.executable)
+        candidate = os.path.join(exe_dir, 'nssm.exe')
+        if os.path.isfile(candidate):
+            return candidate
     # 开发模式：项目 bin 目录
     local = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'bin', 'nssm.exe')
     if os.path.isfile(local):
@@ -36,18 +35,16 @@ def _nssm_available() -> bool:
 
 
 def _project_root() -> str:
-    """项目根目录"""
-    if getattr(sys, 'frozen', False):
-        meipass = getattr(sys, '_MEIPASS', None)
-        if meipass:
-            return meipass
+    """项目根目录（打包模式下为 exe 所在目录）"""
+    if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
+        return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _get_python_cmd() -> str:
     """获取 schtasks 用启动命令"""
     this_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
         return f'"{sys.executable}" --server-daemon'
     else:
         return f'"{sys.executable}" "{this_dir}\\server_daemon.py"'
