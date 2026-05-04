@@ -137,8 +137,7 @@ async def settings_post(
             ('dingtalk_webhook', dingtalk_webhook),
             ('bark_key', bark_key),
         ]:
-            if val:
-                updates[secret_field] = val
+            updates[secret_field] = val
 
         config.set_many(updates)
         config.save()
@@ -169,7 +168,7 @@ async def upload_page(request: Request):
         'request': request,
         'config': config,
         'printers': printer_list,
-        'allowed_extensions': config.schema.allowed_extensions,
+        'allowed_extensions': config.get('allowed_extensions', []),
     })
 
 
@@ -186,7 +185,7 @@ async def api_stats(request: Request):
 async def admin_test_notification(request: Request):
     """HTMX: 发送测试通知，返回 HTML 片段"""
     config = request.app.state.app_config
-    channel = config.schema.notify_channel
+    channel = config.get('notify_channel', 'disabled')
     dingtalk = getattr(request.app.state, 'dingtalk', None)
     bark = getattr(request.app.state, 'bark', None)
     time_str = format_time()

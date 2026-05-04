@@ -25,6 +25,12 @@ class JobExecutor:
         self._word_lock = word_lock
         self._pool = ThreadPoolExecutor(max_workers=1)
 
+    def shutdown(self):
+        try:
+            self._pool.shutdown(wait=False)
+        except Exception:
+            pass
+
     def execute(self, job_id: str, worker_id: int, attempt: int = 0) -> tuple[bool, str | None]:
         """执行单个打印任务"""
         job = self._repo.get_job(job_id)
@@ -170,6 +176,7 @@ class JobWorker:
                 except Exception as e:
                     logger.error(f'工作线程 {self.worker_id} 异常: {e}')
         finally:
+            self._executor.shutdown()
             pythoncom.CoUninitialize()
             logger.info(f'工作线程 {self.worker_id} 已停止')
 

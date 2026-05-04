@@ -55,11 +55,3 @@ class DingTalk(Notifier):
             f'文件: {filename}\n时间: {time_str}',
             level='info'
         )
-
-    def notify_job_cancelled(self, filename: str, time_str: str) -> None:
-        """任务取消通知"""
-        self.send_notification(
-            '打印已取消',
-            f'文件: {filename}\n时间: {time_str}',
-            level='warning'
-        )

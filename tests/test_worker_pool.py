@@ -11,7 +11,7 @@ class TestWorkerPool:
     @pytest.fixture
     def config(self):
         cfg = MagicMock()
-        cfg.schema.worker_count = 2
+        cfg.get.return_value = 2
         return cfg
 
     @pytest.fixture

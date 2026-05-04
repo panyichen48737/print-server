@@ -18,8 +18,13 @@ class TestHandleFileUpload:
     def config(self):
         """模拟 Config 对象"""
         cfg = MagicMock()
-        cfg.schema.allowed_extensions = ['.pdf', '.doc', '.docx', '.jpg', '.png']
-        cfg.schema.max_file_size_mb = 50
+        def fake_get(key, default=None):
+            values = {
+                'allowed_extensions': ['.pdf', '.doc', '.docx', '.jpg', '.png'],
+                'max_file_size_mb': 50,
+            }
+            return values.get(key, default)
+        cfg.get.side_effect = fake_get
         return cfg
 
     @pytest.fixture

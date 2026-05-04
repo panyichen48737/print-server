@@ -22,7 +22,7 @@ class WorkerPool:
 
     def start(self, print_engine: Any, repo: JobRepository, job_queue: JobQueue) -> None:
         self._stop_evt.clear()
-        count = self._config.schema.worker_count
+        count = self._config.get('worker_count', 2)
         self._workers = []
         for i in range(count):
             worker = JobWorker(

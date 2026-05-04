@@ -75,7 +75,7 @@ def main():
     parser.parse_known_args()
 
     config = Config()
-    logger = setup_logging(level=config.schema.log_level)
+    logger = setup_logging(level=config.get('log_level', 'INFO'))
 
     write_status('starting')
     logger.info('守护进程启动中...')

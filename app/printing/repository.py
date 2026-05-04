@@ -209,3 +209,9 @@ class JobRepository:
             'UPDATE jobs SET status = ?, error_message = ?, completed_at = ? WHERE id = ?',
             rows, executemany=True, commit=True
         )
+
+    def close(self):
+        try:
+            self._conn.close()
+        except Exception:
+            pass

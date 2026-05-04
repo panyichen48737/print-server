@@ -132,14 +132,14 @@ class PrinterMonitor:
             if self._broadcaster:
                 try:
                     self._broadcaster.publish('printer_status', pr)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'PrinterMonitor error: {e}')
         for name in removed:
             if self._broadcaster:
                 try:
                     self._broadcaster.publish('printer_status', {'name': name, 'overall': 'removed', 'statuses': []})
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'PrinterMonitor error: {e}')
 
     def get_all_statuses(self) -> dict[str, dict[str, Any]]:
         with self._cache_lock:

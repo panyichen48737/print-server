@@ -36,6 +36,3 @@ class BarkNotifier(Notifier):
     def notify_job_failed(self, filename: str, error: str, time_str: str) -> None:
         friendly = format_error_message(error)
         self.send_notification('打印任务失败', f'文件: {filename}\n原因: {friendly}\n时间: {time_str}')
-
-    def notify_job_cancelled(self, filename: str, time_str: str) -> None:
-        self.send_notification('打印已取消', f'文件: {filename}\n时间: {time_str}')

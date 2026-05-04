@@ -7,7 +7,6 @@ from typing import Any, Optional
 from loguru import logger
 
 from app.printing.repository import JobRepository
-from app.utils import format_time, safe_remove
 
 
 class JobQueue:
@@ -78,14 +77,6 @@ class JobQueue:
         self._repo.update_status(job_id, 'failed', '用户取消')
         self._emit_job_status(job, 'failed', '用户取消')
 
-        source = job.get('source', 'api')
-        if source != 'ios' and job['status'] == 'printing' and print_engine:
-            try:
-                self._notify_cancelled(job, print_engine)
-            except Exception:
-                pass
-
-        safe_remove(job.get('filepath'), '取消任务文件')
         logger.info(f'任务已取消: {job_id}')
         return True, None
 
@@ -103,7 +94,6 @@ class JobQueue:
 
         for job in to_cancel:
             self._emit_job_status(job, 'failed', '用户取消')
-            safe_remove(job.get('filepath'), '取消任务文件')
 
         logger.info(f'批量取消完成: {len(to_cancel)} 个任务')
         return len(to_cancel)
@@ -151,13 +141,4 @@ class JobQueue:
                 'status': status,
                 'error': error,
                 'source': job.get('source', 'api'),
-            })
-
-    def _notify_cancelled(self, job: dict, print_engine: Any) -> None:
-        """当打印中的任务被取消时触发通知"""
-        if self._event_bus:
-            self._event_bus.publish('notification', {
-                'type': 'job_cancelled',
-                'filename': job['filename'],
-                'time': format_time(),
             })

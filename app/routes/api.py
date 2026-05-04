@@ -195,16 +195,25 @@ async def sse_events(request: Request):
     sub_id, q = broadcaster.subscribe()
 
     import queue as _queue
+    import time as _time
+
+    start = _time.monotonic()
+    MAX_DURATION = 3600
 
     def generate():
         try:
             while True:
+                elapsed = _time.monotonic() - start
+                if elapsed > MAX_DURATION:
+                    break
                 try:
-                    event_type, data = q.get(timeout=1)
+                    event_type, data = q.get(timeout=30)
                     yield f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
                 except _queue.Empty:
                     continue
         except GeneratorExit:
+            pass
+        finally:
             broadcaster.unsubscribe(sub_id)
 
     return StreamingResponse(generate(), media_type='text/event-stream')

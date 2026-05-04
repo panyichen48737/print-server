@@ -1,6 +1,5 @@
 """心跳检测模块 — 定期清理过期任务 + 恢复卡住的任务"""
 import threading
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from typing import Callable
 
 from loguru import logger
@@ -17,7 +16,6 @@ class HeartbeatMonitor:
         self._recover_stuck_fn = recover_stuck_fn
         self._stop_evt = threading.Event()
         self._thread: threading.Thread | None = None
-        self._executor = ThreadPoolExecutor(max_workers=1)
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -29,18 +27,19 @@ class HeartbeatMonitor:
 
     def stop(self) -> None:
         self._stop_evt.set()
-        self._executor.shutdown(wait=False)
         logger.debug('心跳检测已停止')
 
     def _run_with_timeout(self, fn, name, timeout=10):
-        """在线程池中执行函数，超时自动放弃"""
-        future = self._executor.submit(fn)
-        try:
-            future.result(timeout=timeout)
-        except TimeoutError:
+        def _wrapped():
+            try:
+                fn()
+            except Exception as e:
+                logger.warning(f'心跳 {name} 异常: {e}')
+        t = threading.Thread(target=_wrapped, daemon=True)
+        t.start()
+        t.join(timeout=timeout)
+        if t.is_alive():
             logger.warning(f'心跳 {name} 执行超时 (>={timeout}s)，已跳过')
-        except Exception as e:
-            logger.warning(f'心跳 {name} 异常: {e}')
 
     def _loop(self) -> None:
         while not self._stop_evt.is_set():

@@ -79,7 +79,3 @@ class Notifier(ABC):
     @abstractmethod
     def notify_job_failed(self, filename: str, error: str, time_str: str) -> None:
         ...
-
-    @abstractmethod
-    def notify_job_cancelled(self, filename: str, time_str: str) -> None:
-        ...
