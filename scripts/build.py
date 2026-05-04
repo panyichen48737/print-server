@@ -85,6 +85,7 @@ def build(version: str):
         '--hidden-import', 'win32gui',
         '--hidden-import', 'win32com.client',
         '--hidden-import', 'pythoncom',
+        '--hidden-import', 'python_multipart',
         # 隐式导入 — HTTP/ASGI
         '--hidden-import', 'uvicorn.logging',
         '--hidden-import', 'uvicorn.loops',
