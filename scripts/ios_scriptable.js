@@ -56,48 +56,17 @@ async function main() {
     if (btn === -1) return;
   }
 
-  // Show progress
   const total = validFiles.length;
-  const dialog = new Alert();
-  dialog.title = total > 1 ? `打印 ${total} 个文件` : "正在打印...";
-  dialog.message = `正在上传 (0/${total})...`;
-  dialog.addCancelAction("取消全部");
-
-  const btnPromise = dialog.present();
 
   // Upload files sequentially
   const jobIds = [];
   for (let i = 0; i < total; i++) {
-    // Check cancel
-    const race = await Promise.race([
-      btnPromise.then(b => ({ type: 'cancel', btn: b })),
-      Promise.resolve({ type: 'continue' })
-    ]);
-    if (race.type === 'cancel' && race.btn === -1) {
-      dialog.dismiss();
-      // Cancel already submitted jobs
-      for (const jid of jobIds) {
-        try { await cancelJob(jid); } catch(e) {}
-      }
-      const n = new Notification();
-      n.title = "⏹ 打印已取消";
-      n.body = `已取消 ${total} 个打印任务`;
-      n.sound = "default";
-      await n.schedule();
-      return;
-    }
-
-    dialog.message = `正在上传 (${i + 1}/${total}): ${validFiles[i].name}`;
-
-    // Upload single file
+    console.log(`正在上传 (${i + 1}/${total}): ${validFiles[i].name}`);
     const jobId = await uploadFile(validFiles[i]);
     if (jobId) {
       jobIds.push(jobId);
     }
   }
-
-  // Dismiss the dialog — files are submitted
-  dialog.dismiss();
 
   // Wait for completion
   if (total === 1 && jobIds.length === 1) {
