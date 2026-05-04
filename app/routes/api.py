@@ -58,7 +58,7 @@ async def print_file(
     )
     if not result.success:
         raise HTTPException(status_code=400, detail=result.error)
-    return {'status': 'queued', 'job_id': result.job_id}
+    return {'success': True, 'job_id': result.job_id}
 
 
 @api_router.get('/status/{job_id}')
@@ -97,7 +97,8 @@ async def cancel_job_api(
 ):
     """取消任务"""
     job_queue = request.app.state.job_queue
-    success, error = job_queue.cancel_job(job_id)
+    print_engine = request.app.state.print_engine
+    success, error = job_queue.cancel_job(job_id, print_engine=print_engine)
     if not success:
         raise HTTPException(status_code=400, detail=error)
     return {'success': True}

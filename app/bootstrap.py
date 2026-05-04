@@ -92,10 +92,11 @@ def bootstrap(config: Config, lifespan=None):
     app.state.job_repo = repo
     app.state.worker_pool = worker_pool
     app.state.app_config = config
+    app.state.print_engine = print_engine
     app.state.dingtalk = dingtalk
     app.state.bark = bark
     app.state.printer_monitor = printer_monitor
-    app.state.sse_broadcaster = broadcaster
+    app.state.sse = broadcaster
     app.state.printer_discovery = printer_discovery
 
     job_queue.cleanup_old_jobs(config.get('job_retention_days', 30))

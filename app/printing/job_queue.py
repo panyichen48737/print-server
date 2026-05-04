@@ -139,6 +139,7 @@ class JobQueue:
                 'job_id': job['id'],
                 'filename': job['filename'],
                 'status': status,
-                'error': error,
                 'source': job.get('source', 'api'),
+                'error': error,
+                'ts': datetime.now().isoformat(),
             })
