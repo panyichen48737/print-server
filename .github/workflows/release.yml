@@ -31,6 +31,7 @@ jobs:
           python scripts/build.py --release
         env:
           RELEASE_VERSION: ${{ github.ref_name }}
+          PYTHONIOENCODING: utf-8
 
       - name: Archive build artifacts
         uses: actions/upload-artifact@v4
