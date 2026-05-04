@@ -53,7 +53,7 @@ def handle_file_upload(
     if len(file_bytes) > max_size:
         return UploadResult(success=False, error=f'文件过大，最大 {config.get("max_file_size_mb", 50)}MB')
 
-    safe_name = filename
+    safe_name = os.path.basename(filename)
     job_id = str(uuid.uuid4())
     jobs_dir = ensure_dir(app_root(), 'jobs')
     save_path = os.path.join(jobs_dir, f'{job_id}_{safe_name}')
