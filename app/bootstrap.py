@@ -19,7 +19,7 @@ def bootstrap(config: Config, lifespan=None):
     from app.services.dingtalk import DingTalk
     from app.services.printer_monitor import PrinterMonitor
     from app.services.bark import BarkNotifier
-    from app.services.printer_discovery_service import PrinterDiscoveryService
+    from app.services.printer_discovery import PrinterDiscoveryService
 
     app = create_app(lifespan=lifespan)
 
