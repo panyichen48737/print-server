@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import threading
 from pydantic import BaseModel, Field, field_validator
@@ -100,11 +101,12 @@ class Config:
         self.load()
 
     def __getattr__(self, name):
-        """将未知属性访问代理到 ConfigSchema 字段"""
-        if '_schema' in self.__dict__:
-            schema = self.__dict__['_schema']
-            if hasattr(schema, name):
-                return getattr(schema, name)
+        """将未知属性访问代理到 ConfigSchema 字段（线程安全）"""
+        with self._lock:
+            if '_schema' in self.__dict__:
+                schema = self.__dict__['_schema']
+                if hasattr(schema, name):
+                    return getattr(schema, name)
         raise AttributeError(f"'Config' object has no attribute '{name}'")
 
     def load(self):
@@ -115,7 +117,6 @@ class Config:
                 self._schema = ConfigSchema(**data)
                 self._errors = []
             except FileNotFoundError:
-                # 配置文件不存在，使用默认值
                 self._schema = ConfigSchema()
                 self._errors = []
                 logger = logging.getLogger('print_server')
@@ -127,7 +128,6 @@ class Config:
                 self._schema = ConfigSchema()
             except Exception as e:
                 self._errors.append(str(e))
-                import logging
                 logger = logging.getLogger('print_server')
                 logger.warning(f'配置校验警告: {e}')
 
@@ -153,7 +153,6 @@ class Config:
 
 
 def setup_logging(log_dir=None, level='INFO'):
-    import logging
     from logging.handlers import TimedRotatingFileHandler
     from app._paths import app_root
 

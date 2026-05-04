@@ -4,14 +4,13 @@ import os
 import uuid
 import logging
 from typing import Optional
-from flask import jsonify, Response
 from werkzeug.utils import secure_filename
 from app._paths import app_root, ensure_dir
 
 logger = logging.getLogger('print_server')
 
 
-def handle_file_upload(request, config, queue_mgr, *, source: str = 'api') -> tuple[Optional[str], Optional[tuple[Response, int]]]:
+def handle_file_upload(request, config, queue_mgr, *, source: str = 'api') -> dict:
     """
     处理文件上传的统一逻辑
 
@@ -22,32 +21,26 @@ def handle_file_upload(request, config, queue_mgr, *, source: str = 'api') -> tu
         source: 来源标识，'api' 或 'web'
 
     返回:
-        (job_id, error_response) 元组
-        成功时 error_response 为 None
-        失败时返回 (None, (json_response, status_code))
+        {'success': True, 'job_id': '...'} 或 {'success': False, 'error': '...'}
     """
     if 'file' not in request.files:
-        return None, (jsonify({'success': False, 'error': '未提供文件'}), 400)
+        return {'success': False, 'error': '未提供文件'}
 
     file = request.files['file']
     if not file.filename:
-        return None, (jsonify({'success': False, 'error': '文件名为空'}), 400)
+        return {'success': False, 'error': '文件名为空'}
 
-    config_obj = config
     original_name = file.filename
     ext = os.path.splitext(original_name)[1].lower()
 
-    # 校验扩展名
-    if ext not in config_obj.allowed_extensions:
-        return None, (jsonify({'success': False, 'error': f'不支持的文件类型: {ext}'}), 400)
+    if ext not in config.allowed_extensions:
+        return {'success': False, 'error': f'不支持的文件类型: {ext}'}
 
-    # 先检查 Content-Length 避免大文件写入
-    max_size = config_obj.max_file_size_mb * 1024 * 1024
+    max_size = config.max_file_size_mb * 1024 * 1024
     content_length = request.headers.get('Content-Length')
     if content_length and int(content_length) > max_size:
-        return None, (jsonify({'success': False, 'error': f'文件过大，最大 {config_obj.max_file_size_mb}MB'}), 400)
+        return {'success': False, 'error': f'文件过大，最大 {config.max_file_size_mb}MB'}
 
-    # 安全化文件名 + UUID 前缀保唯一
     safe_name = secure_filename(original_name) or f"file{ext}"
     job_id = str(uuid.uuid4())
     jobs_dir = ensure_dir(app_root(), 'jobs')
@@ -55,12 +48,10 @@ def handle_file_upload(request, config, queue_mgr, *, source: str = 'api') -> tu
     file.save(save_path)
     file_size = os.path.getsize(save_path)
 
-    # 校验文件大小
     if file_size > max_size:
         os.remove(save_path)
-        return None, (jsonify({'success': False, 'error': f'文件过大，最大 {config_obj.max_file_size_mb}MB'}), 400)
+        return {'success': False, 'error': f'文件过大，最大 {config.max_file_size_mb}MB'}
 
-    # 获取打印参数（可选，来自表单）
     printer = request.form.get('printer') or None
     copies_s = request.form.get('copies')
     copies = int(copies_s) if copies_s and copies_s.isdigit() else None
@@ -72,9 +63,8 @@ def handle_file_upload(request, config, queue_mgr, *, source: str = 'api') -> tu
 
     if copies is not None and (copies < 1 or copies > 99):
         os.remove(save_path)
-        return None, (jsonify({'success': False, 'error': '打印份数必须在 1-99 之间'}), 400)
+        return {'success': False, 'error': '打印份数必须在 1-99 之间'}
 
-    # 入队
     actual_job_id = queue_mgr.add_job(
         original_name, save_path, file_size, ext,
         duplex=duplex, color=color, copies=copies,
@@ -83,4 +73,4 @@ def handle_file_upload(request, config, queue_mgr, *, source: str = 'api') -> tu
     )
 
     logger.info(f'Upload success: {original_name} -> job_id={actual_job_id}')
-    return actual_job_id, None
+    return {'success': True, 'job_id': actual_job_id}

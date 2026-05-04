@@ -107,12 +107,12 @@
                 <p class="section-desc">配置夸克扫描王 API 以启用图片增强功能，包括文档矫正、去阴影、去屏纹和画质增强。</p>
                 <div class="form-group">
                     <label for="quark_api_key_id">API Key ID</label>
-                    <input type="text" class="form-input" id="quark_api_key_id" name="quark_api_key_id" value="{{ config.quark_api_key_id }}" style="width: 100%; font-family: monospace;">
+                    <input type="password" class="form-input" id="quark_api_key_id" name="quark_api_key_id" value="" placeholder="{% if config.quark_api_key_id %}已配置，留空不修改{% else %}未配置{% endif %}" style="width: 100%; font-family: monospace;">
                     <div class="help-text">夸克扫描王开发者后台的 API Key ID</div>
                 </div>
                 <div class="form-group">
                     <label for="quark_api_key">API Key</label>
-                    <input type="password" class="form-input" id="quark_api_key" name="quark_api_key" value="{{ config.quark_api_key }}" style="width: 100%; font-family: monospace;">
+                    <input type="password" class="form-input" id="quark_api_key" name="quark_api_key" value="" placeholder="{% if config.quark_api_key %}已配置，留空不修改{% else %}未配置{% endif %}" style="width: 100%; font-family: monospace;">
                     <div class="help-text">用于图片增强（文档矫正、去阴影、去屏纹、画质增强），SHA3-256 签名认证</div>
                 </div>
             </div>
@@ -135,7 +135,7 @@
                 <div id="dingtalkFields" {% if config.get('notify_channel', 'disabled') != 'dingtalk' %}style="display:none"{% endif %}>
                     <div class="form-group">
                         <label for="dingtalk_webhook">Webhook URL</label>
-                        <input type="url" class="form-input" id="dingtalk_webhook" name="dingtalk_webhook" value="{{ config.dingtalk_webhook }}" style="width: 100%;">
+                        <input type="password" class="form-input" id="dingtalk_webhook" name="dingtalk_webhook" value="" placeholder="{% if config.dingtalk_webhook %}已配置，留空不修改{% else %}未配置{% endif %}" style="width: 100%;">
                         <div class="help-text">钉钉机器人的 Webhook 地址</div>
                     </div>
                     <div class="form-group">
@@ -151,7 +151,7 @@
                 <div id="barkFields" {% if config.get('notify_channel', 'disabled') != 'bark' %}style="display:none"{% endif %}>
                     <div class="form-group">
                         <label for="bark_key">Bark Key</label>
-                        <input type="text" class="form-input" id="bark_key" name="bark_key" value="{{ config.bark_key }}" style="width: 100%; font-family: monospace;" placeholder="设备密钥">
+                        <input type="password" class="form-input" id="bark_key" name="bark_key" value="" placeholder="{% if config.bark_key %}已配置，留空不修改{% else %}未配置{% endif %}" style="width: 100%; font-family: monospace;">
                         <div class="help-text">iOS Bark App 的设备密钥</div>
                     </div>
                     <div class="form-group">
