@@ -20,7 +20,7 @@ sys.path.insert(0, app_root())
 
 from app.config import Config
 from app.logging import setup_logging
-from .log_handler import LOG_BUFFER, TUILogHandler
+from .log_handler import TUILogHandler
 from .daemon_manager import start_daemon, stop_daemon, read_daemon_status, is_daemon_alive, restart_daemon
 from .autostart import install_autostart, uninstall_autostart, is_autostart_installed
 from .tui import TUI

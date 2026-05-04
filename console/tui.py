@@ -1,15 +1,13 @@
-"""控制台监控面板 — Textual 版"""
+"""控制台监控面板 — Textual 版（事件驱动，零轮询）"""
 import webbrowser
-from typing import Any
-
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.reactive import reactive
 from textual.widgets import Footer, Header, RichLog, Static
+from textual.worker import get_current_worker
 
 from app.version import __version__
 from .conflicts import get_local_ips
-from .log_handler import LOG_BUFFER
+from .log_handler import LOG_BUFFER, LOG_EVENT
 from .daemon_manager import (
     start_daemon,
     stop_daemon,
@@ -21,42 +19,50 @@ from .autostart import install_autostart, uninstall_autostart, is_autostart_inst
 
 
 class StatusWidget(Static):
-    """服务状态与快速入口面板"""
-    alive: bool = reactive(False)
-    port: Any = reactive("-")
-    pid: Any = reactive("-")
-
-    def watch_alive(self, value: bool) -> None:
-        self.refresh_display()
+    """服务状态面板 — 后台线程每 2s 刷新一次"""
 
     def on_mount(self) -> None:
-        self.set_interval(0.25, self.refresh_display)
+        self.run_worker(self._poll_loop(), exclusive=True)
 
-    def refresh_display(self) -> None:
-        self.alive = is_daemon_alive()
+    async def _poll_loop(self) -> None:
+        worker = get_current_worker()
+        while not worker.is_cancelled:
+            self._refresh()
+            await worker.sleep(2)
+
+    def _refresh(self) -> None:
+        alive = is_daemon_alive()
         status = read_daemon_status()
-        self.port = status.get("port", "-")
-        self.pid = status.get("pid", "-")
-
+        port = status.get("port", "-")
+        pid = status.get("pid", "-")
         ips = get_local_ips()
         ip_str = ips[0] if ips else "0.0.0.0"
-        status_text = "运行中" if self.alive else "已停止"
-        status_style = "bold green" if self.alive else "bold red"
-
+        status_text = "运行中" if alive else "已停止"
+        status_style = "bold green" if alive else "bold red"
         self.update(
             f"[bold]iOS 云打印服务器[/bold] [dim]v{__version__}[/dim]\n\n"
             f"状态: [{status_style}]{status_text}[/{status_style}]\n"
-            f"PID: {self.pid}    端口: {self.port}\n"
-            f"管理地址: [bold yellow]http://{ip_str}:{self.port}[/bold yellow]\n\n"
+            f"PID: {pid}    端口: {port}\n"
+            f"管理地址: [bold yellow]http://{ip_str}:{port}[/bold yellow]\n\n"
             f"[dim]打印机状态与运行统计请访问 Web 管理页面[/dim]"
         )
 
 
 class LogWidget(RichLog):
-    """实时日志面板"""
+    """实时日志面板 — 事件驱动，仅新日志到达时刷新"""
 
     def on_mount(self) -> None:
-        self.set_interval(0.25, self.refresh_log)
+        self.run_worker(self._watch_logs(), exclusive=True)
+
+    async def _watch_logs(self) -> None:
+        worker = get_current_worker()
+        while not worker.is_cancelled:
+            # 等待新日志事件（超时 1s 防死锁）
+            LOG_EVENT.wait(timeout=1)
+            LOG_EVENT.clear()
+            if worker.is_cancelled:
+                break
+            self.refresh_log()
 
     def refresh_log(self) -> None:
         self.clear()
