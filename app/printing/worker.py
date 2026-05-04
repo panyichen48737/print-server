@@ -136,29 +136,19 @@ class JobExecutor:
 
 
 class JobWorker:
-    """单个工作线程 — 从队列取任务并委托给 JobExecutor"""
+    """单个工作线程 — 从 JobQueue 取任务并委托给 JobExecutor"""
 
-    def __init__(self, worker_id: int, config, queue, repo, event_bus, stop_evt,
-                 cancelled_ids, cancelled_lock, print_engine, notifier, word_lock):
+    def __init__(self, worker_id: int, config, job_queue, repo, event_bus, stop_evt,
+                 print_engine, word_lock):
         self.worker_id = worker_id
         self._config = config
-        self._queue = queue
+        self._job_queue = job_queue
         self._repo = repo
         self._event_bus = event_bus
         self._stop_evt = stop_evt
-        self._cancelled_ids = cancelled_ids
-        self._cancelled_lock = cancelled_lock
-        self._notifier = notifier
-        self._executor = JobExecutor(config, event_bus, repo, print_engine, self._is_cancelled, word_lock)
+        self._executor = JobExecutor(config, event_bus, repo, print_engine,
+                                     job_queue.is_cancelled, word_lock)
         self._thread = None
-
-    def _is_cancelled(self, job_id):
-        with self._cancelled_lock:
-            return job_id in self._cancelled_ids
-
-    def _clear_cancelled(self, job_id):
-        with self._cancelled_lock:
-            self._cancelled_ids.discard(job_id)
 
     def start(self):
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -176,13 +166,15 @@ class JobWorker:
             logger.info(f'工作线程 {self.worker_id} 已启动')
             while not self._stop_evt.is_set():
                 try:
-                    job_id = self._queue.get(timeout=1)
-                    if self._is_cancelled(job_id):
-                        self._clear_cancelled(job_id)
-                        self._queue.task_done()
+                    job_id = self._job_queue.get_for_processing(timeout=1)
+                    if job_id is None:
+                        continue
+                    if self._job_queue.is_cancelled(job_id):
+                        self._job_queue.clear_cancelled(job_id)
+                        self._job_queue.task_done()
                         continue
                     self._process(job_id)
-                    self._queue.task_done()
+                    self._job_queue.task_done()
                 except _queue.Empty:
                     continue
                 except Exception as e:
@@ -191,34 +183,11 @@ class JobWorker:
             pythoncom.CoUninitialize()
             logger.info(f'工作线程 {self.worker_id} 已停止')
 
-    def _notify_all(self, event_type, filename, source='api', **kwargs):
-        if source == 'ios':
-            return
-        if not self._notifier:
-            return
-        error = kwargs.get('error', '')
-        if event_type == 'failed':
-            from app.services.notifier import is_print_related_error
-            if not is_print_related_error(error):
-                return
-
-        from datetime import datetime
-        time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        try:
-            if event_type == 'completed':
-                self._notifier.notify_job_completed(filename, time_str)
-            elif event_type == 'failed':
-                self._notifier.notify_job_failed(filename, error, time_str)
-            elif event_type == 'cancelled':
-                self._notifier.notify_job_cancelled(filename, time_str)
-        except Exception:
-            pass
-
     def _process(self, job_id):
         max_retries = self._config.get('auto_retry_count', 0)
         error_msg = ''
         job = self._repo.get_job(job_id)
-        if not job or self._is_cancelled(job_id):
+        if not job or self._job_queue.is_cancelled(job_id):
             return
         for attempt in range(max_retries + 1):
             success, error_msg = self._executor.execute(job_id, self.worker_id, attempt)
@@ -230,5 +199,3 @@ class JobWorker:
                 self._repo.increment_retry(job_id)
                 continue
             break
-        if job:
-            self._notify_all('failed', job['filename'], source=job.get('source', 'api'), error=error_msg)

@@ -5,6 +5,9 @@ import httpx
 
 from app.services.notifier import Notifier, format_error_message
 
+# 共享长连接客户端
+_client = httpx.Client(timeout=10)
+
 
 class BarkNotifier(Notifier):
     def __init__(self, config: Any) -> None:
@@ -19,8 +22,7 @@ class BarkNotifier(Notifier):
         server = self.config.get('bark_server', 'https://api.day.app')
         try:
             payload = {'title': title, 'body': message, 'group': 'PrintServer'}
-            with httpx.Client() as client:
-                resp = client.post(f'{server}/{key}', json=payload, timeout=10)
+            resp = _client.post(f'{server}/{key}', json=payload, timeout=10)
             if resp.status_code == 200:
                 logger.info('Bark 通知发送成功')
             else:

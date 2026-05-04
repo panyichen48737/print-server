@@ -3,9 +3,9 @@ from typing import Any
 
 
 class JobQueryService:
-    def __init__(self, repo: Any, queue_manager: Any = None) -> None:
+    def __init__(self, repo: Any, job_queue: Any = None) -> None:
         self._repo = repo
-        self._queue_manager = queue_manager
+        self._job_queue = job_queue
 
     def get_job(self, job_id: str) -> Any:
         return self._repo.get_job(job_id)
@@ -26,6 +26,6 @@ class JobQueryService:
         return self._repo.count_jobs(status, search)
 
     def get_queue_size(self) -> int:
-        if self._queue_manager:
-            return self._queue_manager.queue_size()
+        if self._job_queue:
+            return self._job_queue.queue_size()
         return 0

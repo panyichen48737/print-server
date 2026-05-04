@@ -11,12 +11,14 @@ class PrintService:
     def __init__(
         self,
         config: Any,
-        queue_manager: Any,
+        job_queue: Any,
+        worker_pool: Any,
         event_bus: Any = None,
         notifier: Any = None,
     ) -> None:
         self._config = config
-        self._queue_manager = queue_manager
+        self._job_queue = job_queue
+        self._worker_pool = worker_pool
         self._event_bus = event_bus
         self._notifier = notifier
 
@@ -29,18 +31,18 @@ class PrintService:
     ) -> UploadResult:
         """校验文件、保存、入队，委托给 upload_helper"""
         return handle_file_upload(
-            filename, content, self._config, self._queue_manager,
+            filename, content, self._config, self._job_queue,
             source=source, **print_options
         )
 
     def cancel_job(self, job_id: str) -> Any:
-        return self._queue_manager.cancel_job(job_id)
+        return self._job_queue.cancel_job(job_id)
 
     def cancel_all_queued(self) -> Any:
-        return self._queue_manager.cancel_all_queued()
+        return self._job_queue.cancel_all_queued()
 
     def retry_job(self, job_id: str) -> Any:
-        return self._queue_manager.retry_job(job_id)
+        return self._job_queue.retry_job(job_id)
 
     def set_default_printer(self, printer_name: str) -> None:
         self._config.set('default_printer', printer_name)

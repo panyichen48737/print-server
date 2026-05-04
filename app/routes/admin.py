@@ -7,16 +7,10 @@ from fastapi.templating import Jinja2Templates
 
 from app.auth import require_auth
 from app._paths import data_root
+from app.utils import safe_int as _safe_int
 
 admin_router = APIRouter()
 templates = Jinja2Templates(directory=os.path.join(data_root(), 'app', 'templates'))
-
-
-def _safe_int(val: str, default: int) -> int:
-    try:
-        return int(val)
-    except (ValueError, TypeError):
-        return default
 
 
 # -- Custom url_for for Jinja2 templates (Flask blueprint compatibility) --

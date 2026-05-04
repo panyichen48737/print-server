@@ -8,13 +8,23 @@ class EventBus:
 
     def __init__(self, broadcaster: SSEBroadcaster) -> None:
         self._broadcaster = broadcaster
+        self._listeners: dict[str, list[callable]] = {}
+
+    def on(self, event_type: str, handler: callable) -> None:
+        """注册本地事件监听器"""
+        self._listeners.setdefault(event_type, []).append(handler)
 
     def emit(self, event_type: str, data) -> None:
-        """发布事件到所有订阅者"""
+        """发布事件到所有订阅者 + 本地监听器"""
         try:
             self._broadcaster.publish(event_type, data)
         except Exception:
             pass
+        for handler in self._listeners.get(event_type, []):
+            try:
+                handler(data)
+            except Exception:
+                pass
 
     def subscribe(self) -> tuple:
         """注册新订阅者，返回 (sub_id, Queue)"""

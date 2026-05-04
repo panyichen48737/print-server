@@ -10,6 +10,9 @@ from loguru import logger
 from PIL import Image
 import httpx
 
+# 共享长连接客户端（Quark API 超时较长）
+_client = httpx.Client(timeout=60)
+
 
 class QuarkEnhancer:
     """夸克扫描王 API 图片增强"""
@@ -77,12 +80,11 @@ class QuarkEnhancer:
                 'signature': signature,
             }
 
-            with httpx.Client() as client:
-                resp = client.post(
-                    'https://scan-business.quark.cn/vision',
-                    json=payload,
-                    timeout=60,
-                )
+            resp = _client.post(
+                'https://scan-business.quark.cn/vision',
+                json=payload,
+                timeout=60,
+            )
 
             if resp.status_code != 200:
                 logger.warning(f'Quark API HTTP {resp.status_code}: {resp.text[:200]}')
