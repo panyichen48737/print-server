@@ -10,17 +10,24 @@ const API_KEY = "print-server-key-2026";              // ← 改成你的 API Ke
 const POLL_INTERVAL = 3;                               // 轮询间隔（秒）
 const POLL_MAX_RETRIES = 60;                           // 最大轮询次数（约3分钟）
 const ALLOWED_EXTENSIONS = [".doc", ".docx", ".pdf", ".xls", ".xlsx", ".ppt", ".pptx", ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif", ".heic", ".heif"];
+const ACTIVE_JOBS_KEY = "PrintServer_ActiveJobs";
 // ==============================================================
 
 async function main() {
   const files = getFiles();
+
   if (!files || files.length === 0) {
-    // 手动运行时显示使用说明
-    const dialog = new Alert();
-    dialog.title = "iOS 云打印";
-    dialog.message = "请通过分享表单使用此脚本：\n\n1. 在文件 App 或 Safari 中选择一个或多个文件\n2. 点击分享按钮\n3. 选择「共享」→ Scriptable\n4. 选择此脚本";
-    dialog.addAction("知道了");
-    await dialog.present();
+    // 从通知或手动运行 -> 显示操作菜单
+    const activeJobs = getActiveJobs();
+    if (activeJobs.length > 0) {
+      await showCancelMenu(activeJobs);
+    } else {
+      const dialog = new Alert();
+      dialog.title = "iOS 云打印";
+      dialog.message = "请通过分享表单使用此脚本：\n\n1. 在文件 App 或 Safari 中选择一个或多个文件\n2. 点击分享按钮\n3. 选择「共享」→ Scriptable\n4. 选择此脚本";
+      dialog.addAction("知道了");
+      await dialog.present();
+    }
     return;
   }
 
@@ -69,23 +76,24 @@ async function main() {
     if (btn === -1) return;
   }
 
-  // Upload files sequentially
-  const jobIds = [];
+  // Upload files sequentially, saving after each for cancel-from-icon support
+  const uploadedJobs = [];
   for (let i = 0; i < total; i++) {
     console.log(`正在上传 (${i + 1}/${total}): ${validFiles[i].name}`);
     const jobId = await uploadFile(validFiles[i]);
     if (jobId) {
-      jobIds.push(jobId);
+      uploadedJobs.push({ id: jobId, filename: validFiles[i].name });
+      saveActiveJobs(uploadedJobs);
     }
   }
 
   // Wait for completion
-  if (total === 1 && jobIds.length === 1) {
-    await waitForCompletion(jobIds[0]);
-  } else if (jobIds.length > 0) {
+  if (total === 1 && uploadedJobs.length === 1) {
+    await waitForCompletion(uploadedJobs[0].id);
+  } else if (uploadedJobs.length > 0) {
     // Multi-file: confirm before starting to wait
     const confirmWait = new Alert();
-    confirmWait.title = `已上传 ${jobIds.length} 个文件`;
+    confirmWait.title = `已上传 ${uploadedJobs.length} 个文件`;
     confirmWait.message = "等待打印完成？";
     confirmWait.addAction("等待完成");
     confirmWait.addCancelAction("后台运行");
@@ -93,7 +101,7 @@ async function main() {
     if (waitBtn === -1) {
       // User chose to run in background, just notify submission
       const n = new Notification();
-      n.title = `📨 ${jobIds.length} 个文件已提交打印`;
+      n.title = `📨 ${uploadedJobs.length} 个文件已提交打印`;
       n.body = "文件已上传到服务器，打印完成后会通知";
       n.sound = "default";
       await n.schedule();
@@ -103,22 +111,25 @@ async function main() {
     // Wait for all jobs
     let completed = 0;
     let failed = 0;
-    for (const jid of jobIds) {
+    for (const j of uploadedJobs) {
       try {
-        await waitForCompletionWS(jid);
+        await pollStatus(j.id);
         completed++;
       } catch (e) {
-        if (e.message === 'cancelled') return;
         failed++;
       }
     }
+    clearActiveJobs();
     const n = new Notification();
     if (failed === 0) {
       n.title = `✅ ${completed} 个文件打印完成`;
       n.body = "所有文件已成功发送到打印机";
-    } else {
+    } else if (completed > 0) {
       n.title = `⚠ ${completed} 完成, ${failed} 失败`;
       n.body = "部分文件打印失败，请检查服务器日志";
+    } else {
+      n.title = `❌ ${failed} 个文件打印失败`;
+      n.body = "所有文件打印失败，请检查服务器日志";
     }
     n.sound = "default";
     await n.schedule();
@@ -141,8 +152,9 @@ function getFiles() {
   // Images from Photos app share sheet
   if (args.images && args.images.length > 0) {
     for (const image of args.images) {
-      const ext = ALLOWED_EXTENSIONS.find(e => e === '.png' || e === '.jpg' || e === '.jpeg') || '.png';
-      const name = `photo_${Date.now()}_${files.length}${ext}`;
+      const w = image.size.width;
+      const h = image.size.height;
+      const name = `photo_${Date.now()}_${files.length}_${w}x${h}.jpg`;
       files.push({ image, name });
     }
   }
@@ -155,20 +167,88 @@ function getExtension(filename) {
   return idx >= 0 ? filename.substring(idx).toLowerCase() : "";
 }
 
+// ── 持久化任务 ID（UserDefaults），支持从主屏幕取消 ──
+
+function getActiveJobs() {
+  const json = UserDefaults.string(ACTIVE_JOBS_KEY);
+  return json ? JSON.parse(json) : [];
+}
+
+function saveActiveJobs(jobs) {
+  UserDefaults.setString(JSON.stringify(jobs), ACTIVE_JOBS_KEY);
+}
+
+function clearActiveJobs() {
+  UserDefaults.remove(ACTIVE_JOBS_KEY);
+}
+
+async function showCancelMenu(jobs) {
+  if (jobs.length === 0) return;
+
+  const dialog = new Alert();
+  dialog.title = `⏳ ${jobs.length} 个打印任务进行中`;
+  dialog.message = jobs.map((j, i) => `${i + 1}. ${j.filename}`).join("\n");
+  dialog.addDestructiveAction("取消全部");
+
+  for (const job of jobs) {
+    dialog.addDestructiveAction(`✕ ${job.filename}`);
+  }
+
+  dialog.addCancelAction("关闭");
+  const btn = await dialog.present();
+
+  if (btn === 0) {
+    // Cancel all
+    for (const job of jobs) {
+      try { await cancelJob(job.id); } catch(e) {}
+    }
+    clearActiveJobs();
+    const n = new Notification();
+    n.title = `⏹ 已取消全部 ${jobs.length} 个任务`;
+    n.body = "所有打印任务已取消";
+    n.sound = "default";
+    await n.schedule();
+  } else if (btn > 0 && btn <= jobs.length) {
+    // Cancel one specific job (btn-1 because btn 0 = "取消全部")
+    const job = jobs[btn - 1];
+    try {
+      await cancelJob(job.id);
+      const remaining = jobs.filter(j => j.id !== job.id);
+      if (remaining.length > 0) {
+        saveActiveJobs(remaining);
+        await showCancelMenu(remaining);
+      } else {
+        clearActiveJobs();
+        const n = new Notification();
+        n.title = "⏹ 所有任务已取消";
+        n.body = "打印任务已全部取消";
+        n.sound = "default";
+        await n.schedule();
+      }
+    } catch(e) {
+      const errAlert = new Alert();
+      errAlert.title = "取消失败";
+      errAlert.message = `无法取消「${job.filename}」: ${e}`;
+      errAlert.addAction("重试");
+      errAlert.addCancelAction("返回");
+      const retry = await errAlert.present();
+      if (retry === 0) await showCancelMenu(jobs);
+    }
+  }
+}
+
 async function waitForCompletion(jobId) {
   const dialog = new Alert();
   dialog.title = "🖨 正在打印...";
-  dialog.message = "任务已提交，等待打印机响应";
-  dialog.addAction("等待完成");
+  dialog.message = "等待打印完成，或取消该任务";
   dialog.addCancelAction("取消打印");
+  dialog.addAction("等待完成");
 
-  const btn = await Promise.race([
-    dialog.present(),
-    new Promise(r => setTimeout(() => r(0), 3000))
-  ]);
+  const btn = await dialog.present();
 
   if (btn === -1) {
     await cancelJob(jobId);
+    clearActiveJobs();
     const n = new Notification();
     n.title = "⏹ 打印已取消";
     n.body = "打印任务已取消";
@@ -178,47 +258,26 @@ async function waitForCompletion(jobId) {
   }
 
   try {
-    await waitForCompletionWS(jobId);
+    await pollStatus(jobId);
+    clearActiveJobs();
     const n = new Notification();
     n.title = "✅ 打印完成";
     n.body = "文件已成功发送到打印机";
     n.sound = "default";
     await n.schedule();
   } catch (err) {
-    if (err.message === 'cancelled') return;
-    await pollStatus(jobId);
+    clearActiveJobs();
+    const n = new Notification();
+    if (err.message === '超时') {
+      n.title = "⏱ 轮询超时";
+      n.body = "请检查服务器状态";
+    } else {
+      n.title = "❌ 打印失败";
+      n.body = err.message;
+    }
+    n.sound = "default";
+    await n.schedule();
   }
-}
-
-function waitForCompletionWS(jobId) {
-  return new Promise((resolve, reject) => {
-    // WebSocket URL: 自动适配 http→ws / https→wss
-    const protocol = SERVER_URL.startsWith('https') ? 'wss' : 'ws';
-    const baseUrl = SERVER_URL.replace(/^https?:\/\//, '');
-    const wsUrl = `${protocol}://${baseUrl}/socket.io/?transport=websocket&EIO=4`;
-    const ws = new WebSocket(wsUrl);
-    const timeout = setTimeout(() => { ws.close(); reject(new Error('超时')); }, 180000);
-
-    ws.onopen = () => ws.send('40');
-    ws.onmessage = (evt) => {
-      const msg = evt.data;
-      if (msg === '40' || msg === '40/') return;
-      if (typeof msg === 'string' && msg.startsWith('42')) {
-        try {
-          const [eventType, data] = JSON.parse(msg.slice(2));
-          if (eventType === 'job_status' && data && data.job_id === jobId) {
-            if (data.status === 'completed') {
-              clearTimeout(timeout); ws.close(); resolve('completed');
-            } else if (data.status === 'failed') {
-              clearTimeout(timeout); ws.close();
-              reject(new Error(data.error || '打印失败'));
-            }
-          }
-        } catch(e) {}
-      }
-    };
-    ws.onerror = () => { clearTimeout(timeout); reject(new Error('WS连接失败')); };
-  });
 }
 
 async function cancelJob(jobId) {
@@ -240,8 +299,8 @@ async function uploadFile(file) {
   if (file.data) {
     req.addFileDataToMultipart(file.data, "application/octet-stream", "file", file.name);
   } else if (file.image) {
-    const imgData = Data.fromPNG(file.image);
-    req.addFileDataToMultipart(imgData, "image/png", "file", file.name);
+    const imgData = Data.fromJPEG(file.image);
+    req.addFileDataToMultipart(imgData, "image/jpeg", "file", file.name);
   } else {
     return null;
   }
@@ -270,55 +329,36 @@ async function uploadFile(file) {
   }
 }
 
-async function pollStatus(jobId) {
-  let running = true;
-  let retries = 0;
-
-  while (running) {
-    await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL * 1000));
-    retries++;
-
-    const url = `${SERVER_URL}/api/status/${jobId}`;
-    const req = new Request(url);
-    req.method = "GET";
-    req.allowInsecureRequest = true;
-
-    try {
-      const response = await req.loadJSON();
-
-      if (!response || !response.status) {
-        if (retries >= POLL_MAX_RETRIES) {
-          const notification = new Notification();
-          notification.title = "⏱ 轮询超时";
-          notification.body = "打印任务状态查询超时，请检查服务器";
-          notification.sound = "default";
-          await notification.schedule();
-          running = false;
+function pollStatus(jobId) {
+  return new Promise((resolve, reject) => {
+    let retries = 0;
+    const timer = setInterval(async () => {
+      retries++;
+      const url = `${SERVER_URL}/api/status/${jobId}`;
+      const req = new Request(url);
+      req.method = "GET";
+      req.allowInsecureRequest = true;
+      try {
+        const response = await req.loadJSON();
+        if (!response || !response.status) {
+          if (retries >= POLL_MAX_RETRIES) {
+            clearInterval(timer);
+            reject(new Error('超时'));
+          }
+          return;
         }
-        continue;
+        if (response.status === "completed") {
+          clearInterval(timer);
+          resolve();
+        } else if (response.status === "failed") {
+          clearInterval(timer);
+          reject(new Error(response.error || '打印失败'));
+        }
+      } catch (error) {
+        console.log(`轮询失败: ${error}`);
       }
-
-      console.log(`任务状态: ${response.status}`);
-
-      if (response.status === "completed") {
-        const notification = new Notification();
-        notification.title = "🖨 打印任务已完成！";
-        notification.body = "文件已成功发送到打印机";
-        notification.sound = "default";
-        await notification.schedule();
-        running = false;
-      } else if (response.status === "failed") {
-        const notification = new Notification();
-        notification.title = "❌ 打印失败";
-        notification.body = response.error || "未知错误";
-        notification.sound = "default";
-        await notification.schedule();
-        running = false;
-      }
-    } catch (error) {
-      console.log(`轮询失败: ${error}`);
-    }
-  }
+    }, POLL_INTERVAL * 1000);
+  });
 }
 
 // Run
