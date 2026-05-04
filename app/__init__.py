@@ -53,7 +53,7 @@ def bootstrap(config):
 
     # 日志实时推送
     from app.services.log_broadcaster import LogBroadcaster
-    logging.getLogger('print_server').addHandler(LogBroadcaster())
+    logging.getLogger('print_server').addHandler(LogBroadcaster(broadcaster))
 
     queue_mgr = QueueManager(config, broadcaster=broadcaster, notifier=notifier)
     print_engine = PrintEngine(
