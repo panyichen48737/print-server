@@ -1,4 +1,9 @@
-"""守护进程管理 — 通过子进程启动/停止/监控后台服务器"""
+"""守护进程管理 — 通过子进程启动/停止/监控后台服务器
+
+策略：
+  如果 Windows Service 已注册 → start/stop 操作服务
+  否则 → 管理守护进程子进程（兼容启动文件夹模式）
+"""
 import os
 import sys
 import json
@@ -11,6 +16,7 @@ from loguru import logger
 
 
 DAEMON_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'app', 'server_daemon.py')
+SERVICE_NAME = 'iOSPrintServer'
 
 
 def _daemon_json_path() -> Path:
@@ -40,8 +46,34 @@ def _win_process_exists(pid: int) -> bool:
     return False
 
 
+def _service_installed() -> bool:
+    """检查 Windows Service 是否已注册"""
+    try:
+        r = subprocess.run(
+            ['sc', 'query', SERVICE_NAME],
+            capture_output=True, text=True, timeout=5,
+        )
+        return r.returncode == 0 and 'STATE' in r.stdout
+    except Exception:
+        return False
+
+
+def _service_running() -> bool:
+    """检查 Windows Service 是否正在运行"""
+    try:
+        r = subprocess.run(
+            ['sc', 'query', SERVICE_NAME],
+            capture_output=True, text=True, timeout=5,
+        )
+        return 'STATE' in r.stdout and 'RUNNING' in r.stdout
+    except Exception:
+        return False
+
+
 def is_daemon_alive() -> bool:
-    """检查守护进程是否存活（直接检查 server_daemon PID）"""
+    """检查守护进程是否存活（服务优先，回退 PID 检查）"""
+    if _service_installed():
+        return _service_running()
     status = read_daemon_status()
     pid = status.get('pid')
     if not pid or status.get('status') != 'running':
@@ -53,22 +85,34 @@ def is_daemon_alive() -> bool:
 
 
 def start_daemon() -> tuple[bool, str]:
-    """以隐藏控制台窗口启动后台守护进程"""
+    """启动守护进程（服务优先，回退子进程）"""
     if is_daemon_alive():
         return True, '守护进程已在运行'
 
+    # 1. 尝试 Windows Service
+    if _service_installed():
+        try:
+            subprocess.run(['sc', 'start', SERVICE_NAME],
+                           capture_output=True, timeout=15)
+            for _ in range(6):
+                if _service_running():
+                    return True, 'Windows 服务已启动'
+                time.sleep(1)
+            return False, 'Windows 服务启动超时'
+        except Exception as e:
+            return False, f'服务启动失败: {e}'
+
+    # 2. 回退子进程模式
     from app._paths import app_root
     log_dir = Path(app_root()) / 'logs'
     log_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        # 冻结/编译 EXE 模式下没有 .py 入口，直接用 --server-daemon 调自己
         if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
             cmd = [sys.executable, '--server-daemon']
             cwd = os.path.dirname(sys.executable)
         else:
             cmd = [sys.executable, DAEMON_SCRIPT]
-            # cwd 设为项目根目录而非 app/，避免子进程导入时路径问题
             cwd = os.path.dirname(os.path.dirname(DAEMON_SCRIPT))
 
         CREATE_NEW_PROCESS_GROUP = 0x00000200
@@ -82,7 +126,6 @@ def start_daemon() -> tuple[bool, str]:
             stdout=open(log_dir / 'daemon_stdout.log', 'a', encoding='utf-8'),
             stderr=open(log_dir / 'daemon_stderr.log', 'a', encoding='utf-8'),
         )
-        # 轮询等待 server_daemon 写入 daemon.json
         for _ in range(12):
             if is_daemon_alive():
                 return True, f'守护进程已启动 (PID: {proc.pid})'
@@ -93,7 +136,22 @@ def start_daemon() -> tuple[bool, str]:
 
 
 def stop_daemon() -> tuple[bool, str]:
-    """停止后台守护进程"""
+    """停止守护进程（服务优先，回退子进程）"""
+    # 1. 尝试 Windows Service
+    if _service_installed():
+        try:
+            subprocess.run(['sc', 'stop', SERVICE_NAME],
+                           capture_output=True, timeout=15)
+            for _ in range(6):
+                if not _service_running():
+                    _cleanup_json()
+                    return True, 'Windows 服务已停止'
+                time.sleep(1)
+            return False, 'Windows 服务停止超时'
+        except Exception as e:
+            return False, f'服务停止失败: {e}'
+
+    # 2. 回退子进程模式
     if not is_daemon_alive():
         _cleanup_json()
         return True, '守护进程未运行'
@@ -102,14 +160,12 @@ def stop_daemon() -> tuple[bool, str]:
     server_pid = status.get('pid')
 
     try:
-        # 写入主动关闭标记
         f_daemon = _daemon_json_path()
         try:
             f_daemon.write_text(json.dumps({'status': 'stopped', 'pid': server_pid}, ensure_ascii=False))
         except Exception:
             pass
 
-        # 终止后台工作进程 — 优先 graceful
         if server_pid:
             try:
                 os.kill(server_pid, signal.CTRL_BREAK_EVENT)
