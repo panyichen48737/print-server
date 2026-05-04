@@ -2,7 +2,7 @@ import os
 import json
 from collections import deque
 from loguru import logger
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 
 from app.auth import require_auth
@@ -159,21 +159,25 @@ async def retry_job(
 @api_router.post('/test_notification', response_model=NotificationTestResponse)
 async def test_notification(
     request: Request,
+    background_tasks: BackgroundTasks,
     auth=Depends(require_auth),
 ):
     config = request.app.state.app_config
     channel = config.get('notify_channel', 'disabled')
-    dingtalk = getattr(request.app.state, 'dingtalk', None)
-    bark = getattr(request.app.state, 'bark', None)
     time_str = format_time()
-    try:
-        if channel == 'dingtalk' and dingtalk:
-            dingtalk.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}', level='info')
-        elif channel == 'bark' and bark:
-            bark.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}')
-    except Exception as e:
-        logger.warning(f'发送测试通知失败: {e}')
-        raise HTTPException(status_code=500, detail=f'发送失败: {e}')
+
+    def _send():
+        dingtalk = getattr(request.app.state, 'dingtalk', None)
+        bark = getattr(request.app.state, 'bark', None)
+        try:
+            if channel == 'dingtalk' and dingtalk:
+                dingtalk.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}', level='info')
+            elif channel == 'bark' and bark:
+                bark.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}')
+        except Exception as e:
+            logger.warning(f'发送测试通知失败: {e}')
+
+    background_tasks.add_task(_send)
     return {'success': True, 'channel': channel}
 
 

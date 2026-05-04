@@ -1,7 +1,7 @@
 import os
 from loguru import logger
 from jinja2 import pass_context
-from fastapi import APIRouter, Depends, HTTPException, Request, Form
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Form
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
@@ -183,21 +183,25 @@ async def api_stats(request: Request):
 
 
 @admin_router.post('/api/test_notification')
-async def admin_test_notification(request: Request):
+async def admin_test_notification(request: Request, background_tasks: BackgroundTasks):
     """HTMX: 发送测试通知，返回 HTML 片段"""
     config = request.app.state.app_config
     channel = config.get('notify_channel', 'disabled')
-    dingtalk = getattr(request.app.state, 'dingtalk', None)
-    bark = getattr(request.app.state, 'bark', None)
     time_str = format_time()
-    try:
-        if channel == 'dingtalk' and dingtalk:
-            dingtalk.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}', level='info')
-        elif channel == 'bark' and bark:
-            bark.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}')
-        return HTMLResponse(f'<span style="color: var(--text-success);">✓ 测试通知已发送 ({channel})</span>')
-    except Exception as e:
-        return HTMLResponse(f'<span style="color: var(--text-danger);">✗ 发送失败: {e}</span>')
+
+    def _send():
+        dingtalk = getattr(request.app.state, 'dingtalk', None)
+        bark = getattr(request.app.state, 'bark', None)
+        try:
+            if channel == 'dingtalk' and dingtalk:
+                dingtalk.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}', level='info')
+            elif channel == 'bark' and bark:
+                bark.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}')
+        except Exception as e:
+            logger.warning(f'发送测试通知失败: {e}')
+
+    background_tasks.add_task(_send)
+    return HTMLResponse(f'<span style="color: var(--text-success);">✓ 测试通知已加入发送队列 ({channel})</span>')
 
 
 @admin_router.post('/api/restart', response_model=AdminActionResponse)
