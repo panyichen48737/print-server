@@ -1,4 +1,5 @@
 """控制台监控面板 — Textual 版"""
+import webbrowser
 from typing import Any
 
 from textual.app import App, ComposeResult
@@ -106,6 +107,7 @@ class TUI(App):
         Binding("s", "start", "启动"),
         Binding("t", "stop", "停止"),
         Binding("r", "restart", "重启"),
+        Binding("o", "open_web", "后台"),
         Binding("u", "toggle_autostart", "自启"),
         Binding("q", "quit", "退出"),
     ]
@@ -123,13 +125,20 @@ class TUI(App):
     def _update_quick_links(self) -> None:
         autostart = is_autostart_installed()
         u_label = "卸载自启" if autostart else "注册自启"
+        status = read_daemon_status()
+        port = status.get("port", 5000)
+        ips = get_local_ips()
+        ip_str = ips[0] if ips else "0.0.0.0"
         self.query_one("#quick-links").update(
             f"[bold]操作[/bold]\n\n"
             f"[bold cyan]S[/bold cyan]  启动\n"
             f"[bold cyan]T[/bold cyan]  停止\n"
             f"[bold cyan]R[/bold cyan]  重启\n"
+            f"[bold cyan]O[/bold cyan]  打开管理后台\n"
             f"[bold cyan]U[/bold cyan]  {u_label}\n"
-            f"[bold cyan]Q[/bold cyan]  退出（后台服务继续运行）"
+            f"[bold cyan]Q[/bold cyan]  退出\n\n"
+            f"[bold]管理地址[/bold]\n"
+            f"http://{ip_str}:{port}/admin"
         )
 
     def action_start(self) -> None:
@@ -146,6 +155,12 @@ class TUI(App):
         ok, msg = restart_daemon()
         self._update_quick_links()
         self.notify(msg, severity="information" if ok else "error")
+
+    def action_open_web(self) -> None:
+        status = read_daemon_status()
+        port = status.get("port", 5000)
+        webbrowser.open(f"http://127.0.0.1:{port}/admin")
+        self.notify("已在浏览器打开管理后台", severity="information")
 
     def action_toggle_autostart(self) -> None:
         if is_autostart_installed():
