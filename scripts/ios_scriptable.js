@@ -85,6 +85,14 @@ async function main() {
     if (jobId) {
       uploadedJobs.push({ id: jobId, filename: validFiles[i].name });
       saveActiveJobs(uploadedJobs);
+      // Send notification for upload progress
+      if (total > 1) {
+        const n = new Notification();
+        n.title = `📤 上传 ${i + 1}/${total}`;
+        n.body = `「${validFiles[i].name}」已提交到服务器`;
+        n.sound = "default";
+        await n.schedule();
+      }
     }
   }
 
@@ -109,18 +117,13 @@ async function main() {
       return;
     }
 
-    // Wait for all jobs
-    let completed = 0;
-    let failed = 0;
-    for (const j of uploadedJobs) {
-      try {
-        await waitForJob(j.id);
-        completed++;
-      } catch (e) {
-        failed++;
-      }
-    }
+    // Parallel wait via WebSocket (all statuses arrive in real time)
+    const results = await Promise.allSettled(
+      uploadedJobs.map(j => waitForJob(j.id))
+    );
     clearActiveJobs();
+    const completed = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.filter(r => r.status === 'rejected').length;
     const n = new Notification();
     if (failed === 0) {
       n.title = `✅ ${completed} 个文件打印完成`;
@@ -242,12 +245,13 @@ async function waitForCompletion(jobId) {
   const dialog = new Alert();
   dialog.title = "🖨 正在打印...";
   dialog.message = "等待打印完成，或取消该任务";
-  dialog.addCancelAction("取消打印");
+  dialog.addDestructiveAction("取消打印");
   dialog.addAction("等待完成");
+  dialog.addCancelAction("关闭");
 
   const btn = await dialog.present();
 
-  if (btn === -1) {
+  if (btn === 0) {
     await cancelJob(jobId);
     clearActiveJobs();
     const n = new Notification();
@@ -255,6 +259,8 @@ async function waitForCompletion(jobId) {
     n.body = "打印任务已取消";
     n.sound = "default";
     await n.schedule();
+    return;
+  } else if (btn === -1) {
     return;
   }
 
