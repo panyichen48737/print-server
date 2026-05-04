@@ -6,7 +6,7 @@ from app.config import Config
 from app import create_app
 
 
-def bootstrap(config: Config):
+def bootstrap(config: Config, lifespan=None):
     """初始化所有服务并返回 (app, queue_mgr, print_engine, printer_monitor)"""
 
     from app.printing.queue_manager import QueueManager
@@ -15,7 +15,7 @@ def bootstrap(config: Config):
     from app.services.printer_monitor import PrinterMonitor
     from app.services.bark import BarkNotifier
 
-    app = create_app()
+    app = create_app(lifespan=lifespan)
 
     channel = config.get('notify_channel', 'disabled')
     dingtalk = None
@@ -33,7 +33,10 @@ def bootstrap(config: Config):
     broadcaster = app.state.sse
     logger.add(LogBroadcaster(broadcaster), format='{message}', level='INFO')
 
-    queue_mgr = QueueManager(config, event_bus=None, notifier=notifier)
+    from app.services.event_bus import EventBus
+    event_bus = EventBus(broadcaster)
+
+    queue_mgr = QueueManager(config, event_bus=event_bus, notifier=notifier)
     print_engine = PrintEngine(
         config,
         dingtalk=dingtalk,

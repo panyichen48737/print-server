@@ -2,8 +2,17 @@
 
 import os
 import uuid
+from dataclasses import dataclass
 from loguru import logger
 from app._paths import app_root, ensure_dir
+
+
+@dataclass
+class UploadResult:
+    """文件上传结果"""
+    success: bool
+    job_id: str = ''
+    error: str = ''
 
 
 def handle_file_upload(
@@ -18,7 +27,7 @@ def handle_file_upload(
     duplex: str | None = None,
     color: str | None = None,
     paper_size: str | None = None,
-) -> dict:
+) -> UploadResult:
     """处理文件上传的统一逻辑（不依赖 Flask request 对象）
 
     参数:
@@ -33,16 +42,16 @@ def handle_file_upload(
         {'success': True, 'job_id': '...'} 或 {'success': False, 'error': '...'}
     """
     if not filename:
-        return {'success': False, 'error': '文件名为空'}
+        return UploadResult(success=False, error='文件名为空')
 
     ext = os.path.splitext(filename)[1].lower()
 
     if ext not in config.allowed_extensions:
-        return {'success': False, 'error': f'不支持的文件类型: {ext}'}
+        return UploadResult(success=False, error=f'不支持的文件类型: {ext}')
 
     max_size = config.max_file_size_mb * 1024 * 1024
     if len(file_bytes) > max_size:
-        return {'success': False, 'error': f'文件过大，最大 {config.max_file_size_mb}MB'}
+        return UploadResult(success=False, error=f'文件过大，最大 {config.max_file_size_mb}MB')
 
     safe_name = filename  # FastAPI's UploadFile already handles sanitization
     job_id = str(uuid.uuid4())
@@ -65,4 +74,4 @@ def handle_file_upload(
     )
 
     logger.info(f'Upload success: {filename} -> job_id={actual_job_id}')
-    return {'success': True, 'job_id': actual_job_id}
+    return UploadResult(success=True, job_id=actual_job_id)

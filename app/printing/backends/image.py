@@ -31,8 +31,7 @@ class ImageBackend(PrinterBackend):
 
     def cancel(self, job_id, info):
         """委托给 PdfBackend 的取消逻辑（kill Chrome PID + 清理 Spooler）"""
-        with self._pdf_backend._active_jobs_lock:
-            pdf_info = self._pdf_backend._active_jobs.get(job_id)
+        pdf_info = self._pdf_backend.get_active_job(job_id)
         if pdf_info:
             return self._pdf_backend.cancel(job_id, pdf_info)
         return False

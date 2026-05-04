@@ -5,20 +5,7 @@ import threading
 from loguru import logger
 
 from app.printing.backends.base import PrinterBackend
-
-
-def _cancel_all_spooler_jobs(printer_name):
-    import win32print
-    try:
-        handle = win32print.OpenPrinter(printer_name)
-        try:
-            info = win32print.GetPrinter(handle, 2)
-            for job in info.get('cJobs', []):
-                win32print.SetJob(handle, job['JobId'], 0, win32print.JOB_CONTROL_DELETE)
-        finally:
-            win32print.ClosePrinter(handle)
-    except Exception as e:
-        logger.warning(f'取消 Spooler 作业失败: {e}')
+from app.printing.utils import cancel_all_spooler_jobs
 
 
 class PdfBackend(PrinterBackend):
@@ -68,8 +55,13 @@ class PdfBackend(PrinterBackend):
                 subprocess.run(['taskkill', '/F', '/PID', str(pid)], capture_output=True, timeout=5)
             except Exception:
                 pass
-        _cancel_all_spooler_jobs(info['printer'])
+        cancel_all_spooler_jobs(info['printer'])
         return True
+
+    def get_active_job(self, job_id: str) -> dict | None:
+        """公开方法获取活跃任务信息，避免外部直接访问私有属性"""
+        with self._active_jobs_lock:
+            return self._active_jobs.get(job_id)
 
     def _find_chromium(self):
         """查找 Edge 或 Chrome 的安装路径（优先 Edge）"""

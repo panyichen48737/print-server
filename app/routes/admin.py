@@ -1,14 +1,11 @@
 import os
-from collections import deque
-from datetime import datetime
 from loguru import logger
 from jinja2 import pass_context
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, Form
 from fastapi.templating import Jinja2Templates
 
 from app.auth import require_auth
-from app.upload_helper import handle_file_upload
-from app._paths import app_root, data_root
+from app._paths import data_root
 
 admin_router = APIRouter()
 templates = Jinja2Templates(directory=os.path.join(data_root(), 'app', 'templates'))
@@ -77,20 +74,6 @@ async def history(
 @admin_router.get('/logs', name='logs')
 async def logs(request: Request):
     return templates.TemplateResponse('admin/logs.html', {'request': request})
-
-
-@admin_router.get('/api/logs')
-async def api_logs(request: Request, lines: int = 50):
-    """获取最新日志行"""
-    log_file = os.path.join(app_root(), 'logs', 'print_server.log')
-    try:
-        with open(log_file, 'r', encoding='utf-8') as f:
-            last_lines = deque(f, maxlen=lines)
-        return {'lines': list(last_lines)}
-    except FileNotFoundError:
-        return {'lines': []}
-    except Exception as e:
-        return {'lines': [f'[ERROR] 读取日志失败: {e}']}
 
 
 @admin_router.get('/settings', name='settings')
@@ -189,102 +172,3 @@ async def upload_page(request: Request):
         'printers': printer_list,
         'allowed_extensions': config.allowed_extensions,
     })
-
-
-@admin_router.post('/api/upload')
-async def upload_file(
-    request: Request,
-    file: UploadFile = File(...),
-    printer: str = Form(None),
-    copies: str = Form(None),
-    duplex: str = Form(None),
-    color: str = Form(None),
-    paper_size: str = Form(None),
-    auth=Depends(require_auth),
-):
-    """Web 上传打印"""
-    config = request.app.state.app_config
-    queue_mgr = request.app.state.queue_manager
-    content = await file.read()
-    result = handle_file_upload(
-        file.filename, content, config, queue_mgr, source='web',
-        printer=printer, copies=copies, duplex=duplex,
-        color=color, paper_size=paper_size,
-    )
-    if not result['success']:
-        raise HTTPException(status_code=400, detail=result['error'])
-    logger.info(f'Web 上传成功: job_id={result["job_id"]}')
-    return {'success': True, 'job_id': result['job_id']}
-
-
-@admin_router.post('/api/set_default_printer')
-async def set_default_printer(
-    request: Request,
-    body: dict,
-    auth=Depends(require_auth),
-):
-    config = request.app.state.app_config
-    printer = body.get('printer', '')
-    config.set('default_printer', printer)
-    config.save()
-    logger.info(f'默认打印机已设置: {printer}')
-    return {'success': True}
-
-
-@admin_router.post('/api/retry/{job_id}')
-async def retry_job(
-    job_id: str,
-    request: Request,
-    auth=Depends(require_auth),
-):
-    queue_mgr = request.app.state.queue_manager
-    new_id, error = queue_mgr.retry_job(job_id)
-    if error:
-        raise HTTPException(status_code=400, detail=error)
-    return {'success': True, 'new_job_id': new_id}
-
-
-@admin_router.post('/api/cancel/{job_id}')
-async def cancel_job(
-    job_id: str,
-    request: Request,
-    auth=Depends(require_auth),
-):
-    queue_mgr = request.app.state.queue_manager
-    success, error = queue_mgr.cancel_job(job_id)
-    if not success:
-        raise HTTPException(status_code=400, detail=error)
-    return {'success': True}
-
-
-@admin_router.post('/api/test_notification')
-async def test_notification(
-    request: Request,
-    auth=Depends(require_auth),
-):
-    config = request.app.state.app_config
-    channel = config.get('notify_channel', 'disabled')
-    time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    try:
-        if channel == 'dingtalk':
-            dt = getattr(request.app.state, 'dingtalk', None)
-            if dt:
-                dt.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}', level='info')
-        elif channel == 'bark':
-            bk = getattr(request.app.state, 'bark', None)
-            if bk:
-                bk.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}')
-    except Exception as e:
-        logger.warning(f'发送测试通知失败: {e}')
-        raise HTTPException(status_code=500, detail=f'发送失败: {e}')
-    return {'success': True, 'channel': channel}
-
-
-@admin_router.post('/api/cancel_all_queued')
-async def cancel_all_queued(
-    request: Request,
-    auth=Depends(require_auth),
-):
-    queue_mgr = request.app.state.queue_manager
-    count = queue_mgr.cancel_all_queued()
-    return {'success': True, 'cancelled': count}

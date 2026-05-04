@@ -3,10 +3,9 @@ import os
 import sys
 import json
 import ssl
-import atexit
-import signal
 import argparse
 import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
@@ -57,7 +56,7 @@ def _health_check_loop(app, config, logger):
                 ctx.check_hostname = False
                 ctx.verify_mode = ssl.CERT_NONE
             req = urllib.request.Request(
-                f'{proto}://127.0.0.1:{port}/api/printers/status',
+                f'{proto}://127.0.0.1:{port}/api/health',
                 method='GET',
                 headers={'Connection': 'close'}
             )
@@ -84,32 +83,19 @@ def main():
     write_status('starting')
     logger.info('守护进程启动中...')
 
-    app, queue_mgr, print_engine, printer_monitor = bootstrap(config)
-    queue_mgr.start_workers(print_engine)
-    printer_monitor.start()
-
-    write_status('running', port=config.get('port', 5000))
-
-    def shutdown():
+    # 定义 FastAPI lifespan，处理优雅关闭
+    @asynccontextmanager
+    async def server_lifespan(app):
+        write_status('running', port=config.get('port', 5000))
+        yield
         logger.info('守护进程关闭中...')
         printer_monitor.stop()
         queue_mgr.shutdown()
         write_status('stopped')
 
-    atexit.register(shutdown)
-
-    # Windows 信号处理：确保优雅关闭
-    def _signal_handler(signum, frame):
-        logger.info(f'收到信号 {signum}，执行关闭')
-        shutdown()
-        sys.exit(0)
-
-    signal.signal(signal.SIGTERM, _signal_handler)
-    signal.signal(signal.SIGINT, _signal_handler)
-    try:
-        signal.signal(signal.SIGBREAK, _signal_handler)
-    except AttributeError:
-        pass  # SIGBREAK 仅 Windows 可用
+    app, queue_mgr, print_engine, printer_monitor = bootstrap(config, lifespan=server_lifespan)
+    queue_mgr.start_workers(print_engine)
+    printer_monitor.start()
 
     port = config.get('port', 5000)
 

@@ -4,6 +4,7 @@ import sys
 import threading
 from typing import Any
 
+from dotenv import load_dotenv
 from loguru import logger
 from pydantic import BaseModel, Field, field_validator
 
@@ -94,6 +95,9 @@ class Config:
     """配置管理，基于 Pydantic + 线程安全的热加载"""
 
     def __init__(self, config_path: str | None = None) -> None:
+        # 优先从 .env 文件加载环境变量
+        load_dotenv()
+
         if config_path is None:
             from app._paths import app_root
             config_path = os.path.join(app_root(), 'config.json')
@@ -102,6 +106,23 @@ class Config:
         self._schema = ConfigSchema()
         self._errors: list[str] = []
         self.load()
+
+        # 环境变量覆盖配置项
+        env_overrides = {
+            'PRINT_SERVER_PORT': ('port', int),
+            'PRINT_SERVER_LOG_LEVEL': ('log_level', str),
+            'PRINT_SERVER_API_KEY': ('api_key', str),
+            'PRINT_SERVER_DEFAULT_PRINTER': ('default_printer', str),
+            'QUARK_API_KEY_ID': ('quark_api_key_id', str),
+            'QUARK_API_KEY': ('quark_api_key', str),
+        }
+        for env_key, (config_key, converter) in env_overrides.items():
+            env_val = os.environ.get(env_key)
+            if env_val is not None:
+                try:
+                    self.set(config_key, converter(env_val))
+                except (ValueError, TypeError):
+                    logger.warning(f'环境变量 {env_key}={env_val} 转换失败，跳过')
 
     def __getattr__(self, name: str) -> Any:
         """属性访问代理到 ConfigSchema 字段"""

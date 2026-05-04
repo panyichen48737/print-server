@@ -5,20 +5,7 @@ from contextlib import contextmanager
 from loguru import logger
 
 from app.printing.backends.base import PrinterBackend
-
-
-def _cancel_all_spooler_jobs(printer_name):
-    import win32print
-    try:
-        handle = win32print.OpenPrinter(printer_name)
-        try:
-            info = win32print.GetPrinter(handle, 2)
-            for job in info.get('cJobs', []):
-                win32print.SetJob(handle, job['JobId'], 0, win32print.JOB_CONTROL_DELETE)
-        finally:
-            win32print.ClosePrinter(handle)
-    except Exception as e:
-        logger.warning(f'取消 Spooler 作业失败: {e}')
+from app.printing.utils import cancel_all_spooler_jobs
 
 
 class OfficeBackend(PrinterBackend):
@@ -136,5 +123,5 @@ class OfficeBackend(PrinterBackend):
     #  取消
     # ------------------------------------------------------------------ #
     def cancel(self, job_id, info):
-        _cancel_all_spooler_jobs(info['printer'])
+        cancel_all_spooler_jobs(info['printer'])
         return True

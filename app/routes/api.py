@@ -1,12 +1,41 @@
 import os
 import json
+from collections import deque
+from datetime import datetime
+from loguru import logger
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 
 from app.auth import require_auth
 from app.upload_helper import handle_file_upload
+from app._paths import app_root
 
 api_router = APIRouter()
+
+
+@api_router.get('/health')
+async def health(request: Request):
+    """健康检查端点"""
+    queue_mgr = request.app.state.queue_manager
+    return {
+        'status': 'ok',
+        'version': '1.0.0',
+        'queue_size': queue_mgr._queue.qsize() if hasattr(queue_mgr, '_queue') else 0,
+    }
+
+
+@api_router.get('/logs')
+async def api_logs(request: Request, lines: int = 50):
+    """获取最新日志行"""
+    log_file = os.path.join(app_root(), 'logs', 'print_server.log')
+    try:
+        with open(log_file, 'r', encoding='utf-8') as f:
+            last_lines = deque(f, maxlen=lines)
+        return {'lines': list(last_lines)}
+    except FileNotFoundError:
+        return {'lines': []}
+    except Exception as e:
+        return {'lines': [f'[ERROR] 读取日志失败: {e}']}
 
 
 @api_router.post('/print')
@@ -77,17 +106,108 @@ async def cancel_job_api(
     return {'success': True}
 
 
+@api_router.post('/upload')
+async def upload_file(
+    request: Request,
+    file: UploadFile = File(...),
+    printer: str = Form(None),
+    copies: str = Form(None),
+    duplex: str = Form(None),
+    color: str = Form(None),
+    paper_size: str = Form(None),
+    auth=Depends(require_auth),
+):
+    """Web 上传打印"""
+    config = request.app.state.app_config
+    queue_mgr = request.app.state.queue_manager
+    content = await file.read()
+    result = handle_file_upload(
+        file.filename, content, config, queue_mgr, source='web',
+        printer=printer, copies=copies, duplex=duplex,
+        color=color, paper_size=paper_size,
+    )
+    if not result['success']:
+        raise HTTPException(status_code=400, detail=result['error'])
+    logger.info(f'Web 上传成功: job_id={result["job_id"]}')
+    return {'success': True, 'job_id': result['job_id']}
+
+
+@api_router.post('/set_default_printer')
+async def set_default_printer(
+    request: Request,
+    body: dict,
+    auth=Depends(require_auth),
+):
+    config = request.app.state.app_config
+    printer = body.get('printer', '')
+    config.set('default_printer', printer)
+    config.save()
+    logger.info(f'默认打印机已设置: {printer}')
+    return {'success': True}
+
+
+@api_router.post('/retry/{job_id}')
+async def retry_job(
+    job_id: str,
+    request: Request,
+    auth=Depends(require_auth),
+):
+    queue_mgr = request.app.state.queue_manager
+    new_id, error = queue_mgr.retry_job(job_id)
+    if error:
+        raise HTTPException(status_code=400, detail=error)
+    return {'success': True, 'new_job_id': new_id}
+
+
+@api_router.post('/test_notification')
+async def test_notification(
+    request: Request,
+    auth=Depends(require_auth),
+):
+    config = request.app.state.app_config
+    channel = config.get('notify_channel', 'disabled')
+    time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    try:
+        if channel == 'dingtalk':
+            dt = getattr(request.app.state, 'dingtalk', None)
+            if dt:
+                dt.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}', level='info')
+        elif channel == 'bark':
+            bk = getattr(request.app.state, 'bark', None)
+            if bk:
+                bk.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}')
+    except Exception as e:
+        logger.warning(f'发送测试通知失败: {e}')
+        raise HTTPException(status_code=500, detail=f'发送失败: {e}')
+    return {'success': True, 'channel': channel}
+
+
+@api_router.post('/cancel_all_queued')
+async def cancel_all_queued(
+    request: Request,
+    auth=Depends(require_auth),
+):
+    queue_mgr = request.app.state.queue_manager
+    count = queue_mgr.cancel_all_queued()
+    return {'success': True, 'cancelled': count}
+
+
 @api_router.get('/events')
 async def sse_events(request: Request):
     """Server-Sent Events endpoint"""
     broadcaster = request.app.state.sse
     sub_id, q = broadcaster.subscribe()
 
+    import queue as _queue
+
     def generate():
         try:
             while True:
-                event_type, data = q.get()
-                yield f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+                try:
+                    event_type, data = q.get(timeout=1)
+                    yield f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+                except _queue.Empty:
+                    continue
         except GeneratorExit:
             broadcaster.unsubscribe(sub_id)
 
