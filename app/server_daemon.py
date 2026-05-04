@@ -56,7 +56,7 @@ def _health_check_loop(app, config, logger):
     cert_file, _ = _find_cert()
     proto = 'https' if cert_file else 'http'
     ctx = None
-    if proto == 'https':
+    if cert_file:
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE

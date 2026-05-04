@@ -97,9 +97,12 @@ class PdfBackend(PrinterBackend):
         if not chrome_path:
             raise RuntimeError('未找到 Chromium 浏览器 (Chrome/Edge)')
 
+        # 净化打印机名称：移除可能干扰 Chrome 参数解析的字符
+        safe_printer = printer_name.replace('"', '').replace("'", '')
+
         proc = subprocess.Popen(
             [chrome_path, '--headless', '--disable-gpu',
-             f'--print-to-printer="{printer_name}"',
+             f'--print-to-printer="{safe_printer}"',
              '--no-margins', '--no-pdf-header-footer',
              os.path.abspath(filepath)],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE

@@ -150,15 +150,13 @@ def _install_startup_link() -> tuple[bool, str]:
     link = _startup_link_path()
     try:
         _startup_folder().mkdir(parents=True, exist_ok=True)
-        # 用 PowerShell 创建 .lnk 快捷方式
-        ps_script = f'''
-$ws = New-Object -ComObject WScript.Shell
-$s = $ws.CreateShortcut('{link}')
-$s.TargetPath = '{exe}'
-$s.Arguments = '--server-daemon'
-$s.WorkingDirectory = '{os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.getcwd()}'
-$s.Save()
-'''
+        # 用 PowerShell 创建 .lnk 快捷方式（转义单引号防止路径含引号时出错）
+        ps_script = ('$ws = New-Object -ComObject WScript.Shell; '
+                     f'$s = $ws.CreateShortcut(\'{link}\'); '
+                     f'$s.TargetPath = \'{exe}\'; '
+                     '$s.Arguments = \'--server-daemon\'; '
+                     f'$s.WorkingDirectory = \'{os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.getcwd()}\'; '
+                     '$s.Save()')
         subprocess.run(['powershell', '-NoProfile', '-Command', ps_script],
                        capture_output=True, timeout=15, check=True)
         logger.info('开机自启快捷方式已创建')

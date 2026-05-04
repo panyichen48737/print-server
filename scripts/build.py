@@ -71,9 +71,12 @@ def build(version: str):
         shutil.copy2(changelog, res_dir / 'CHANGELOG.md')
     # SSL 证书（如存在）— 内嵌后按需释放到数据目录
     cert_dir = PROJECT_ROOT / 'certs'
-    if cert_dir.exists():
+    cert_has_both = (cert_dir / 'cert.pem').exists() and (cert_dir / 'key.pem').exists()
+    if cert_has_both:
         shutil.copytree(cert_dir, res_dir / 'certs', dirs_exist_ok=True)
         print(f'[build] 已包含 SSL 证书')
+    elif cert_dir.exists():
+        print(f'[build] 警告: certs/ 目录存在但缺少 cert.pem 或 key.pem，跳过证书打包')
     # nssm（如存在）— 注册为 Windows 服务用
     nssm_src = PROJECT_ROOT / 'bin' / 'nssm.exe'
     if nssm_src.exists():
