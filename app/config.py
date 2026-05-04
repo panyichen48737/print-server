@@ -131,19 +131,6 @@ class Config:
                 logger = logging.getLogger('print_server')
                 logger.warning(f'配置校验警告: {e}')
 
-            # 环境变量覆盖敏感字段（优先级高于 config.json）
-            env_overrides = {
-                'quark_api_key_id': 'PRINT_SERVER_QUARK_API_KEY_ID',
-                'quark_api_key': 'PRINT_SERVER_QUARK_API_KEY',
-                'api_key': 'PRINT_SERVER_API_KEY',
-                'dingtalk_webhook': 'PRINT_SERVER_DINGTALK_WEBHOOK',
-                'bark_key': 'PRINT_SERVER_BARK_KEY',
-            }
-            for field, env_name in env_overrides.items():
-                val = os.environ.get(env_name)
-                if val:
-                    setattr(self._schema, field, val)
-
     def save(self):
         with self._lock:
             with open(self.config_path, 'w', encoding='utf-8') as f:
