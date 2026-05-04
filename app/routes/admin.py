@@ -5,15 +5,14 @@ from flask import Blueprint, render_template, request, jsonify, current_app
 from datetime import datetime
 
 from app.auth import require_auth, check_auth
-from app.upload_helper import handle_file_upload
 from app._paths import app_root
 
 admin_bp = Blueprint('admin', __name__)
 logger = logging.getLogger('print_server')
 
 
-def get_queue_manager():
-    return current_app.config['queue_manager']
+def get_job_service():
+    return current_app.config['job_service']
 
 
 def get_config():
@@ -22,15 +21,15 @@ def get_config():
 
 @admin_bp.route('/')
 def dashboard():
-    queue_mgr = get_queue_manager()
-    stats = queue_mgr.get_stats()
-    recent_jobs = queue_mgr.get_jobs(limit=10, offset=0)
+    job_service = get_job_service()
+    stats = job_service.get_stats()
+    recent_jobs = job_service.list_jobs(limit=10, offset=0)
     return render_template('admin/dashboard.html', stats=stats, recent_jobs=recent_jobs)
 
 
 @admin_bp.route('/history')
 def history():
-    queue_mgr = get_queue_manager()
+    job_service = get_job_service()
     page = request.args.get('page', 1, type=int)
     status = request.args.get('status', '')
     search = request.args.get('search', '')
@@ -39,11 +38,11 @@ def history():
     status_param = status if status else None
     search_param = search if search else None
 
-    total = queue_mgr.count_jobs(status=status_param, search=search_param)
+    total = job_service.count_jobs(status=status_param, search=search_param)
     total_pages = max(1, (total + per_page - 1) // per_page)
     offset = (page - 1) * per_page
 
-    jobs = queue_mgr.get_jobs(status=status_param, search=search_param, limit=per_page, offset=offset)
+    jobs = job_service.list_jobs(status=status_param, search=search_param, limit=per_page, offset=offset)
 
     return render_template('admin/history.html',
                            jobs=jobs,
@@ -82,7 +81,6 @@ def settings():
         if not check_auth():
             return jsonify({'success': False, 'error': 'Unauthorized'}), 401
         try:
-            # 安全转换数值字段，防止用户输入非法值
             def safe_int(val, default):
                 try:
                     return int(val)
@@ -98,7 +96,6 @@ def settings():
             config.set('ppt_output_type', request.form.get('ppt_output_type', 'slides'))
             config.set('paper_size', request.form.get('paper_size', 'A4'))
 
-            # 密钥类字段：表单留空则不修改（不覆盖已存在的值）
             for secret_field in ('quark_api_key_id', 'quark_api_key', 'dingtalk_webhook', 'bark_key'):
                 val = request.form.get(secret_field, '')
                 if val:
@@ -117,24 +114,24 @@ def settings():
             logger.error(f'保存配置失败: {e}')
             return jsonify({'success': False, 'error': str(e)}), 500
 
-    queue_mgr = get_queue_manager()
-    printers = queue_mgr.get_printers()
+    job_service = get_job_service()
+    printers = job_service.list_printers()
     return render_template('admin/settings.html', config=config, printers=printers)
 
 
 @admin_bp.route('/printers')
 def printers():
     config = get_config()
-    queue_mgr = get_queue_manager()
-    printer_list = queue_mgr.get_printers()
+    job_service = get_job_service()
+    printer_list = job_service.list_printers()
     return render_template('admin/printers.html', config=config, printers=printer_list)
 
 
 @admin_bp.route('/upload')
 def upload_page():
     config = get_config()
-    queue_mgr = get_queue_manager()
-    printers = queue_mgr.get_printers()
+    job_service = get_job_service()
+    printers = job_service.list_printers()
     return render_template('admin/upload.html',
         config=config,
         printers=printers,
@@ -146,9 +143,8 @@ def upload_page():
 @require_auth
 def upload_file():
     """Web 上传打印"""
-    config = get_config()
-    queue_mgr = get_queue_manager()
-    result = handle_file_upload(request, config, queue_mgr, source='web')
+    job_service = get_job_service()
+    result = job_service.submit(request, source='web')
     if not result['success']:
         return jsonify({'success': False, 'error': result['error']}), 400
     logger.info(f'Web 上传成功: job_id={result["job_id"]}')
@@ -170,8 +166,8 @@ def set_default_printer():
 @admin_bp.route('/api/retry/<job_id>', methods=['POST'])
 @require_auth
 def retry_job(job_id):
-    queue_mgr = get_queue_manager()
-    new_id, error = queue_mgr.retry_job(job_id)
+    job_service = get_job_service()
+    new_id, error = job_service.retry(job_id)
     if error:
         return jsonify({'success': False, 'error': error}), 400
     return jsonify({'success': True, 'new_job_id': new_id})
@@ -180,8 +176,8 @@ def retry_job(job_id):
 @admin_bp.route('/api/cancel/<job_id>', methods=['POST'])
 @require_auth
 def cancel_job(job_id):
-    queue_mgr = get_queue_manager()
-    success, error = queue_mgr.cancel_job(job_id)
+    job_service = get_job_service()
+    success, error = job_service.cancel(job_id)
     if not success:
         return jsonify({'success': False, 'error': error}), 400
     return jsonify({'success': True})
@@ -211,6 +207,6 @@ def test_notification():
 @admin_bp.route('/api/cancel_all_queued', methods=['POST'])
 @require_auth
 def cancel_all_queued():
-    queue_mgr = get_queue_manager()
-    count = queue_mgr.cancel_all_queued()
+    job_service = get_job_service()
+    count = job_service.cancel_all_queued()
     return jsonify({'success': True, 'cancelled': count})

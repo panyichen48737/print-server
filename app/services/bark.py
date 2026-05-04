@@ -1,7 +1,7 @@
 import logging
 import requests
 
-from app.services.notifier import Notifier
+from app.services.notifier import Notifier, format_error_message
 
 logger = logging.getLogger('print_server')
 
@@ -31,7 +31,8 @@ class BarkNotifier(Notifier):
         self.send_notification('✅ 打印任务完成', f'文件: {filename}\n时间: {time_str}')
 
     def notify_job_failed(self, filename, error, time_str):
-        self.send_notification('❌ 打印任务失败', f'文件: {filename}\n错误: {error}\n时间: {time_str}')
+        friendly = format_error_message(error)
+        self.send_notification('❌ 打印任务失败', f'文件: {filename}\n原因: {friendly}\n时间: {time_str}')
 
     def notify_job_cancelled(self, filename, time_str):
         self.send_notification('⏹ 打印已取消', f'文件: {filename}\n时间: {time_str}')

@@ -15,10 +15,13 @@ def bootstrap(config: Config):
     from app.services.dingtalk import DingTalk
     from app.services.printer_monitor import PrinterMonitor
     from app.services.bark import BarkNotifier
+    from app.services.event_bus import EventBus
+    from app.services.job_service import JobService
 
     app = create_app()
 
     broadcaster = app.extensions['sse']
+    event_bus = EventBus(broadcaster)
 
     channel = config.get('notify_channel', 'disabled')
     dingtalk = None
@@ -35,7 +38,7 @@ def bootstrap(config: Config):
     from app.services.log_broadcaster import LogBroadcaster
     logging.getLogger('print_server').addHandler(LogBroadcaster(broadcaster))
 
-    queue_mgr = QueueManager(config, broadcaster=broadcaster, notifier=notifier)
+    queue_mgr = QueueManager(config, event_bus=event_bus, notifier=notifier)
     print_engine = PrintEngine(
         config,
         dingtalk=dingtalk,
@@ -43,8 +46,10 @@ def bootstrap(config: Config):
         ppt_lock=queue_mgr.ppt_lock()
     )
     printer_monitor = PrinterMonitor(broadcaster=broadcaster)
+    job_service = JobService(queue_mgr, config, printer_monitor=printer_monitor)
 
     app.config['queue_manager'] = queue_mgr
+    app.config['job_service'] = job_service
     app.config['app_config'] = config
     app.config['dingtalk'] = dingtalk
     app.config['bark'] = bark

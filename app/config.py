@@ -101,12 +101,10 @@ class Config:
         self.load()
 
     def __getattr__(self, name):
-        """将未知属性访问代理到 ConfigSchema 字段（线程安全）"""
+        """属性访问代理到 ConfigSchema 字段"""
         with self._lock:
-            if '_schema' in self.__dict__:
-                schema = self.__dict__['_schema']
-                if hasattr(schema, name):
-                    return getattr(schema, name)
+            if '_schema' in self.__dict__ and hasattr(self._schema, name):
+                return getattr(self._schema, name)
         raise AttributeError(f"'Config' object has no attribute '{name}'")
 
     def load(self):

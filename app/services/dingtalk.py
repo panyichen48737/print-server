@@ -1,7 +1,7 @@
 import logging
 import requests
 
-from app.services.notifier import Notifier
+from app.services.notifier import Notifier, format_error_message
 
 logger = logging.getLogger('print_server')
 
@@ -38,9 +38,10 @@ class DingTalk(Notifier):
 
     def notify_job_failed(self, filename, error, time_str):
         """任务失败通知"""
+        friendly = format_error_message(error)
         self.send_notification(
             '❌ 打印任务失败',
-            f'文件: {filename}\n错误: {error}\n时间: {time_str}',
+            f'文件: {filename}\n原因: {friendly}\n时间: {time_str}',
             level='error'
         )
 

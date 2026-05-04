@@ -113,7 +113,7 @@ class PrinterMonitor:
                 self._poll()
             except Exception as e:
                 logger.error(f'打印机状态轮询异常: {e}')
-            threading.Event().wait(30)
+            self._stop_evt.wait(30)
 
     def _poll(self):
         printers = []

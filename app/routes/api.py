@@ -2,13 +2,12 @@ from flask import Blueprint, request, jsonify, current_app, Response, stream_wit
 import json
 
 from app.auth import require_auth
-from app.upload_helper import handle_file_upload
 
 api_bp = Blueprint('api', __name__)
 
 
-def get_queue_manager():
-    return current_app.config['queue_manager']
+def get_job_service():
+    return current_app.config['job_service']
 
 
 def get_config():
@@ -20,8 +19,8 @@ def get_config():
 def print_file():
     """提交打印任务"""
     config = get_config()
-    queue_mgr = get_queue_manager()
-    result = handle_file_upload(request, config, queue_mgr, source='ios')
+    job_service = get_job_service()
+    result = job_service.submit(request, source='ios')
     if not result['success']:
         return jsonify({'success': False, 'error': result['error']}), 400
     return jsonify({'status': 'queued', 'job_id': result['job_id']}), 200
@@ -30,45 +29,34 @@ def print_file():
 @api_bp.route('/status/<job_id>', methods=['GET'])
 def get_status(job_id):
     """查询任务状态"""
-    queue_mgr = get_queue_manager()
-    job = queue_mgr.get_job(job_id)
-    if not job:
+    job_service = get_job_service()
+    result = job_service.get_status(job_id)
+    if not result:
         return jsonify({'success': False, 'error': '任务不存在'}), 404
-
-    response = {
-        'success': True,
-        'status': job['status'],
-        'job_id': job['id']
-    }
-    if job['status'] == 'failed' and job['error_message']:
-        response['error'] = job['error_message']
-
-    return jsonify(response), 200
+    return jsonify({'success': True, **result}), 200
 
 
 @api_bp.route('/printers', methods=['GET'])
 def list_printers():
     """获取可用打印机列表"""
-    queue_mgr = get_queue_manager()
-    printers = queue_mgr.get_printers()
+    job_service = get_job_service()
+    printers = job_service.list_printers()
     return jsonify({'printers': printers}), 200
 
 
 @api_bp.route('/printers/status', methods=['GET'])
 def printer_status():
     """获取全部打印机实时状态"""
-    pm = current_app.config.get('printer_monitor')
-    if not pm:
-        return jsonify({'printers': {}})
-    return jsonify({'printers': pm.get_all_statuses()})
+    job_service = get_job_service()
+    return jsonify({'printers': job_service.get_printer_statuses()})
 
 
 @api_bp.route('/cancel/<job_id>', methods=['POST'])
 @require_auth
 def cancel_job_api(job_id):
     """API 取消任务（带鉴权）"""
-    queue_mgr = get_queue_manager()
-    success, error = queue_mgr.cancel_job(job_id)
+    job_service = get_job_service()
+    success, error = job_service.cancel(job_id)
     if not success:
         return jsonify({'success': False, 'error': error}), 400
     return jsonify({'success': True})

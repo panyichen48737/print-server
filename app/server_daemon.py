@@ -36,7 +36,6 @@ def write_status(status, **extra):
 def _health_check_loop(app, config, logger):
     """Background thread that self-polls the health endpoint. 3 failures -> os._exit(1) (nssm restarts)."""
     import urllib.request
-    import ssl as ssl_module
     import time
     from pathlib import Path
     from app._paths import app_root
@@ -52,9 +51,9 @@ def _health_check_loop(app, config, logger):
             proto = 'https' if (Path(app_root()) / 'certs' / 'cert.pem').exists() else 'http'
             ctx = None
             if proto == 'https':
-                ctx = ssl_module.create_default_context()
+                ctx = ssl.create_default_context()
                 ctx.check_hostname = False
-                ctx.verify_mode = ssl_module.CERT_NONE
+                ctx.verify_mode = ssl.CERT_NONE
             req = urllib.request.Request(
                 f'{proto}://127.0.0.1:{port}/api/printers/status',
                 method='GET',

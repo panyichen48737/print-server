@@ -6,15 +6,15 @@ import logging
 from datetime import datetime, timedelta
 
 from app.printing.repository import JobRepository
-from app.services.notifier import Notifier
+from app.services.notifier import Notifier, is_print_related_error
 
 logger = logging.getLogger('print_server')
 
 
 class QueueManager:
-    def __init__(self, config, broadcaster=None, db_path=None, notifier: Notifier | None = None):
+    def __init__(self, config, event_bus=None, db_path=None, notifier: Notifier | None = None):
         self.config = config
-        self._broadcaster = broadcaster
+        self._event_bus = event_bus
         self._notifier = notifier
         self._print_engine = None
         self._lock = threading.Lock()
@@ -205,8 +205,8 @@ class QueueManager:
 
         if job['status'] == 'queued':
             self.update_status(job_id, 'failed', '用户取消')
-            if self._broadcaster:
-                self._broadcaster.publish('job_status', {
+            if self._event_bus:
+                self._event_bus.emit('job_status', {
                     'job_id': job_id, 'filename': job['filename'],
                     'status': 'failed', 'error': '用户取消',
                     'source': job.get('source', 'api')
@@ -216,8 +216,8 @@ class QueueManager:
             if self._print_engine:
                 self._print_engine.cancel_active_job(job_id)
             self.update_status(job_id, 'failed', '用户取消')
-            if self._broadcaster:
-                self._broadcaster.publish('job_status', {
+            if self._event_bus:
+                self._event_bus.emit('job_status', {
                     'job_id': job_id, 'filename': job['filename'],
                     'status': 'failed', 'error': '用户取消',
                     'source': job.get('source', 'api')
@@ -242,8 +242,8 @@ class QueueManager:
             if not self._is_cancelled(job['id']):
                 self._mark_cancelled(job['id'])
                 self.update_status(job['id'], 'failed', '用户取消')
-                if self._broadcaster:
-                    self._broadcaster.publish('job_status', {
+                if self._event_bus:
+                    self._event_bus.emit('job_status', {
                         'job_id': job['id'], 'filename': job['filename'],
                         'status': 'failed', 'error': '用户取消',
                         'source': job.get('source', 'api')
@@ -282,12 +282,19 @@ class QueueManager:
             return
         if not self._notifier:
             return
+
+        # 本地系统错误（权限、磁盘等）只记日志，不发送通知
+        error = kwargs.get('error', '')
+        if event_type == 'failed' and not is_print_related_error(error):
+            logger.info(f'本地系统错误，跳过通知: {error}')
+            return
+
         time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         try:
             if event_type == 'completed':
                 self._notifier.notify_job_completed(filename, time_str)
             elif event_type == 'failed':
-                self._notifier.notify_job_failed(filename, kwargs.get('error', ''), time_str)
+                self._notifier.notify_job_failed(filename, error, time_str)
             elif event_type == 'cancelled':
                 self._notifier.notify_job_cancelled(filename, time_str)
         except Exception:
@@ -298,7 +305,7 @@ class QueueManager:
     def _update_and_broadcast(self, job_id, status, error_message=None, filename='', source='api'):
         """统一状态更新 + SSE 广播，消除 do_print 中 4 处重复"""
         self.update_status(job_id, status, error_message)
-        if self._broadcaster:
+        if self._event_bus:
             data = {
                 'job_id': job_id, 'filename': filename,
                 'status': status, 'source': source,
@@ -306,7 +313,7 @@ class QueueManager:
             }
             if error_message:
                 data['error'] = error_message
-            self._broadcaster.publish('job_status', data)
+            self._event_bus.emit('job_status', data)
 
     def _make_temp_copy(self, original_path, filename):
         """创建临时文件副本用于打印"""
