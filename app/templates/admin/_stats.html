@@ -1,0 +1,89 @@
+<div id="stats-panel" hx-get="/admin/api/stats" hx-trigger="every 10s" hx-swap="outerHTML">
+<div class="stats-grid">
+    <div class="stat-card color-blue" title="当前排队等待打印的任务数">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="stat-label">排队中</div>
+                <div class="stat-value">{{ stats.queued }}</div>
+            </div>
+            <div class="stat-icon blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+            </div>
+        </div>
+    </div>
+    <div class="stat-card color-amber" title="当前正在打印的任务数">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="stat-label">打印中</div>
+                <div class="stat-value">{{ stats.printing }}</div>
+            </div>
+            <div class="stat-icon amber">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+            </div>
+        </div>
+    </div>
+    <div class="stat-card color-green" title="今日成功完成的打印任务数">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="stat-label">今日完成</div>
+                <div class="stat-value">{{ stats.today_completed }}</div>
+            </div>
+            <div class="stat-icon green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+            </div>
+        </div>
+    </div>
+    <div class="stat-card color-red" title="今日打印失败的任务数">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="stat-label">今日失败</div>
+                <div class="stat-value">{{ stats.today_failed }}</div>
+            </div>
+            <div class="stat-icon red">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </div>
+        </div>
+    </div>
+    <div class="stat-card color-green" title="打印成功率 = 已完成 / (已完成 + 失败)">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="stat-label">成功率</div>
+                <div class="stat-value">{{ "%.1f"|format(stats.success_rate) }}%</div>
+            </div>
+            <div class="stat-icon green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                    <polyline points="17 6 23 6 23 12"></polyline>
+                </svg>
+            </div>
+        </div>
+    </div>
+    <div class="stat-card color-blue" title="系统运行以来累计处理的任务总数">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="stat-label">总计任务</div>
+                <div class="stat-value">{{ stats.total }}</div>
+            </div>
+            <div class="stat-icon blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="4" y1="9" x2="20" y2="9"></line>
+                    <line x1="4" y1="15" x2="20" y2="15"></line>
+                    <line x1="10" y1="3" x2="8" y2="21"></line>
+                    <line x1="16" y1="3" x2="14" y2="21"></line>
+                </svg>
+            </div>
+        </div>
+    </div>
+</div>
+</div>

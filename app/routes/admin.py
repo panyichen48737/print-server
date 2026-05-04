@@ -2,6 +2,7 @@ import os
 from loguru import logger
 from jinja2 import pass_context
 from fastapi import APIRouter, Depends, HTTPException, Request, Form
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.auth import require_auth
@@ -176,6 +177,37 @@ async def upload_page(request: Request):
         'printers': printer_list,
         'allowed_extensions': config.schema.allowed_extensions,
     })
+
+
+@admin_router.get('/api/stats')
+async def api_stats(request: Request):
+    """HTMX: 返回统计面板 HTML 片段"""
+    queue_mgr = request.app.state.queue_manager
+    stats = queue_mgr.get_stats()
+    return templates.TemplateResponse('admin/_stats.html', {
+        'request': request, 'stats': stats,
+    })
+
+
+@admin_router.post('/api/test_notification')
+async def admin_test_notification(request: Request):
+    """HTMX: 发送测试通知，返回 HTML 片段"""
+    config = request.app.state.app_config
+    channel = config.schema.notify_channel
+    from datetime import datetime
+    time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    try:
+        if channel == 'dingtalk':
+            dt = getattr(request.app.state, 'dingtalk', None)
+            if dt:
+                dt.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}', level='info')
+        elif channel == 'bark':
+            bk = getattr(request.app.state, 'bark', None)
+            if bk:
+                bk.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}')
+        return HTMLResponse(f'<span style="color: var(--text-success);">✓ 测试通知已发送 ({channel})</span>')
+    except Exception as e:
+        return HTMLResponse(f'<span style="color: var(--text-danger);">✗ 发送失败: {e}</span>')
 
 
 @admin_router.post('/api/restart')
