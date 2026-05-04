@@ -36,8 +36,7 @@ class ImageBackend(PrinterBackend):
         return False
 
     def _print_image(self, filepath, job_id, print_params=None):
-        if print_params is None:
-            print_params = {}
+        print_params = print_params or {}
         try:
             processed = self._quark.enhance(filepath)
 
@@ -54,36 +53,30 @@ class ImageBackend(PrinterBackend):
 
             dpi = self.config.get('print_dpi', 300)
             paper_size = print_params.get('paper_size') or self.config.get('paper_size', 'A4')
-            dims = self.PAPER_SIZES.get(paper_size)
-            if dims:
-                pw, ph = int(dims[0] * dpi), int(dims[1] * dpi)
-            else:
-                pw, ph = int(8.27 * dpi), int(11.69 * dpi)
+            dims = self.PAPER_SIZES.get(paper_size, (8.27, 11.69))
+            pw, ph = int(dims[0] * dpi), int(dims[1] * dpi)
 
             img_w, img_h = img.size
             if (img_w > img_h and pw < ph) or (img_w < img_h and pw > ph):
                 pw, ph = ph, pw
 
             scale = min(pw / img_w, ph / img_h)
-            new_w = int(img_w * scale)
-            new_h = int(img_h * scale)
+            new_w, new_h = int(img_w * scale), int(img_h * scale)
 
             color_val = print_params.get('color')
             use_color = bool(color_val) if color_val is not None else self.config.get('default_color', True)
 
-            if use_color:
-                canvas = Image.new('RGB', (pw, ph), (255, 255, 255))
-                img_resized = img.resize((new_w, new_h), Image.LANCZOS)
-            else:
-                canvas = Image.new('L', (pw, ph), (255))
-                img_resized = img.resize((new_w, new_h), Image.LANCZOS).convert('L')
+            mode = 'RGB' if use_color else 'L'
+            canvas = Image.new(mode, (pw, ph), 255)
+            img_resized = img.resize((new_w, new_h), Image.LANCZOS)
+            if mode == 'L':
+                img_resized = img_resized.convert('L')
 
             x = (pw - new_w) // 2
             y = (ph - new_h) // 2
-            if img_resized.mode == 'RGBA':
-                canvas.paste(img_resized, (x, y), img_resized)
-            elif img_resized.mode == 'P':
-                img_resized = img_resized.convert('RGBA')
+            if img_resized.mode in ('RGBA', 'P'):
+                if img_resized.mode == 'P':
+                    img_resized = img_resized.convert('RGBA')
                 canvas.paste(img_resized, (x, y), img_resized)
             else:
                 canvas.paste(img_resized, (x, y))

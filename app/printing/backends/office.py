@@ -2,7 +2,6 @@
 import os
 import threading
 from contextlib import contextmanager
-from loguru import logger
 
 from app.printing.backends.base import PrinterBackend
 from app.printing.utils import cancel_all_spooler_jobs
@@ -66,8 +65,7 @@ class OfficeBackend(PrinterBackend):
     #  Word
     # ------------------------------------------------------------------ #
     def _print_word(self, filepath, job_id, word_lock, print_params=None):
-        if print_params is None:
-            print_params = {}
+        print_params = print_params or {}
         with self._com_context('Word.Application', word_lock, job_id, print_params, display_alerts=0) as word:
             doc = word.Documents.Open(os.path.abspath(filepath))
             copies = print_params.get('copies') or self.config.get('default_copies', 1)
@@ -79,8 +77,7 @@ class OfficeBackend(PrinterBackend):
     #  Excel
     # ------------------------------------------------------------------ #
     def _print_excel(self, filepath, job_id, print_params=None):
-        if print_params is None:
-            print_params = {}
+        print_params = print_params or {}
         with self._com_context('Excel.Application', self.excel_lock, job_id, print_params, display_alerts=False) as excel:
             workbook = excel.Workbooks.Open(os.path.abspath(filepath))
             copies = print_params.get('copies') or self.config.get('default_copies', 1)
@@ -96,8 +93,7 @@ class OfficeBackend(PrinterBackend):
     #  PowerPoint
     # ------------------------------------------------------------------ #
     def _print_ppt(self, filepath, job_id, print_params=None):
-        if print_params is None:
-            print_params = {}
+        print_params = print_params or {}
         with self._com_context('PowerPoint.Application', self.ppt_lock, job_id, print_params) as ppt:
             presentation = ppt.Presentations.Open(os.path.abspath(filepath))
             copies = print_params.get('copies') or self.config.get('default_copies', 1)

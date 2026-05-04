@@ -11,9 +11,13 @@ def bootstrap(config: Config, lifespan=None):
 
     from app.printing.queue_manager import QueueManager
     from app.printing.engine import PrintEngine
+    from app.printing.repository import JobRepository
     from app.services.dingtalk import DingTalk
     from app.services.printer_monitor import PrinterMonitor
     from app.services.bark import BarkNotifier
+    from app.services.print_service import PrintService
+    from app.services.job_query_service import JobQueryService
+    from app.services.printer_discovery_service import PrinterDiscoveryService
 
     app = create_app(lifespan=lifespan)
 
@@ -36,7 +40,8 @@ def bootstrap(config: Config, lifespan=None):
     from app.services.event_bus import EventBus
     event_bus = EventBus(broadcaster)
 
-    queue_mgr = QueueManager(config, event_bus=event_bus, notifier=notifier)
+    repo = JobRepository()
+    queue_mgr = QueueManager(config, repo, event_bus=event_bus, notifier=notifier)
     print_engine = PrintEngine(
         config,
         dingtalk=dingtalk,
@@ -45,6 +50,10 @@ def bootstrap(config: Config, lifespan=None):
     )
     printer_monitor = PrinterMonitor(broadcaster=broadcaster)
 
+    print_service = PrintService(config, queue_mgr, event_bus, notifier)
+    job_query = JobQueryService(repo, queue_manager=queue_mgr)
+    printer_discovery = PrinterDiscoveryService(printer_monitor)
+
     # Register on app.state instead of app.config
     app.state.queue_manager = queue_mgr
     app.state.app_config = config
@@ -52,6 +61,9 @@ def bootstrap(config: Config, lifespan=None):
     app.state.bark = bark
     app.state.printer_monitor = printer_monitor
     app.state.sse_broadcaster = broadcaster
+    app.state.print_service = print_service
+    app.state.job_query = job_query
+    app.state.printer_discovery = printer_discovery
 
     queue_mgr.cleanup_old_jobs()
 

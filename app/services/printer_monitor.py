@@ -5,57 +5,32 @@ from loguru import logger
 import threading
 import win32print
 
-# 打印机状态位常量
-PRINTER_STATUS_PAUSED = 0x00000001
-PRINTER_STATUS_ERROR = 0x00000002
-PRINTER_STATUS_PENDING_DELETION = 0x00000004
-PRINTER_STATUS_PAPER_JAM = 0x00000008
-PRINTER_STATUS_PAPER_OUT = 0x00000010
-PRINTER_STATUS_MANUAL_FEED = 0x00000020
-PRINTER_STATUS_PAPER_PROBLEM = 0x00000040
-PRINTER_STATUS_OFFLINE = 0x00000080
-PRINTER_STATUS_IO_ACTIVE = 0x00000100
-PRINTER_STATUS_BUSY = 0x00000200
-PRINTER_STATUS_PRINTING = 0x00000400
-PRINTER_STATUS_OUTPUT_BIN_FULL = 0x00000800
-PRINTER_STATUS_NOT_AVAILABLE = 0x00001000
-PRINTER_STATUS_WAITING = 0x00002000
-PRINTER_STATUS_PROCESSING = 0x00004000
-PRINTER_STATUS_INITIALIZING = 0x00008000
-PRINTER_STATUS_WARMING_UP = 0x00010000
-PRINTER_STATUS_TONER_LOW = 0x00020000
-PRINTER_STATUS_NO_TONER = 0x00040000
-PRINTER_STATUS_PAGE_PUNT = 0x00080000
-PRINTER_STATUS_USER_INTERVENTION = 0x00100000
-PRINTER_STATUS_OUT_OF_MEMORY = 0x00200000
-PRINTER_STATUS_DOOR_OPEN = 0x00400000
-PRINTER_STATUS_POWER_SAVE = 0x01000000
-
+# 打印机状态位 → (bit_mask, 中文标签)
 STATUS_BITS: dict[str, tuple[int, str]] = {
-    'paused':            (PRINTER_STATUS_PAUSED, '已暂停'),
-    'error':             (PRINTER_STATUS_ERROR, '错误'),
-    'pending_deletion':  (PRINTER_STATUS_PENDING_DELETION, '待删除'),
-    'paper_jam':         (PRINTER_STATUS_PAPER_JAM, '卡纸'),
-    'paper_out':         (PRINTER_STATUS_PAPER_OUT, '缺纸'),
-    'manual_feed':       (PRINTER_STATUS_MANUAL_FEED, '手动进纸'),
-    'paper_problem':     (PRINTER_STATUS_PAPER_PROBLEM, '纸张问题'),
-    'offline':           (PRINTER_STATUS_OFFLINE, '离线'),
-    'io_active':         (PRINTER_STATUS_IO_ACTIVE, 'IO 活动中'),
-    'busy':              (PRINTER_STATUS_BUSY, '忙'),
-    'printing':          (PRINTER_STATUS_PRINTING, '打印中'),
-    'output_bin_full':   (PRINTER_STATUS_OUTPUT_BIN_FULL, '出纸槽已满'),
-    'not_available':     (PRINTER_STATUS_NOT_AVAILABLE, '不可用'),
-    'waiting':           (PRINTER_STATUS_WAITING, '等待中'),
-    'processing':        (PRINTER_STATUS_PROCESSING, '处理中'),
-    'initializing':      (PRINTER_STATUS_INITIALIZING, '初始化中'),
-    'warming_up':        (PRINTER_STATUS_WARMING_UP, '预热中'),
-    'toner_low':         (PRINTER_STATUS_TONER_LOW, '墨量低'),
-    'no_toner':          (PRINTER_STATUS_NO_TONER, '缺墨'),
-    'page_punt':         (PRINTER_STATUS_PAGE_PUNT, '页跳过'),
-    'user_intervention': (PRINTER_STATUS_USER_INTERVENTION, '需用户干预'),
-    'out_of_memory':     (PRINTER_STATUS_OUT_OF_MEMORY, '内存不足'),
-    'door_open':         (PRINTER_STATUS_DOOR_OPEN, '盖板打开'),
-    'power_save':        (PRINTER_STATUS_POWER_SAVE, '节能模式'),
+    'paused':            (0x00000001, '已暂停'),
+    'error':             (0x00000002, '错误'),
+    'pending_deletion':  (0x00000004, '待删除'),
+    'paper_jam':         (0x00000008, '卡纸'),
+    'paper_out':         (0x00000010, '缺纸'),
+    'manual_feed':       (0x00000020, '手动进纸'),
+    'paper_problem':     (0x00000040, '纸张问题'),
+    'offline':           (0x00000080, '离线'),
+    'io_active':         (0x00000100, 'IO 活动中'),
+    'busy':              (0x00000200, '忙'),
+    'printing':          (0x00000400, '打印中'),
+    'output_bin_full':   (0x00000800, '出纸槽已满'),
+    'not_available':     (0x00001000, '不可用'),
+    'waiting':           (0x00002000, '等待中'),
+    'processing':        (0x00004000, '处理中'),
+    'initializing':      (0x00008000, '初始化中'),
+    'warming_up':        (0x00010000, '预热中'),
+    'toner_low':         (0x00020000, '墨量低'),
+    'no_toner':          (0x00040000, '缺墨'),
+    'page_punt':         (0x00080000, '页跳过'),
+    'user_intervention': (0x00100000, '需用户干预'),
+    'out_of_memory':     (0x00200000, '内存不足'),
+    'door_open':         (0x00400000, '盖板打开'),
+    'power_save':        (0x01000000, '节能模式'),
 }
 
 # overall 分类

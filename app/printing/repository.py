@@ -21,7 +21,7 @@ class JobRepository:
 
     def init_db(self) -> None:
         """建表 + 索引"""
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=5.0) as conn:
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS jobs (
                     id TEXT PRIMARY KEY,
@@ -44,7 +44,7 @@ class JobRepository:
 
     def migrate_db(self) -> None:
         """向后兼容的列添加（已有列跳过）"""
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=5.0) as conn:
             cursor = conn.execute("PRAGMA table_info(jobs)")
             existing = {row[1] for row in cursor.fetchall()}
             additions = {
@@ -65,7 +65,7 @@ class JobRepository:
                 printer_name: Optional[str] = None, source: str = 'api') -> str:
         """插入新任务，返回 job_id"""
         job_id = str(uuid.uuid4())
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=5.0) as conn:
             conn.execute(
                 '''INSERT INTO jobs
                    (id, filename, filepath, file_size, file_type, status,
@@ -79,7 +79,7 @@ class JobRepository:
 
     def get_job(self, job_id: str) -> Optional[dict]:
         """查询单个任务，返回 dict 或 None"""
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=5.0) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute('SELECT * FROM jobs WHERE id = ?', (job_id,)).fetchone()
             if row:
@@ -88,7 +88,7 @@ class JobRepository:
 
     def update_status(self, job_id: str, status: str, error_message: Optional[str] = None) -> None:
         """更新任务状态，completed/failed 时同时记录 completed_at"""
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=5.0) as conn:
             now = datetime.now().isoformat()
             if status in ('completed', 'failed'):
                 conn.execute(
@@ -102,19 +102,23 @@ class JobRepository:
                 )
             conn.commit()
 
+    def _build_where(self, query: str, status: Optional[str], search: Optional[str]) -> tuple[str, list]:
+        """构建 WHERE 子句，返回 (query, params)"""
+        params = []
+        if status:
+            query += ' AND status = ?'
+            params.append(status)
+        if search:
+            query += ' AND filename LIKE ?'
+            params.append(f'%{search}%')
+        return query, params
+
     def get_jobs(self, status: Optional[str] = None, search: Optional[str] = None,
                  limit: int = 50, offset: int = 0) -> list[dict]:
         """分页查询任务列表，支持按状态和文件名搜索"""
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=5.0) as conn:
             conn.row_factory = sqlite3.Row
-            query = 'SELECT * FROM jobs WHERE 1=1'
-            params = []
-            if status:
-                query += ' AND status = ?'
-                params.append(status)
-            if search:
-                query += ' AND filename LIKE ?'
-                params.append(f'%{search}%')
+            query, params = self._build_where('SELECT * FROM jobs WHERE 1=1', status, search)
             query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'
             params.extend([limit, offset])
             rows = conn.execute(query, params).fetchall()
@@ -122,26 +126,19 @@ class JobRepository:
 
     def count_jobs(self, status: Optional[str] = None, search: Optional[str] = None) -> int:
         """统计任务数量，支持按状态和文件名筛选"""
-        with sqlite3.connect(self.db_path) as conn:
-            query = 'SELECT COUNT(*) FROM jobs WHERE 1=1'
-            params = []
-            if status:
-                query += ' AND status = ?'
-                params.append(status)
-            if search:
-                query += ' AND filename LIKE ?'
-                params.append(f'%{search}%')
+        with sqlite3.connect(self.db_path, timeout=5.0) as conn:
+            query, params = self._build_where('SELECT COUNT(*) FROM jobs WHERE 1=1', status, search)
             return conn.execute(query, params).fetchone()[0]
 
     def get_jobs_by_status(self, status: str) -> list[dict]:
         """按状态查询所有任务"""
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=5.0) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute('SELECT * FROM jobs WHERE status = ?', (status,)).fetchall()
             return [dict(r) for r in rows]
 
     def get_stats(self) -> dict:
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=5.0) as conn:
             today = datetime.now().strftime('%Y-%m-%d')
             row = conn.execute('''
                 SELECT
@@ -169,7 +166,7 @@ class JobRepository:
     def cleanup_old_jobs(self, retention_days: int = 30) -> int:
         """清理过期历史记录（不处理心跳恢复）"""
         cutoff = (datetime.now() - timedelta(days=retention_days)).isoformat()
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=5.0) as conn:
             result = conn.execute('DELETE FROM jobs WHERE created_at < ?', (cutoff,))
             deleted = result.rowcount
             conn.commit()
@@ -179,6 +176,19 @@ class JobRepository:
 
     def increment_retry(self, job_id: str) -> None:
         """递增任务重试计数"""
-        with sqlite3.connect(self.db_path) as conn:
+        with sqlite3.connect(self.db_path, timeout=5.0) as conn:
             conn.execute('UPDATE jobs SET retry_count = retry_count + 1 WHERE id = ?', (job_id,))
+            conn.commit()
+
+    def batch_update_status(self, job_ids: list[str], status: str, error_message: str = '') -> None:
+        """批量更新任务状态（单个事务）"""
+        if not job_ids:
+            return
+        with sqlite3.connect(self.db_path, timeout=5.0) as conn:
+            now = datetime.now().isoformat()
+            rows = [(status, error_message or '', now, jid) for jid in job_ids]
+            conn.executemany(
+                'UPDATE jobs SET status = ?, error_message = ?, completed_at = ? WHERE id = ?',
+                rows,
+            )
             conn.commit()

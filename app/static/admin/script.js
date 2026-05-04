@@ -30,11 +30,17 @@
     function withLoading(btn, promise) {
         if (!btn) return promise;
         btn.disabled = true;
+        // Preserve width by setting explicit min-width before changing content
+        var origW = btn.offsetWidth;
         btn.dataset.originalHtml = btn.innerHTML;
         btn.innerHTML = '<span class="spinner-sm"></span> 处理中...';
+        if (btn.offsetWidth < origW) {
+            btn.style.minWidth = origW + 'px';
+        }
         return (promise || Promise.resolve()).finally(function() {
             btn.disabled = false;
             btn.innerHTML = btn.dataset.originalHtml || '';
+            btn.style.minWidth = '';
         });
     }
 
@@ -47,6 +53,34 @@
             clearTimeout(timer);
             timer = setTimeout(function() { fn.apply(ctx, args); }, delay);
         };
+    }
+
+    /* ── Warn on unsaved form changes ── */
+    function warnUnsavedChanges(formSelector, message) {
+        var form = document.querySelector(formSelector);
+        if (!form) return function(){};
+        var msg = message || '有未保存的修改，确定要离开吗？';
+        var origData = new FormData(form);
+        function checkChanged() {
+            var curr = new FormData(form);
+            if (origData.length !== curr.length) return true;
+            for (var key of origData.keys()) {
+                if (origData.get(key) !== curr.get(key)) return true;
+            }
+            return false;
+        }
+        function beforeUnload(e) {
+            if (!checkChanged()) return;
+            e.preventDefault();
+            e.returnValue = msg;
+            return msg;
+        }
+        window.addEventListener('beforeunload', beforeUnload);
+        // Remove warning on form submit
+        form.addEventListener('submit', function() {
+            window.removeEventListener('beforeunload', beforeUnload);
+        }, { once: true });
+        return function() { window.removeEventListener('beforeunload', beforeUnload); };
     }
 
     /* ── Sidebar toggle (mobile) ── */
@@ -144,6 +178,22 @@
             toast.style.transform = 'translateX(100%)';
             setTimeout(function() { toast.remove(); }, 300);
         }, 4000);
+    });
+
+    /* ── Auto-dismiss HTMX result messages ── */
+    document.addEventListener('htmx:afterSwap', function(evt) {
+        var target = evt.detail.target;
+        if (!target) return;
+        // Auto-dismiss result spans after 4s
+        var resultEls = target.querySelectorAll('[data-auto-dismiss]');
+        resultEls.forEach(function(el) {
+            var delay = parseInt(el.getAttribute('data-auto-dismiss')) || 4000;
+            setTimeout(function() {
+                el.style.transition = 'opacity 0.3s';
+                el.style.opacity = '0';
+                setTimeout(function() { el.textContent = ''; el.style.opacity = '1'; }, 300);
+            }, delay);
+        });
     });
 
     /* ── Confirmation dialog ── */
@@ -280,6 +330,7 @@
     window.apiFetch = apiFetch;
     window.withLoading = withLoading;
     window.debounce = debounce;
+    window.warnUnsavedChanges = warnUnsavedChanges;
     window.showToast = showToast;
     window.confirmAction = confirmAction;
     window.onWSMessage = onWSMessage;

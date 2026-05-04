@@ -1,6 +1,5 @@
 """事件总线 — 包装 SSEBroadcaster，提供解耦的发布/订阅接口"""
 
-from typing import Any
 from app.services.sse_broadcaster import SSEBroadcaster
 
 
@@ -10,11 +9,14 @@ class EventBus:
     def __init__(self, broadcaster: SSEBroadcaster) -> None:
         self._broadcaster = broadcaster
 
-    def emit(self, event_type: str, data: Any) -> None:
+    def emit(self, event_type: str, data) -> None:
         """发布事件到所有订阅者"""
-        self._broadcaster.publish(event_type, data)
+        try:
+            self._broadcaster.publish(event_type, data)
+        except Exception:
+            pass
 
-    def subscribe(self) -> tuple[str, Any]:
+    def subscribe(self) -> tuple:
         """注册新订阅者，返回 (sub_id, Queue)"""
         return self._broadcaster.subscribe()
 

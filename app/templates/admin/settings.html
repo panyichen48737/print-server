@@ -215,14 +215,14 @@
 </div>
 
 <div style="margin-top: 20px; display: flex; gap: 10px; align-items: center;">
-    <button type="submit" class="btn btn-primary">
+    <button type="submit" class="btn btn-primary" id="saveSettingsBtn">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="20 6 9 17 4 12"></polyline>
         </svg>
         保存配置
     </button>
     <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);" id="saveHint">部分配置修改后需重启服务才能生效</span>
-    <span id="saveResult" style="margin-left: 8px;"></span>
+    <span id="saveResult" data-auto-dismiss="4000" style="margin-left: 8px;"></span>
 </div>
 </form>
 {% endblock %}
@@ -250,11 +250,37 @@ function testNotification() {
     }));
 }
 
-// HTMX: 表单提交前检测端口是否变更
+// HTMX: port validation + save loading state + unsaved changes warning
 var _portChanged = false;
 document.addEventListener('DOMContentLoaded', function() {
     var form = document.querySelector('form');
     if (!form) return;
+
+    // Port inline validation
+    var portInput = document.getElementById('port');
+    if (portInput) {
+        portInput.addEventListener('input', function() {
+            var val = parseInt(this.value);
+            var hint = this.parentElement.querySelector('.help-text');
+            if (hint) {
+                if (val < 1024 || val > 65535) {
+                    hint.textContent = '端口范围: 1024-65535';
+                    hint.style.color = 'var(--red)';
+                    this.style.borderColor = 'var(--red)';
+                } else {
+                    hint.textContent = '修改后需重启服务生效';
+                    hint.style.color = '';
+                    this.style.borderColor = '';
+                }
+            }
+        });
+    }
+
+    // Save button loading state on submit
+    form.addEventListener('htmx:beforeRequest', function() {
+        var btn = document.getElementById('saveSettingsBtn');
+        if (btn) withLoading(btn);
+    });
 
     form.addEventListener('htmx:beforeRequest', function() {
         var origPort = {{ config.port }};
@@ -277,6 +303,9 @@ document.addEventListener('DOMContentLoaded', function() {
             showToast('保存失败，请检查网络连接', 'error');
         }
     });
+
+    // Unsaved changes warning
+    warnUnsavedChanges('form');
 });
 </script>
 {% endblock %}

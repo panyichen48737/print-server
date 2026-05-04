@@ -8,7 +8,7 @@ from typing import Optional, Any
 
 from loguru import logger
 from PIL import Image
-import requests
+import httpx
 
 
 class QuarkEnhancer:
@@ -35,7 +35,6 @@ class QuarkEnhancer:
             ext = os.path.splitext(filepath)[1].lower()
             max_api_size = 10 * 1024 * 1024
 
-            # 统一转 JPG：PIL 打开后转 RGB，按需压缩
             img = Image.open(filepath)
             if img.mode in ('RGBA', 'P', 'LA'):
                 img = img.convert('RGB')
@@ -44,7 +43,6 @@ class QuarkEnhancer:
             buf = io.BytesIO()
             img.save(buf, format='JPEG', quality=quality)
 
-            # 超过 10MB 才逐步降质量压缩
             while buf.tell() > max_api_size and quality > 20:
                 quality -= 10
                 buf = io.BytesIO()
@@ -61,17 +59,9 @@ class QuarkEnhancer:
 
             img_b64 = base64.b64encode(img_data).decode('utf-8')
 
-            # 构建签名参数（官方示例：所有参数放 JSON body）
-            business = 'vision'
-            sign_method = 'SHA3-256'
             sign_nonce = uuid.uuid4().hex
             timestamp = int(time.time() * 1000)
-
-            signature = self._sign(client_id, client_secret, business, sign_method, sign_nonce, timestamp)
-
-            headers = {
-                'Content-Type': 'application/json',
-            }
+            signature = self._sign(client_id, client_secret, 'vision', 'SHA3-256', sign_nonce, timestamp)
 
             payload = {
                 'serviceOption': 'scan',
@@ -81,18 +71,18 @@ class QuarkEnhancer:
                 'dataBase64': img_b64,
                 'reqId': uuid.uuid4().hex,
                 'clientId': client_id,
-                'signMethod': sign_method,
+                'signMethod': 'SHA3-256',
                 'signNonce': sign_nonce,
                 'timestamp': timestamp,
                 'signature': signature,
             }
 
-            resp = requests.post(
-                'https://scan-business.quark.cn/vision',
-                json=payload,
-                headers=headers,
-                timeout=60,
-            )
+            with httpx.Client() as client:
+                resp = client.post(
+                    'https://scan-business.quark.cn/vision',
+                    json=payload,
+                    timeout=60,
+                )
 
             if resp.status_code != 200:
                 logger.warning(f'Quark API HTTP {resp.status_code}: {resp.text[:200]}')

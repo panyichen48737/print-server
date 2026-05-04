@@ -3,7 +3,7 @@
 {% block page_title %}仪表盘{% endblock %}
 
 {% block content %}
-<div id="stats-panel" hx-get="/admin/api/stats" hx-trigger="every 10s" hx-swap="outerHTML">
+<div id="stats-panel" hx-get="/admin/api/stats" hx-trigger="every 10s" hx-swap="outerHTML" hx-indicator="#stats-loading">
 <div class="stats-grid">
     <div class="stat-card color-blue" title="当前排队等待打印的任务数">
         <div class="d-flex justify-content-between align-items-start">
@@ -91,6 +91,9 @@
         </div>
     </div>
 </div>
+<div id="stats-loading" class="htmx-indicator" style="text-align:center;padding:8px 0;transition:opacity 0.15s;">
+    <span class="spinner-sm"></span>
+</div>
 <div class="card mb-4">
     <div class="card-header">
         <span>打印机状态</span>
@@ -175,7 +178,7 @@
                             {% endif %}
                         </td>
                         <td>
-                            <span class="badge badge-{{ job.status }}">
+                            <span class="badge badge-{{ job.status }}"{% if job.status == 'failed' and job.error_message %} data-tooltip="{{ job.error_message }}"{% endif %}>
                                 <span class="status-dot-sm {{ job.status }}"></span>
                                 {% if job.status == 'queued' %}排队中
                                 {% elif job.status == 'printing' %}打印中
@@ -206,6 +209,19 @@
 
 {% block scripts %}
 <script>
+// Pulse stat values when HTMX swaps new data
+document.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target && evt.detail.target.id === 'stats-panel') {
+        var values = evt.detail.target.querySelectorAll('.stat-value');
+        values.forEach(function(v) {
+            v.classList.remove('pulse');
+            // Force reflow so the animation re-triggers
+            void v.offsetWidth;
+            v.classList.add('pulse');
+        });
+    }
+});
+
 // 打印机状态实时更新
 (function() {
     var statusTextMap = {

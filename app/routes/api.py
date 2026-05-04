@@ -1,13 +1,11 @@
 import os
 import json
 from collections import deque
-from datetime import datetime
 from loguru import logger
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 
 from app.auth import require_auth
-from app.upload_helper import handle_file_upload
 from app._paths import app_root
 
 api_router = APIRouter()
@@ -15,11 +13,11 @@ api_router = APIRouter()
 
 @api_router.get('/health')
 async def health(request: Request):
-    queue_mgr = request.app.state.queue_manager
+    query_svc = request.app.state.job_query
     return {
         'status': 'ok',
         'version': '1.0.0',
-        'queue_size': queue_mgr.queue_size(),
+        'queue_size': query_svc.get_queue_size(),
     }
 
 
@@ -49,11 +47,10 @@ async def print_file(
     auth=Depends(require_auth),
 ):
     """提交打印任务（iOS 端使用）"""
-    config = request.app.state.app_config
-    queue_mgr = request.app.state.queue_manager
+    ps = request.app.state.print_service
     content = await file.read()
-    result = handle_file_upload(
-        file.filename, content, config, queue_mgr, source='ios',
+    result = ps.submit_print(
+        file.filename, content, source='ios',
         printer=printer, copies=copies, duplex=duplex,
         color=color, paper_size=paper_size,
     )
@@ -65,8 +62,8 @@ async def print_file(
 @api_router.get('/status/{job_id}')
 async def get_status(job_id: str, request: Request):
     """查询任务状态"""
-    queue_mgr = request.app.state.queue_manager
-    job = queue_mgr.get_job(job_id)
+    query_svc = request.app.state.job_query
+    job = query_svc.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail='任务不存在')
     result = {'success': True, 'status': job['status'], 'job_id': job['id']}
@@ -78,17 +75,17 @@ async def get_status(job_id: str, request: Request):
 @api_router.get('/printers')
 async def list_printers(request: Request):
     """获取可用打印机列表"""
-    queue_mgr = request.app.state.queue_manager
-    return {'printers': queue_mgr.get_printers()}
+    pd = request.app.state.printer_discovery
+    return {'printers': pd.list_printers()}
 
 
 @api_router.get('/printers/status')
 async def printer_status(request: Request):
     """获取全部打印机实时状态"""
-    pm = getattr(request.app.state, 'printer_monitor', None)
-    if not pm:
+    pd = getattr(request.app.state, 'printer_discovery', None)
+    if not pd:
         return {'printers': {}}
-    return {'printers': pm.get_all_statuses()}
+    return {'printers': pd.get_all_statuses()}
 
 
 @api_router.post('/cancel/{job_id}')
@@ -98,8 +95,8 @@ async def cancel_job_api(
     auth=Depends(require_auth),
 ):
     """取消任务"""
-    queue_mgr = request.app.state.queue_manager
-    success, error = queue_mgr.cancel_job(job_id)
+    ps = request.app.state.print_service
+    success, error = ps.cancel_job(job_id)
     if not success:
         raise HTTPException(status_code=400, detail=error)
     return {'success': True}
@@ -117,11 +114,10 @@ async def upload_file(
     auth=Depends(require_auth),
 ):
     """Web 上传打印"""
-    config = request.app.state.app_config
-    queue_mgr = request.app.state.queue_manager
+    ps = request.app.state.print_service
     content = await file.read()
-    result = handle_file_upload(
-        file.filename, content, config, queue_mgr, source='web',
+    result = ps.submit_print(
+        file.filename, content, source='web',
         printer=printer, copies=copies, duplex=duplex,
         color=color, paper_size=paper_size,
     )
@@ -137,10 +133,9 @@ async def set_default_printer(
     body: dict,
     auth=Depends(require_auth),
 ):
-    config = request.app.state.app_config
+    ps = request.app.state.print_service
     printer = body.get('printer', '')
-    config.set('default_printer', printer)
-    config.save()
+    ps.set_default_printer(printer)
     logger.info(f'默认打印机已设置: {printer}')
     return {'success': True}
 
@@ -151,8 +146,8 @@ async def retry_job(
     request: Request,
     auth=Depends(require_auth),
 ):
-    queue_mgr = request.app.state.queue_manager
-    new_id, error = queue_mgr.retry_job(job_id)
+    ps = request.app.state.print_service
+    new_id, error = ps.retry_job(job_id)
     if error:
         raise HTTPException(status_code=400, detail=error)
     return {'success': True, 'new_job_id': new_id}
@@ -163,18 +158,13 @@ async def test_notification(
     request: Request,
     auth=Depends(require_auth),
 ):
+    ps = request.app.state.print_service
     config = request.app.state.app_config
     channel = config.get('notify_channel', 'disabled')
-    time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    dingtalk = getattr(request.app.state, 'dingtalk', None)
+    bark = getattr(request.app.state, 'bark', None)
     try:
-        if channel == 'dingtalk':
-            dt = getattr(request.app.state, 'dingtalk', None)
-            if dt:
-                dt.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}', level='info')
-        elif channel == 'bark':
-            bk = getattr(request.app.state, 'bark', None)
-            if bk:
-                bk.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}')
+        ps.test_notification(channel, dingtalk, bark)
     except Exception as e:
         logger.warning(f'发送测试通知失败: {e}')
         raise HTTPException(status_code=500, detail=f'发送失败: {e}')
@@ -186,8 +176,8 @@ async def cancel_all_queued(
     request: Request,
     auth=Depends(require_auth),
 ):
-    queue_mgr = request.app.state.queue_manager
-    count = queue_mgr.cancel_all_queued()
+    ps = request.app.state.print_service
+    count = ps.cancel_all_queued()
     return {'success': True, 'cancelled': count}
 
 

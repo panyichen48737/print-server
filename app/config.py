@@ -4,36 +4,41 @@ import sys
 import threading
 from typing import Any
 
-from dotenv import load_dotenv
 from loguru import logger
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-__all__ = ['Config', 'ConfigSchema', 'setup_logging']
 
-
-class ConfigSchema(BaseModel):
+class ConfigSchema(BaseSettings):
     """配置校验 schema，启动时验证所有字段"""
-    api_key: str = 'print-server-key-2026'
-    default_printer: str = ''
+
+    model_config = SettingsConfigDict(
+        env_file='.env',
+        env_file_encoding='utf-8',
+        extra='ignore',
+    )
+
+    api_key: str = Field('print-server-key-2026', validation_alias='PRINT_SERVER_API_KEY')
+    default_printer: str = Field('', validation_alias='PRINT_SERVER_DEFAULT_PRINTER')
     default_copies: int = Field(default=1, ge=1, le=999)
     default_duplex: bool = False
     default_color: bool = True
     excel_print_all_sheets: bool = True
     ppt_output_type: str = 'slides'
     paper_size: str = 'A4'
-    quark_api_key_id: str = ''
-    quark_api_key: str = ''
+    quark_api_key_id: str = Field('', validation_alias='QUARK_API_KEY_ID')
+    quark_api_key: str = Field('', validation_alias='QUARK_API_KEY')
     notify_channel: str = 'disabled'
     dingtalk_webhook: str = ''
     dingtalk_level: str = 'error'
     bark_key: str = ''
     bark_server: str = 'https://api.day.app'
-    port: int = Field(default=5000, ge=1024, le=65535)
-    log_level: str = 'INFO'
+    port: int = Field(default=5000, ge=1024, le=65535, validation_alias='PRINT_SERVER_PORT')
+    log_level: str = Field('INFO', validation_alias='PRINT_SERVER_LOG_LEVEL')
     worker_count: int = Field(default=2, ge=1, le=16)
     max_file_size_mb: int = Field(default=50, ge=1, le=500)
     job_retention_days: int = Field(default=30, ge=1, le=365)
-    print_dpi: int = Field(default=300, ge=72, le=1200)
+    print_dpi: int = Field(default=600, ge=72, le=1200)
     auto_rotate: bool = True
     word_timeout: int = Field(default=120, ge=30, le=600)
     allowed_extensions: list[str] = Field(default_factory=lambda: [
@@ -95,9 +100,6 @@ class Config:
     """配置管理，基于 Pydantic + 线程安全的热加载"""
 
     def __init__(self, config_path: str | None = None) -> None:
-        # 优先从 .env 文件加载环境变量
-        load_dotenv()
-
         if config_path is None:
             from app._paths import app_root
             config_path = os.path.join(app_root(), 'config.json')
@@ -107,26 +109,8 @@ class Config:
         self._errors: list[str] = []
         self.load()
 
-        # 环境变量覆盖配置项
-        env_overrides = {
-            'PRINT_SERVER_PORT': ('port', int),
-            'PRINT_SERVER_LOG_LEVEL': ('log_level', str),
-            'PRINT_SERVER_API_KEY': ('api_key', str),
-            'PRINT_SERVER_DEFAULT_PRINTER': ('default_printer', str),
-            'QUARK_API_KEY_ID': ('quark_api_key_id', str),
-            'QUARK_API_KEY': ('quark_api_key', str),
-        }
-        for env_key, (config_key, converter) in env_overrides.items():
-            env_val = os.environ.get(env_key)
-            if env_val is not None:
-                try:
-                    self.set(config_key, converter(env_val))
-                except (ValueError, TypeError):
-                    logger.warning(f'环境变量 {env_key}={env_val} 转换失败，跳过')
-
     @property
     def schema(self):
-        """类型安全的配置访问。优先使用 config.schema.field 而非 config.get('field')。"""
         return self._schema
 
     def load(self) -> None:
@@ -134,7 +118,13 @@ class Config:
             try:
                 with open(self.config_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                self._schema = ConfigSchema(**data)
+                try:
+                    env_schema = ConfigSchema()
+                    env_overrides = env_schema.model_dump(exclude_defaults=True)
+                    self._schema = ConfigSchema(**{**data, **env_overrides})
+                except Exception as e:
+                    logger.warning(f'环境变量解析失败，使用配置文件值: {e}')
+                    self._schema = ConfigSchema(**data)
                 self._errors = []
             except FileNotFoundError:
                 self._schema = ConfigSchema()
@@ -180,20 +170,17 @@ def setup_logging(log_dir: str | None = None, level: str = 'INFO') -> Any:
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, 'print_server.log')
 
-    # Remove default sink
     loguru.logger.remove()
 
-    # File sink with rotation
     loguru.logger.add(
         log_file,
-        rotation='00:00',  # rotate at midnight
-        retention=7,       # keep 7 days
+        rotation='00:00',
+        retention=7,
         encoding='utf-8',
         format='{time:YYYY-MM-DD HH:mm:ss} [{level}] {message}',
         level=level,
     )
 
-    # Console sink
     loguru.logger.add(
         sys.stderr,
         format='{time:HH:mm:ss} [{level}] {message}',

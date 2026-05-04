@@ -53,7 +53,7 @@ def handle_file_upload(
     if len(file_bytes) > max_size:
         return UploadResult(success=False, error=f'文件过大，最大 {config.schema.max_file_size_mb}MB')
 
-    safe_name = filename  # FastAPI's UploadFile already handles sanitization
+    safe_name = filename
     job_id = str(uuid.uuid4())
     jobs_dir = ensure_dir(app_root(), 'jobs')
     save_path = os.path.join(jobs_dir, f'{job_id}_{safe_name}')
@@ -61,10 +61,8 @@ def handle_file_upload(
     with open(save_path, 'wb') as f:
         f.write(file_bytes)
 
-    file_size = len(file_bytes)
-
     actual_job_id = queue_mgr.add_job(
-        filename, save_path, file_size, ext,
+        filename, save_path, len(file_bytes), ext,
         duplex=int(duplex) if duplex in ('0', '1') else None,
         color=int(color) if color in ('0', '1') else None,
         copies=int(copies) if copies and copies.isdigit() else None,

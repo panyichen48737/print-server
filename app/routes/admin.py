@@ -41,9 +41,9 @@ templates.env.globals['url_for'] = _url_for
 
 @admin_router.get('/', name='dashboard')
 async def dashboard(request: Request):
-    queue_mgr = request.app.state.queue_manager
-    stats = queue_mgr.get_stats()
-    recent_jobs = queue_mgr.get_jobs(limit=10, offset=0)
+    query_svc = request.app.state.job_query
+    stats = query_svc.get_stats()
+    recent_jobs = query_svc.list_jobs(limit=10, offset=0)
     return templates.TemplateResponse(
         'admin/dashboard.html',
         {'request': request, 'stats': stats, 'recent_jobs': recent_jobs}
@@ -59,17 +59,17 @@ async def history(
     date_from: str = '',
     date_to: str = '',
 ):
-    queue_mgr = request.app.state.queue_manager
+    query_svc = request.app.state.job_query
     per_page = 20
 
-    status_param = status if status else None
-    search_param = search if search else None
+    status_param = status or None
+    search_param = search or None
 
-    total = queue_mgr.count_jobs(status=status_param, search=search_param)
+    total = query_svc.count_jobs(status=status_param, search=search_param)
     total_pages = max(1, (total + per_page - 1) // per_page)
     offset = (page - 1) * per_page
 
-    jobs = queue_mgr.get_jobs(status=status_param, search=search_param, limit=per_page, offset=offset)
+    jobs = query_svc.list_jobs(status=status_param, search=search_param, limit=per_page, offset=offset)
 
     return templates.TemplateResponse('admin/history.html', {
         'request': request, 'jobs': jobs,
@@ -87,8 +87,8 @@ async def logs(request: Request):
 @admin_router.get('/settings', name='settings')
 async def settings_get(request: Request):
     config = request.app.state.app_config
-    queue_mgr = request.app.state.queue_manager
-    printers = queue_mgr.get_printers()
+    pd = request.app.state.printer_discovery
+    printers = pd.list_printers()
     return templates.TemplateResponse(
         'admin/settings.html',
         {'request': request, 'config': config, 'printers': printers}
@@ -158,8 +158,8 @@ async def settings_post(
 @admin_router.get('/printers', name='printers')
 async def printers(request: Request):
     config = request.app.state.app_config
-    queue_mgr = request.app.state.queue_manager
-    printer_list = queue_mgr.get_printers()
+    pd = request.app.state.printer_discovery
+    printer_list = pd.list_printers()
     return templates.TemplateResponse(
         'admin/printers.html',
         {'request': request, 'config': config, 'printers': printer_list}
@@ -169,8 +169,8 @@ async def printers(request: Request):
 @admin_router.get('/upload', name='upload_page')
 async def upload_page(request: Request):
     config = request.app.state.app_config
-    queue_mgr = request.app.state.queue_manager
-    printer_list = queue_mgr.get_printers()
+    pd = request.app.state.printer_discovery
+    printer_list = pd.list_printers()
     return templates.TemplateResponse('admin/upload.html', {
         'request': request,
         'config': config,
@@ -182,8 +182,8 @@ async def upload_page(request: Request):
 @admin_router.get('/api/stats')
 async def api_stats(request: Request):
     """HTMX: 返回统计面板 HTML 片段"""
-    queue_mgr = request.app.state.queue_manager
-    stats = queue_mgr.get_stats()
+    query_svc = request.app.state.job_query
+    stats = query_svc.get_stats()
     return templates.TemplateResponse('admin/_stats.html', {
         'request': request, 'stats': stats,
     })
@@ -192,19 +192,13 @@ async def api_stats(request: Request):
 @admin_router.post('/api/test_notification')
 async def admin_test_notification(request: Request):
     """HTMX: 发送测试通知，返回 HTML 片段"""
+    ps = request.app.state.print_service
     config = request.app.state.app_config
     channel = config.schema.notify_channel
-    from datetime import datetime
-    time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    dingtalk = getattr(request.app.state, 'dingtalk', None)
+    bark = getattr(request.app.state, 'bark', None)
     try:
-        if channel == 'dingtalk':
-            dt = getattr(request.app.state, 'dingtalk', None)
-            if dt:
-                dt.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}', level='info')
-        elif channel == 'bark':
-            bk = getattr(request.app.state, 'bark', None)
-            if bk:
-                bk.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}')
+        ps.test_notification(channel, dingtalk, bark)
         return HTMLResponse(f'<span style="color: var(--text-success);">✓ 测试通知已发送 ({channel})</span>')
     except Exception as e:
         return HTMLResponse(f'<span style="color: var(--text-danger);">✗ 发送失败: {e}</span>')
@@ -213,11 +207,11 @@ async def admin_test_notification(request: Request):
 @admin_router.post('/api/restart')
 async def api_restart(request: Request, auth=Depends(require_auth)):
     """重启后台服务——通过 os._exit(1) 让守护进程管理器自动重启"""
-    import os as _os
+    import os
     import threading
     import time
     def _delayed_exit():
         time.sleep(1)
-        _os._exit(1)
+        os._exit(1)
     threading.Thread(target=_delayed_exit, daemon=True).start()
     return {'success': True}

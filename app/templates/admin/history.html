@@ -54,14 +54,14 @@
                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
             </svg>
             <span>已选择 <span class="bulk-count" id="bulkCount">0</span> 个任务</span>
-            <button class="btn btn-danger btn-sm" onclick="bulkCancel()">
+            <button class="btn btn-danger btn-sm" onclick="bulkCancel(this)">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
                 批量取消
             </button>
-            <button class="btn btn-primary btn-sm" onclick="bulkRetry()">
+            <button class="btn btn-primary btn-sm" onclick="bulkRetry(this)">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <polyline points="1 4 1 10 7 10"></polyline>
                     <polyline points="23 20 23 14 17 14"></polyline>
@@ -79,7 +79,7 @@
         </div>
 
         <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
-            <button class="btn-danger btn-sm" id="cancelAllBtn" onclick="cancelAllQueued()" style="display: none;">
+            <button class="btn-danger btn-sm" id="cancelAllBtn" onclick="cancelAllQueued(this)" style="display: none;">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -165,7 +165,7 @@
                             {% if job.status == 'failed' and job.error_message == '用户取消' %}
                             <span class="badge badge-cancelled">已取消</span>
                             {% else %}
-                            <span class="badge badge-{{ job.status }}">
+                            <span class="badge badge-{{ job.status }}"{% if job.status == 'failed' and job.error_message %} data-tooltip="{{ job.error_message }}"{% endif %}>
                                 <span class="status-dot-sm {{ job.status }}"></span>
                                 {% if job.status == 'queued' %}排队中
                                 {% elif job.status == 'printing' %}打印中
@@ -182,7 +182,7 @@
                         <td class="td-muted">{{ job.completed_at or '-' }}</td>
                         <td>
                             {% if job.status == 'failed' and job.error_message != '用户取消' %}
-                            <button class="btn btn-primary btn-sm" onclick="retryJob('{{ job.id }}')">
+                            <button class="btn btn-primary btn-sm" onclick="retryJob('{{ job.id }}', this)">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                     <polyline points="1 4 1 10 7 10"></polyline>
                                     <polyline points="23 20 23 14 17 14"></polyline>
@@ -191,7 +191,7 @@
                                 重试
                             </button>
                             {% elif job.status in ('queued', 'printing') %}
-                            <button class="btn-danger btn-sm" onclick="cancelJob('{{ job.id }}')">
+                            <button class="btn-danger btn-sm" onclick="cancelJob('{{ job.id }}', this)">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                     <line x1="18" y1="6" x2="6" y2="18"></line>
                                     <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -273,9 +273,9 @@ function goToPage(p) {
 }
 
 // ── Single job actions ──
-function retryJob(jobId) {
+function retryJob(jobId, btn) {
     confirmAction('确定要重新打印这个任务吗？', function() {
-        fetch('/admin/api/retry/' + jobId, { method: 'POST' })
+        withLoading(btn, fetch('/admin/api/retry/' + jobId, { method: 'POST' })
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
@@ -285,13 +285,14 @@ function retryJob(jobId) {
                     showToast('操作失败: ' + (data.error || '未知错误'), 'error');
                 }
             })
-            .catch(function() { showToast('请求失败', 'error'); });
+            .catch(function() { showToast('请求失败', 'error'); })
+        );
     });
 }
 
-function cancelJob(jobId) {
+function cancelJob(jobId, btn) {
     confirmAction('确定要取消这个任务吗？', function() {
-        fetch('/admin/api/cancel/' + jobId, { method: 'POST' })
+        withLoading(btn, fetch('/admin/api/cancel/' + jobId, { method: 'POST' })
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
@@ -301,21 +302,24 @@ function cancelJob(jobId) {
                     showToast('操作失败: ' + (data.error || '未知错误'), 'error');
                 }
             })
-            .catch(function() { showToast('请求失败', 'error'); });
+            .catch(function() { showToast('请求失败', 'error'); })
+        );
     });
 }
 
-function cancelAllQueued() {
+function cancelAllQueued(btn) {
     confirmAction('确定取消所有排队中的任务？', function() {
-        fetch('/admin/api/cancel_all_queued', { method: 'POST' })
+        withLoading(btn || document.getElementById('cancelAllBtn'), fetch('/admin/api/cancel_all_queued', { method: 'POST' })
             .then(r => r.json())
             .then(d => {
                 var el = document.getElementById('cancelAllResult');
                 el.style.display = 'inline';
                 el.textContent = '已取消 ' + d.cancelled + ' 个任务';
                 el.style.color = '';
+                el.setAttribute('data-auto-dismiss', '4000');
                 setTimeout(function() { location.reload(); }, 2000);
-            });
+            })
+        );
     });
 }
 
@@ -324,8 +328,15 @@ function toggleSelectAll() {
     var checked = document.getElementById('selectAll').checked;
     document.querySelectorAll('.job-checkbox').forEach(function(cb) {
         cb.checked = checked;
+        updateRowHighlight(cb);
     });
     updateBulkBar();
+}
+
+function updateRowHighlight(cb) {
+    var tr = cb.closest('tr');
+    if (!tr) return;
+    tr.classList.toggle('selected', cb.checked);
 }
 
 function updateBulkBar() {
@@ -340,6 +351,13 @@ function updateBulkBar() {
     }
 }
 
+// Highlight row on checkbox click
+document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('job-checkbox')) {
+        updateRowHighlight(e.target);
+    }
+});
+
 function getSelectedJobIds() {
     var ids = [];
     document.querySelectorAll('.job-checkbox:checked').forEach(function(cb) {
@@ -348,33 +366,37 @@ function getSelectedJobIds() {
     return ids;
 }
 
-function bulkCancel() {
+function bulkCancel(btn) {
     var ids = getSelectedJobIds();
     if (ids.length === 0) return;
     confirmAction('确定取消选中的 ' + ids.length + ' 个任务？', function() {
-        var promises = ids.map(function(id) {
-            return fetch('/admin/api/cancel/' + id, { method: 'POST' }).then(r => r.json());
-        });
-        Promise.all(promises).then(function(results) {
-            var ok = results.filter(function(r) { return r.success; }).length;
-            showToast('已取消 ' + ok + ' 个任务', 'success');
-            setTimeout(function() { location.reload(); }, 800);
-        });
+        withLoading(btn || document.querySelector('.bulk-bar .btn-danger'), (function() {
+            var promises = ids.map(function(id) {
+                return fetch('/admin/api/cancel/' + id, { method: 'POST' }).then(r => r.json());
+            });
+            return Promise.all(promises).then(function(results) {
+                var ok = results.filter(function(r) { return r.success; }).length;
+                showToast('已取消 ' + ok + ' 个任务', 'success');
+                setTimeout(function() { location.reload(); }, 800);
+            });
+        })());
     });
 }
 
-function bulkRetry() {
+function bulkRetry(btn) {
     var ids = getSelectedJobIds();
     if (ids.length === 0) return;
     confirmAction('确定重新打印选中的 ' + ids.length + ' 个失败任务？', function() {
-        var promises = ids.map(function(id) {
-            return fetch('/admin/api/retry/' + id, { method: 'POST' }).then(r => r.json());
-        });
-        Promise.all(promises).then(function(results) {
-            var ok = results.filter(function(r) { return r.success; }).length;
-            showToast('已重试 ' + ok + ' 个任务', 'success');
-            setTimeout(function() { location.reload(); }, 800);
-        });
+        withLoading(btn || document.querySelector('.bulk-bar .btn-primary'), (function() {
+            var promises = ids.map(function(id) {
+                return fetch('/admin/api/retry/' + id, { method: 'POST' }).then(r => r.json());
+            });
+            return Promise.all(promises).then(function(results) {
+                var ok = results.filter(function(r) { return r.success; }).length;
+                showToast('已重试 ' + ok + ' 个任务', 'success');
+                setTimeout(function() { location.reload(); }, 800);
+            });
+        })());
     });
 }
 

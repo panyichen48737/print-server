@@ -7,7 +7,7 @@ import shutil
 import datetime
 import queue as _queue
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
-from typing import Any, Optional
+from typing import Any
 from loguru import logger
 
 
@@ -22,6 +22,7 @@ class JobExecutor:
         self._print_engine = print_engine
         self._is_cancelled = get_cancelled_fn
         self._word_lock = word_lock
+        self._pool = ThreadPoolExecutor(max_workers=1)
 
     def execute(self, job_id: str, worker_id: int, attempt: int = 0) -> tuple[bool, str | None]:
         """执行单个打印任务"""
@@ -71,6 +72,7 @@ class JobExecutor:
     def _make_temp_copy(self, original_path, filename):
         suffix = os.path.splitext(filename)[1]
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+        tmp.close()
         shutil.copy2(original_path, tmp.name)
         return tmp.name
 
@@ -84,9 +86,8 @@ class JobExecutor:
         }
         timeout = self.config.get('job_timeout', 300)
         deadline = time.monotonic() + timeout
-        pool = ThreadPoolExecutor(max_workers=1)
         try:
-            fut = pool.submit(
+            fut = self._pool.submit(
                 self._print_engine.print_file,
                 temp_path, job['file_type'], job_id, self._word_lock, print_params
             )
@@ -103,8 +104,6 @@ class JobExecutor:
                         return 'cancelled'
         except FuturesTimeout:
             return 'timeout'
-        finally:
-            pool.shutdown(wait=False)
 
     def _finalize(self, job_id, original_path, temp_path, result, job):
         if result == 'cancelled':
@@ -162,7 +161,7 @@ class JobWorker:
             self._cancelled_ids.discard(job_id)
 
     def start(self):
-        self._thread = threading.Thread(target=self._run, daemon=False)
+        self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
         return self._thread
 
@@ -173,22 +172,24 @@ class JobWorker:
     def _run(self):
         import pythoncom
         pythoncom.CoInitialize()
-        logger.info(f'工作线程 {self.worker_id} 已启动')
-        while not self._stop_evt.is_set():
-            try:
-                job_id = self._queue.get(timeout=1)
-                if self._is_cancelled(job_id):
-                    self._clear_cancelled(job_id)
+        try:
+            logger.info(f'工作线程 {self.worker_id} 已启动')
+            while not self._stop_evt.is_set():
+                try:
+                    job_id = self._queue.get(timeout=1)
+                    if self._is_cancelled(job_id):
+                        self._clear_cancelled(job_id)
+                        self._queue.task_done()
+                        continue
+                    self._process(job_id)
                     self._queue.task_done()
+                except _queue.Empty:
                     continue
-                self._process(job_id)
-                self._queue.task_done()
-            except _queue.Empty:
-                continue
-            except Exception as e:
-                logger.error(f'工作线程 {self.worker_id} 异常: {e}')
-        pythoncom.CoUninitialize()
-        logger.info(f'工作线程 {self.worker_id} 已停止')
+                except Exception as e:
+                    logger.error(f'工作线程 {self.worker_id} 异常: {e}')
+        finally:
+            pythoncom.CoUninitialize()
+            logger.info(f'工作线程 {self.worker_id} 已停止')
 
     def _notify_all(self, event_type, filename, source='api', **kwargs):
         if source == 'ios':
@@ -216,10 +217,10 @@ class JobWorker:
     def _process(self, job_id):
         max_retries = self._config.get('auto_retry_count', 0)
         error_msg = ''
+        job = self._repo.get_job(job_id)
+        if not job or self._is_cancelled(job_id):
+            return
         for attempt in range(max_retries + 1):
-            job = self._repo.get_job(job_id)
-            if not job or self._is_cancelled(job_id):
-                return
             success, error_msg = self._executor.execute(job_id, self.worker_id, attempt)
             if success:
                 return
@@ -229,6 +230,5 @@ class JobWorker:
                 self._repo.increment_retry(job_id)
                 continue
             break
-        job = self._repo.get_job(job_id)
         if job:
             self._notify_all('failed', job['filename'], source=job.get('source', 'api'), error=error_msg)

@@ -9,12 +9,10 @@ from loguru import logger
 from app.printing.repository import JobRepository
 from app.printing.worker import JobWorker
 from app.services.notifier import Notifier
-from app.services.heartbeat import HeartbeatMonitor
 
 
 class QueueManager:
-    def __init__(self, config: Any, event_bus: Any = None,
-                 db_path: str | None = None,
+    def __init__(self, config: Any, repo: JobRepository, event_bus: Any = None,
                  notifier: Notifier | None = None) -> None:
         self.config = config
         self._event_bus = event_bus
@@ -30,8 +28,8 @@ class QueueManager:
         self._excel_lock = threading.Lock()
         self._ppt_lock = threading.Lock()
 
-        self._repo = JobRepository(db_path)
-        self._heartbeat: HeartbeatMonitor | None = None
+        self._repo = repo
+        self._heartbeat = None
 
     def _is_cancelled(self, job_id: str) -> bool:
         with self._cancelled_lock:
@@ -77,16 +75,6 @@ class QueueManager:
     def get_stats(self) -> dict:
         return self._repo.get_stats()
 
-    def get_printers(self) -> list[str]:
-        """获取 Windows 可用打印机列表"""
-        try:
-            import win32print
-            printers = win32print.EnumPrinters(2)
-            return [p[2] for p in printers]
-        except Exception as e:
-            logger.error(f'获取打印机列表失败: {e}')
-            return []
-
     def word_lock(self) -> threading.Lock:
         return self._word_lock
 
@@ -109,6 +97,7 @@ class QueueManager:
             self._workers.append(worker)
         logger.info(f'启动 {count} 个工作线程')
 
+        from app.services.heartbeat import HeartbeatMonitor
         self._heartbeat = HeartbeatMonitor(
             interval=30,
             cleanup_fn=lambda: self.cleanup_old_jobs(),
@@ -153,21 +142,19 @@ class QueueManager:
 
         self._mark_cancelled(job_id)
 
-        if job['status'] == 'queued':
-            self.update_status(job_id, 'failed', '用户取消')
-            self._emit_job_status(job, 'failed', '用户取消')
-        else:
-            if self._print_engine:
-                self._print_engine.cancel_active_job(job_id)
-            self.update_status(job_id, 'failed', '用户取消')
-            self._emit_job_status(job, 'failed', '用户取消')
-            source = job.get('source', 'api')
-            if source != 'ios' and self._notifier:
-                try:
-                    time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    self._notifier.notify_job_cancelled(job['filename'], time_str)
-                except Exception:
-                    pass
+        if job['status'] == 'printing' and self._print_engine:
+            self._print_engine.cancel_active_job(job_id)
+
+        self.update_status(job_id, 'failed', '用户取消')
+        self._emit_job_status(job, 'failed', '用户取消')
+
+        source = job.get('source', 'api')
+        if source != 'ios' and job['status'] == 'printing' and self._notifier:
+            try:
+                time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                self._notifier.notify_job_cancelled(job['filename'], time_str)
+            except Exception:
+                pass
 
         self._safe_remove(job.get('filepath'), '取消任务文件')
         logger.info(f'任务已取消: {job_id}')
@@ -175,16 +162,22 @@ class QueueManager:
 
     def cancel_all_queued(self) -> int:
         jobs = self.get_jobs_by_status('queued')
-        count = 0
-        for job in jobs:
-            if not self._is_cancelled(job['id']):
-                self._mark_cancelled(job['id'])
-                self.update_status(job['id'], 'failed', '用户取消')
-                self._emit_job_status(job, 'failed', '用户取消')
-                self._safe_remove(job.get('filepath'), '取消任务文件')
-                count += 1
-        logger.info(f'批量取消完成: {count} 个任务')
-        return count
+        to_cancel = [j for j in jobs if not self._is_cancelled(j['id'])]
+        if not to_cancel:
+            return 0
+
+        ids = [j['id'] for j in to_cancel]
+        for jid in ids:
+            self._mark_cancelled(jid)
+
+        self._repo.batch_update_status(ids, 'failed', '用户取消')
+
+        for job in to_cancel:
+            self._emit_job_status(job, 'failed', '用户取消')
+            self._safe_remove(job.get('filepath'), '取消任务文件')
+
+        logger.info(f'批量取消完成: {len(to_cancel)} 个任务')
+        return len(to_cancel)
 
     def retry_job(self, job_id: str) -> tuple[str | None, str | None]:
         """重试失败的任务"""

@@ -1,7 +1,7 @@
 from typing import Any
 
 from loguru import logger
-import requests
+import httpx
 
 from app.services.notifier import Notifier, format_error_message
 
@@ -19,7 +19,8 @@ class BarkNotifier(Notifier):
         server = self.config.get('bark_server', 'https://api.day.app')
         try:
             payload = {'title': title, 'body': message, 'group': 'PrintServer'}
-            resp = requests.post(f'{server}/{key}', json=payload, timeout=10)
+            with httpx.Client() as client:
+                resp = client.post(f'{server}/{key}', json=payload, timeout=10)
             if resp.status_code == 200:
                 logger.info('Bark 通知发送成功')
             else:

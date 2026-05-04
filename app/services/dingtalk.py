@@ -1,7 +1,7 @@
 from typing import Any
 
 from loguru import logger
-import requests
+import httpx
 
 from app.services.notifier import Notifier, format_error_message
 
@@ -28,7 +28,8 @@ class DingTalk(Notifier):
                     'content': content
                 }
             }
-            resp = requests.post(webhook, json=payload, timeout=10)
+            with httpx.Client() as client:
+                resp = client.post(webhook, json=payload, timeout=10)
             if resp.status_code == 200:
                 logger.info('钉钉通知发送成功')
             else:
