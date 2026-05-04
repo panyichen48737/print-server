@@ -19,7 +19,8 @@ os.chdir(root)
 if not getattr(sys, 'frozen', False) and not getattr(sys, '__compiled__', False):
     sys.path.insert(0, root)
 
-from app.config import Config, setup_logging
+from app.config import Config
+from app.logging import setup_logging
 from app.bootstrap import bootstrap
 
 

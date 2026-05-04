@@ -17,7 +17,8 @@ from app._paths import app_root
 
 sys.path.insert(0, app_root())
 
-from app.config import Config, setup_logging
+from app.config import Config
+from app.logging import setup_logging
 from .log_handler import LOG_BUFFER, TUILogHandler
 from .daemon_manager import start_daemon, stop_daemon, read_daemon_status, is_daemon_alive, restart_daemon
 from .autostart import install_autostart, uninstall_autostart, is_autostart_installed
@@ -42,7 +43,7 @@ def main() -> None:
 
     if args.start:
         config = Config()
-        setup_logging(level=config.schema.log_level)
+        setup_logging(level=config.log_level)
         ok, msg = start_daemon()
         print(msg)
         return 0 if ok else 1
@@ -78,7 +79,7 @@ def main() -> None:
 
     # 默认：启动控制台 TUI
     config = Config()
-    setup_logging(level=config.schema.log_level)
+    setup_logging(level=config.log_level)
 
     tui_handler = TUILogHandler()
     logger.add(tui_handler, format='{time:HH:mm:ss} {level} {message}', level='INFO')
