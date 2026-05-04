@@ -9,6 +9,7 @@
 import sys
 import os
 import argparse
+import threading
 from typing import Any
 
 from loguru import logger
@@ -84,14 +85,8 @@ def main() -> None:
     tui_handler = TUILogHandler()
     logger.add(tui_handler, format='{time:HH:mm:ss} {level} {message}', level='INFO')
 
-    # 自动启动后台守护进程
-    ok, msg = start_daemon()
-    logger.info(msg)
-
-    # 首次启动自动注册开机自启
-    if not is_autostart_installed():
-        ok2, msg2 = install_autostart()
-        logger.info(msg2)
+    # 后台启动守护进程（不阻塞 TUI 启动）
+    threading.Thread(target=_start_daemon_background, daemon=True).start()
 
     try:
         TUI().run()
@@ -105,6 +100,15 @@ def main() -> None:
         print('  python -m console --stop      停止服务')
         print('  python -m console --start     启动服务')
         print('  或重新打开控制台管理')
+
+
+def _start_daemon_background():
+    """后台线程：启动守护进程 + 首次自动注册开机自启"""
+    ok, msg = start_daemon()
+    logger.info(msg)
+    if not is_autostart_installed():
+        ok2, msg2 = install_autostart()
+        logger.info(msg2)
 
 
 if __name__ == '__main__':
