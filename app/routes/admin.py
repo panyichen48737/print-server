@@ -145,11 +145,11 @@ def upload_file():
     """Web 上传打印"""
     config = get_config()
     queue_mgr = get_queue_manager()
-    job_id, error = handle_file_upload(request, config, queue_mgr, source='web')
-    if error:
-        return error
-    logger.info(f'Web 上传成功: job_id={job_id}')
-    return jsonify({'success': True, 'job_id': job_id})
+    result = handle_file_upload(request, config, queue_mgr, source='web')
+    if not result['success']:
+        return jsonify({'success': False, 'error': result['error']}), 400
+    logger.info(f'Web 上传成功: job_id={result["job_id"]}')
+    return jsonify({'success': True, 'job_id': result['job_id']})
 
 
 @admin_bp.route('/api/set_default_printer', methods=['POST'])

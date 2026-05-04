@@ -21,10 +21,10 @@ def print_file():
     """提交打印任务"""
     config = get_config()
     queue_mgr = get_queue_manager()
-    job_id, error = handle_file_upload(request, config, queue_mgr, source='ios')
-    if error:
-        return error
-    return jsonify({'status': 'queued', 'job_id': job_id}), 200
+    result = handle_file_upload(request, config, queue_mgr, source='ios')
+    if not result['success']:
+        return jsonify({'success': False, 'error': result['error']}), 400
+    return jsonify({'status': 'queued', 'job_id': result['job_id']}), 200
 
 
 @api_bp.route('/status/<job_id>', methods=['GET'])
