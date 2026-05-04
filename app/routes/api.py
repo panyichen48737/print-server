@@ -13,6 +13,20 @@ from app.utils import format_time
 api_router = APIRouter()
 
 
+async def _handle_upload(request, file, printer, copies, duplex, color, paper_size, source):
+    config = request.app.state.app_config
+    job_queue = request.app.state.job_queue
+    content = await file.read()
+    result = handle_file_upload(
+        file.filename, content, config, job_queue,
+        source=source, printer=printer, copies=copies,
+        duplex=duplex, color=color, paper_size=paper_size,
+    )
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.error)
+    return {'success': True, 'job_id': result.job_id}
+
+
 @api_router.get('/health')
 async def health(request: Request):
     return {
@@ -48,17 +62,7 @@ async def print_file(
     auth=Depends(require_auth),
 ):
     """提交打印任务（iOS 端使用）"""
-    config = request.app.state.app_config
-    job_queue = request.app.state.job_queue
-    content = await file.read()
-    result = handle_file_upload(
-        file.filename, content, config, job_queue,
-        source='ios', printer=printer, copies=copies,
-        duplex=duplex, color=color, paper_size=paper_size,
-    )
-    if not result.success:
-        raise HTTPException(status_code=400, detail=result.error)
-    return {'success': True, 'job_id': result.job_id}
+    return await _handle_upload(request, file, printer, copies, duplex, color, paper_size, 'ios')
 
 
 @api_router.get('/status/{job_id}')
@@ -116,19 +120,9 @@ async def upload_file(
     auth=Depends(require_auth),
 ):
     """Web 上传打印"""
-    config = request.app.state.app_config
-    job_queue = request.app.state.job_queue
-    content = await file.read()
-    result = handle_file_upload(
-        file.filename, content, config, job_queue,
-        source='web',
-        printer=printer, copies=copies, duplex=duplex,
-        color=color, paper_size=paper_size,
-    )
-    if not result.success:
-        raise HTTPException(status_code=400, detail=result.error)
-    logger.info(f'Web 上传成功: job_id={result.job_id}')
-    return {'success': True, 'job_id': result.job_id}
+    result = await _handle_upload(request, file, printer, copies, duplex, color, paper_size, 'web')
+    logger.info(f'Web 上传成功: job_id={result["job_id"]}')
+    return result
 
 
 @api_router.post('/set_default_printer')

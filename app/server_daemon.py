@@ -3,6 +3,8 @@ import os
 import sys
 import json
 import ssl
+import time
+import urllib.request
 import argparse
 import threading
 from contextlib import asynccontextmanager
@@ -32,10 +34,6 @@ def write_status(status, **extra):
 
 
 def _health_check_loop(app, config, logger):
-    import urllib.request
-    import time
-    from app._paths import app_root
-
     port = config.get('port', 5000)
     cert_path = Path(app_root()) / 'certs' / 'cert.pem'
     proto = 'https' if cert_path.exists() else 'http'
