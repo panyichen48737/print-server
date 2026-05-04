@@ -24,6 +24,9 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/panyichen48737/print-server"
 
+[project.optional-dependencies]
+dev = ["pytest>=9", "pytest-cov>=7", "httpx>=0.28"]
+
 [project.scripts]
 ios-print-server = "console:main"
 

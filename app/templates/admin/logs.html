@@ -231,7 +231,7 @@
     });
 
     // Initial load from REST API
-    function fetchLogs() {
+    setTimeout(function() {
         fetch('/admin/api/logs?lines=200')
             .then(function(r) { return r.json(); })
             .then(function(data) {
@@ -242,16 +242,7 @@
                 }
             })
             .catch(function() {});
-    }
-
-    setTimeout(fetchLogs, 500);
-
-    // Fallback polling
-    var pollTimer = setTimeout(function() {
-        if (allLogs.length === 0) {
-            setInterval(fetchLogs, 3000);
-        }
-    }, 5000);
+    }, 500);
 })();
 </script>
 {% endblock %}

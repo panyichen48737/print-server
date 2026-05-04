@@ -1,4 +1,5 @@
 import os
+from collections import deque
 from loguru import logger
 from jinja2 import pass_context
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Form
@@ -6,9 +7,9 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.auth import require_auth
-from app._paths import data_root
+from app._paths import app_root, data_root
 from app.utils import safe_int as _safe_int, format_time
-from app.schemas import AdminActionResponse, SettingsResponse
+from app.schemas import AdminActionResponse, LogsResponse, SettingsResponse
 
 admin_router = APIRouter()
 templates = Jinja2Templates(directory=os.path.join(data_root(), 'app', 'templates'))
@@ -40,7 +41,7 @@ async def dashboard(request: Request):
     stats = repo.get_stats()
     recent_jobs = repo.get_jobs(limit=10, offset=0)
     return templates.TemplateResponse(
-        'admin/dashboard.html',
+        request, 'admin/dashboard.html',
         {'request': request, 'stats': stats, 'recent_jobs': recent_jobs}
     )
 
@@ -66,7 +67,7 @@ async def history(
 
     jobs = repo.get_jobs(status=status_param, search=search_param, limit=per_page, offset=offset)
 
-    return templates.TemplateResponse('admin/history.html', {
+    return templates.TemplateResponse(request, 'admin/history.html', {
         'request': request, 'jobs': jobs,
         'total': total, 'page': page, 'total_pages': total_pages,
         'status_filter': status, 'search': search,
@@ -76,7 +77,7 @@ async def history(
 
 @admin_router.get('/logs', name='logs')
 async def logs(request: Request):
-    return templates.TemplateResponse('admin/logs.html', {'request': request})
+    return templates.TemplateResponse(request, 'admin/logs.html', {'request': request})
 
 
 @admin_router.get('/settings', name='settings')
@@ -85,7 +86,7 @@ async def settings_get(request: Request):
     monitor = request.app.state.printer_monitor
     printers = list(monitor.get_all_statuses().keys())
     return templates.TemplateResponse(
-        'admin/settings.html',
+        request, 'admin/settings.html',
         {'request': request, 'config': config, 'printers': printers}
     )
 
@@ -155,7 +156,7 @@ async def printers(request: Request):
     monitor = request.app.state.printer_monitor
     printer_list = list(monitor.get_all_statuses().keys())
     return templates.TemplateResponse(
-        'admin/printers.html',
+        request, 'admin/printers.html',
         {'request': request, 'config': config, 'printers': printer_list}
     )
 
@@ -165,7 +166,7 @@ async def upload_page(request: Request):
     config = request.app.state.app_config
     monitor = request.app.state.printer_monitor
     printer_list = list(monitor.get_all_statuses().keys())
-    return templates.TemplateResponse('admin/upload.html', {
+    return templates.TemplateResponse(request, 'admin/upload.html', {
         'request': request,
         'config': config,
         'printers': printer_list,
@@ -177,9 +178,23 @@ async def upload_page(request: Request):
 async def api_stats(request: Request):
     """HTMX: 返回统计面板 HTML 片段"""
     stats = request.app.state.job_repo.get_stats()
-    return templates.TemplateResponse('admin/_stats.html', {
+    return templates.TemplateResponse(request, 'admin/_stats.html', {
         'request': request, 'stats': stats,
     })
+
+
+@admin_router.get('/api/logs', response_model=LogsResponse)
+async def admin_api_logs(request: Request, lines: int = 50):
+    """获取最新日志行"""
+    log_file = os.path.join(app_root(), 'logs', 'print_server.log')
+    try:
+        with open(log_file, 'r', encoding='utf-8') as f:
+            last_lines = deque(f, maxlen=lines)
+        return {'lines': list(last_lines)}
+    except FileNotFoundError:
+        return {'lines': []}
+    except Exception as e:
+        return {'lines': [f'[ERROR] 读取日志失败: {e}']}
 
 
 @admin_router.post('/api/test_notification')

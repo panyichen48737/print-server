@@ -30,10 +30,17 @@ def _ensure_single_instance() -> None:
     """Windows 命名互斥体：防止启动多个控制台窗口"""
     import ctypes
     mutex = ctypes.windll.kernel32.CreateMutexW(None, True, 'iOSPrintServerConsole')
-    if mutex and ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+    err = ctypes.windll.kernel32.GetLastError()
+    if not mutex:
+        print(f'[WARN] 无法创建互斥体 (error={err})，继续启动')
+        return
+    if err == 183:  # ERROR_ALREADY_EXISTS
         ctypes.windll.kernel32.CloseHandle(mutex)
         print('控制台已在运行')
         sys.exit(0)
+    # err == 0: 新创建，正常持有；其他异常值记录日志
+    if err != 0:
+        print(f'[WARN] 互斥体状态异常 (error={err})')
 
 
 def main() -> None:

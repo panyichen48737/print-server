@@ -3,7 +3,7 @@
 {% block page_title %}仪表盘{% endblock %}
 
 {% block content %}
-<div id="stats-panel" hx-get="/admin/api/stats" hx-trigger="every 10s" hx-swap="outerHTML" hx-indicator="#stats-loading">
+<div id="stats-panel">
 <div class="stats-grid">
     <div class="stat-card color-blue" title="当前排队等待打印的任务数">
         <div class="d-flex justify-content-between align-items-start">
@@ -91,9 +91,7 @@
         </div>
     </div>
 </div>
-<div id="stats-loading" class="htmx-indicator" style="text-align:center;padding:8px 0;transition:opacity 0.15s;">
-    <span class="spinner-sm"></span>
-</div>
+
 <div class="card mb-4">
     <div class="card-header">
         <span>打印机状态</span>
@@ -209,18 +207,36 @@
 
 {% block scripts %}
 <script>
-// Pulse stat values when HTMX swaps new data
-document.addEventListener('htmx:afterSwap', function(evt) {
-    if (evt.detail.target && evt.detail.target.id === 'stats-panel') {
-        var values = evt.detail.target.querySelectorAll('.stat-value');
-        values.forEach(function(v) {
-            v.classList.remove('pulse');
-            // Force reflow so the animation re-triggers
-            void v.offsetWidth;
-            v.classList.add('pulse');
-        });
+// SSE-driven stats refresh — 任务状态变更时拉取最新统计
+(function() {
+    var panel = document.getElementById('stats-panel');
+    if (!panel) return;
+
+    function refreshStats() {
+        fetch('/admin/api/stats')
+            .then(function(r) { return r.text(); })
+            .then(function(html) {
+                panel.innerHTML = html;
+                // Pulse animation on the new values
+                var values = panel.querySelectorAll('.stat-value');
+                values.forEach(function(v) {
+                    v.classList.remove('pulse');
+                    void v.offsetWidth;
+                    v.classList.add('pulse');
+                });
+            })
+            .catch(function() {});
     }
-});
+
+    // Pulse initial values (already server-rendered)
+    var initValues = panel.querySelectorAll('.stat-value');
+    initValues.forEach(function(v) {
+        v.classList.add('pulse');
+    });
+
+    // Refresh on any job_status event
+    onWSMessage('job_status', refreshStats);
+})();
 
 // 打印机状态实时更新
 (function() {

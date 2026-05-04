@@ -35,9 +35,8 @@ def bootstrap(config: Config, lifespan=None):
 
     # 日志实时推送
     from app.services.log_broadcaster import LogBroadcaster
-    event_bus = app.state.event_bus
     broadcaster = app.state.sse
-    logger.add(LogBroadcaster(event_bus), format='{message}', level='INFO')
+    logger.add(LogBroadcaster(broadcaster), format='{message}', level='INFO')
 
     # COM 互斥锁 — 确保 Office COM 组件串行访问
     word_lock = threading.Lock()
@@ -45,10 +44,10 @@ def bootstrap(config: Config, lifespan=None):
     ppt_lock = threading.Lock()
 
     repo = JobRepository()
-    job_queue = JobQueue(repo, event_bus=event_bus)
-    worker_pool = WorkerPool(config, event_bus=event_bus, word_lock=word_lock)
+    job_queue = JobQueue(repo, event_bus=broadcaster)
+    worker_pool = WorkerPool(config, event_bus=broadcaster, word_lock=word_lock)
     print_engine = PrintEngine(config, excel_lock=excel_lock, ppt_lock=ppt_lock)
-    printer_monitor = PrinterMonitor(broadcaster=event_bus)
+    printer_monitor = PrinterMonitor(broadcaster=broadcaster)
 
     # 心跳：定时清理过期任务 + 恢复卡住任务
     from app.services.heartbeat import HeartbeatMonitor

@@ -94,7 +94,7 @@ def start_daemon() -> tuple[bool, str]:
         try:
             subprocess.run(['sc', 'start', SERVICE_NAME],
                            capture_output=True, timeout=15)
-            for _ in range(6):
+            for _ in range(15):
                 if _service_running():
                     return True, 'Windows 服务已启动'
                 time.sleep(1)

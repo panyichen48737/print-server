@@ -32,16 +32,22 @@ class StatusWidget(Static):
 
     def _refresh(self) -> None:
         alive = is_daemon_alive()
+        if not alive:
+            # 后台服务尚未就绪，显示加载提示
+            self.update(
+                f"[bold]iOS 云打印服务器[/bold] [dim]v{__version__}[/dim]\n\n"
+                f"状态: [bold yellow]正在启动...[/bold yellow]\n"
+                f"[dim]后台服务初始化中，请稍候[/dim]"
+            )
+            return
         status = read_daemon_status()
         port = status.get("port", "-")
         pid = status.get("pid", "-")
         ips = get_local_ips()
         ip_str = ips[0] if ips else "0.0.0.0"
-        status_text = "运行中" if alive else "已停止"
-        status_style = "bold green" if alive else "bold red"
         self.update(
             f"[bold]iOS 云打印服务器[/bold] [dim]v{__version__}[/dim]\n\n"
-            f"状态: [{status_style}]{status_text}[/{status_style}]\n"
+            f"状态: [bold green]运行中[/bold green]\n"
             f"PID: {pid}    端口: {port}\n"
             f"管理地址: [bold yellow]http://{ip_str}:{port}[/bold yellow]\n\n"
             f"[dim]打印机状态与运行统计请访问 Web 管理页面[/dim]"
