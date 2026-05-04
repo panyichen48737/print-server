@@ -93,14 +93,27 @@ def _install_nssm():
     try:
         project_root = _project_root()
         python_exe = sys.executable
-        daemon_script = os.path.join(project_root, 'server_daemon.py')
+        daemon_script = os.path.join(project_root, 'app', 'server_daemon.py')
 
-        r = subprocess.run(
-            [nssm, 'install', SERVICE_NAME, python_exe, daemon_script],
-            capture_output=True, timeout=15
+        # 先检查服务是否已存在
+        status_r = subprocess.run(
+            [nssm, 'status', SERVICE_NAME],
+            capture_output=True, timeout=5
         )
-        if r.returncode != 0:
-            return False, f'nssm 安装失败: {r.stderr.decode("utf-8", errors="ignore").strip()}'
+        status_out = status_r.stdout.decode('utf-8', errors='ignore')
+        service_exists = any(s in status_out for s in ('SERVICE_RUNNING', 'SERVICE_STOPPED', 'SERVICE_PAUSED'))
+
+        if service_exists:
+            r = subprocess.run([nssm, 'start', SERVICE_NAME], capture_output=True, timeout=15)
+            logger.info('Windows Service 已存在，执行启动')
+            return True, '开机自启已存在（Windows Service），已启动'
+        else:
+            r = subprocess.run(
+                [nssm, 'install', SERVICE_NAME, python_exe, daemon_script],
+                capture_output=True, timeout=15
+            )
+            if r.returncode != 0:
+                return False, f'nssm 安装失败: {r.stderr.decode("utf-8", errors="ignore").strip()}'
 
         subprocess.run([nssm, 'set', SERVICE_NAME, 'AppDirectory', project_root],
                        capture_output=True, timeout=5)

@@ -94,7 +94,10 @@ class TUI:
         if LOG_BUFFER:
             lines = list(LOG_BUFFER)[-30:]
         else:
-            lines = ["等待日志..."]
+            lines = []
+        # 补齐到 30 行防止面板高度抖动
+        while len(lines) < 30:
+            lines.append('')
         return Panel("\n".join(lines), title="日志", border_style="dim")
 
     def _render_footer(self):
@@ -118,15 +121,17 @@ class TUI:
         self.layout["footer"].update(self._render_footer())
 
     def run(self):
-        with Live(self.layout, console=self.console, refresh_per_second=2, screen=True):
+        self._update()
+        with Live(self.layout, console=self.console, refresh_per_second=4, screen=True):
             while True:
+                # 每秒更新 4 次，与 refresh_per_second 同步
                 self._update()
 
                 if msvcrt.kbhit():
                     key = msvcrt.getch().lower()
                     if key == b'q':
                         break
-                    elif key == b's':
+                    if key == b's':
                         ok, msg = start_daemon()
                         LOG_BUFFER.append(msg)
                     elif key == b't':
@@ -141,5 +146,6 @@ class TUI:
                         else:
                             ok, msg = install_autostart()
                         LOG_BUFFER.append(msg)
+                    self._update()
 
-                time.sleep(0.5)
+                time.sleep(0.25)
