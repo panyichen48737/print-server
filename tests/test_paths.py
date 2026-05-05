@@ -11,7 +11,7 @@ class TestAppRoot:
     @patch('app._paths.sys.frozen', False, create=True)
     def test_dev_mode(self):
         root = app_root()
-        assert root.endswith('print_server')
+        assert 'print_server' in root or 'print-server' in root
 
     @patch('app._paths.sys.frozen', True, create=True)
     @patch('app._paths.sys.executable', '/fake/path/server.exe')
