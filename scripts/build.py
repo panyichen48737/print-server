@@ -92,6 +92,10 @@ def build(version: str):
         '--hidden-import', 'win32gui',
         '--hidden-import', 'win32com.client',
         '--hidden-import', 'pythoncom',
+        '--hidden-import', 'win32service',
+        '--hidden-import', 'win32serviceutil',
+        '--hidden-import', 'win32event',
+        '--hidden-import', 'servicemanager',
         '--hidden-import', 'python_multipart',
         # 隐式导入 — HTTP/ASGI
         '--hidden-import', 'uvicorn.logging',

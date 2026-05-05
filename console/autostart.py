@@ -1,15 +1,18 @@
 """开机自启管理
 
 策略（按管理员状态自动选择）：
-  管理员 → sc.exe 注册为 Windows 服务
-          任务管理器「服务」面板可见，开机自启，崩溃自动重启
+  管理员 → pywin32 注册为 Windows 服务
+          任务管理器「服务」面板可见，开机自启，崩溃自动重启，sc query 正确显示状态
   非管理员 → 启动文件夹快捷方式
             任务管理器「启动」页面可见，开机登录后启动
 """
 import os
-import sys
 import subprocess
+import sys
 from pathlib import Path
+
+import win32service
+import win32serviceutil
 from loguru import logger
 
 SERVICE_NAME = 'iOSPrintServer'
@@ -17,14 +20,13 @@ SERVICE_DISPLAY_NAME = 'iOS 云打印服务器'
 STARTUP_LINK_NAME = 'iOSPrintServer.lnk'
 
 
-def _exe_path() -> str:
-    """当前可执行文件路径（打包模式）或 python+脚本路径（开发模式）"""
+def _service_command() -> str:
+    """Windows 服务二进制路径（含 --server-daemon --service 参数）"""
     if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
-        return sys.executable
-    # 开发模式下通过 python server_daemon.py 启动
+        return f'"{sys.executable}" --server-daemon --service'
     this_dir = Path(__file__).resolve().parent.parent
-    daemon = this_dir / 'app' / 'server_daemon.py'
-    return f'"{sys.executable}" "{daemon}"'
+    entry = this_dir / 'console_app.py'
+    return f'"{sys.executable}" "{entry}" --server-daemon --service'
 
 
 def _is_admin() -> bool:
@@ -36,35 +38,38 @@ def _is_admin() -> bool:
 
 
 def _startup_folder() -> Path:
-    """当前用户的「启动」文件夹路径"""
     return Path(os.environ.get(
-        'APPDATA',
-        os.path.expanduser('~'),
+        'APPDATA', os.path.expanduser('~'),
     )) / 'Microsoft' / 'Windows' / 'Start Menu' / 'Programs' / 'Startup'
+
+
+def _exe_path() -> str:
+    """当前可执行文件路径（打包模式）或 python+脚本路径（开发模式）"""
+    if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
+        return sys.executable
+    this_dir = Path(__file__).resolve().parent.parent
+    daemon = this_dir / 'app' / 'server_daemon.py'
+    return f'"{sys.executable}" "{daemon}"'
 
 
 # ── 公开 API ──
 
 
 def is_autostart_installed() -> bool:
-    """检测是否已注册自启"""
     if _is_admin():
         return _service_installed()
     return _startup_link_exists()
 
 
 def install_autostart() -> tuple[bool, str]:
-    """注册开机自启"""
     if is_autostart_installed():
         return True, '开机自启已注册'
-
     if _is_admin():
         return _install_service()
     return _install_startup_link()
 
 
 def uninstall_autostart() -> tuple[bool, str]:
-    """卸载开机自启"""
     removed = False
     if _service_installed():
         ok, _ = _uninstall_service()
@@ -75,46 +80,59 @@ def uninstall_autostart() -> tuple[bool, str]:
     return (True, '开机自启已卸载') if removed else (True, '开机自启未注册')
 
 
-# ── Windows 服务（sc.exe） ──
+# ── Windows 服务（pywin32） ──
 
 
 def _service_installed() -> bool:
     try:
-        r = subprocess.run(
-            ['sc', 'query', SERVICE_NAME],
-            capture_output=True, text=True, timeout=5,
-        )
-        return r.returncode == 0 and 'STATE' in r.stdout
-    except Exception:
+        win32serviceutil.QueryServiceStatus(SERVICE_NAME)
+        return True
+    except win32service.error:
+        return False
+
+
+def _service_running() -> bool:
+    try:
+        status = win32serviceutil.QueryServiceStatus(SERVICE_NAME)
+        return status[1] == win32service.SERVICE_RUNNING
+    except win32service.error:
         return False
 
 
 def _install_service() -> tuple[bool, str]:
-    exe = _exe_path()
     try:
-        # 创建服务
-        r = subprocess.run([
-            'sc', 'create', SERVICE_NAME,
-            'binPath=', f'{exe} --server-daemon',
-            'displayName=', SERVICE_DISPLAY_NAME,
-            'start=', 'auto',
-            'type=', 'own',
-            'error=', 'normal',
-        ], capture_output=True, text=True, timeout=10)
-        if r.returncode != 0:
-            return False, f'服务创建失败: {r.stderr.strip() or r.stdout.strip()}'
+        if getattr(sys, 'frozen', False):
+            # Frozen EXE: 二进制是 exe 自身，带 --server-daemon --service 参数
+            cmd = f'"{sys.executable}" --server-daemon --service'
+        else:
+            # 开发模式：由 pythonservice.exe 托管 Python 服务类
+            cmd = None
 
-        # 崩溃自动重启（失败后等待 5 秒重启，最多重启 3 次）
+        kwargs = dict(
+            serviceName=SERVICE_NAME,
+            displayName=SERVICE_DISPLAY_NAME,
+            startType=win32service.SERVICE_AUTO_START,
+        )
+        if cmd:
+            kwargs['exeName'] = cmd
+
+        # 移除已存在的服务（如果有旧版本残留）
+        try:
+            win32serviceutil.RemoveService(SERVICE_NAME)
+        except Exception:
+            pass
+
+        win32serviceutil.InstallService('app.win_service.DaemonService', **kwargs)
+
+        # 崩溃自动重启
         for action in ('restart/5000', 'restart/10000', 'restart/30000'):
-            subprocess.run([
-                'sc', 'failure', SERVICE_NAME,
-                'actions=', action,
-                'reset=', '86400',
-            ], capture_output=True, timeout=5)
+            subprocess.run(
+                ['sc', 'failure', SERVICE_NAME, 'actions=', action, 'reset=', '86400'],
+                capture_output=True, timeout=5,
+            )
 
         # 启动服务
-        subprocess.run(['sc', 'start', SERVICE_NAME],
-                       capture_output=True, timeout=15)
+        win32serviceutil.StartService(SERVICE_NAME)
 
         logger.info('Windows 服务已注册并启动')
         return True, '开机自启注册成功（Windows 服务 — 任务管理器「服务」面板可见）'
@@ -124,10 +142,11 @@ def _install_service() -> tuple[bool, str]:
 
 def _uninstall_service() -> tuple[bool, str]:
     try:
-        subprocess.run(['sc', 'stop', SERVICE_NAME],
-                       capture_output=True, timeout=10)
-        subprocess.run(['sc', 'delete', SERVICE_NAME],
-                       capture_output=True, timeout=10)
+        try:
+            win32serviceutil.StopService(SERVICE_NAME)
+        except Exception:
+            pass
+        win32serviceutil.RemoveService(SERVICE_NAME)
         logger.info('Windows 服务已卸载')
         return True, 'Windows 服务已卸载'
     except Exception as e:
@@ -150,7 +169,6 @@ def _install_startup_link() -> tuple[bool, str]:
     link = _startup_link_path()
     try:
         _startup_folder().mkdir(parents=True, exist_ok=True)
-        # 用 PowerShell 创建 .lnk 快捷方式（转义单引号防止路径含引号时出错）
         ps_script = ('$ws = New-Object -ComObject WScript.Shell; '
                      f'$s = $ws.CreateShortcut(\'{link}\'); '
                      f'$s.TargetPath = \'{exe}\'; '

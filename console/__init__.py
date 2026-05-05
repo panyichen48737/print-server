@@ -46,8 +46,13 @@ def _ensure_single_instance() -> None:
 def main() -> None:
     # 冻结 EXE 入口：--server-daemon 参数直接路由到服务器入口
     if '--server-daemon' in sys.argv:
-        from app.server_daemon import main as daemon_main
-        daemon_main()
+        if '--service' in sys.argv:
+            # --service 表示由 SCM 启动，走 ServiceFramework
+            from app.win_service import run_as_service
+            run_as_service()
+        else:
+            from app.server_daemon import main as daemon_main
+            daemon_main()
         return
 
     parser = argparse.ArgumentParser(description='iOS 云打印服务器控制台')

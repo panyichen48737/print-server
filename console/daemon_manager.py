@@ -1,7 +1,7 @@
 """守护进程管理 — 通过子进程启动/停止/监控后台服务器
 
 策略：
-  如果 Windows Service 已注册 → start/stop 操作服务
+  如果 Windows Service 已注册 → 用 win32serviceutil 管理
   否则 → 管理守护进程子进程（兼容启动文件夹模式）
 """
 import os
@@ -12,6 +12,8 @@ import signal
 import subprocess
 from pathlib import Path
 
+import win32service
+import win32serviceutil
 from loguru import logger
 
 
@@ -47,37 +49,29 @@ def _win_process_exists(pid: int) -> bool:
 
 
 def _service_installed() -> bool:
-    """检查 Windows Service 是否已注册"""
     try:
-        r = subprocess.run(
-            ['sc', 'query', SERVICE_NAME],
-            capture_output=True, text=True, timeout=5,
-        )
-        return r.returncode == 0 and 'STATE' in r.stdout
-    except Exception:
+        win32serviceutil.QueryServiceStatus(SERVICE_NAME)
+        return True
+    except win32service.error:
         return False
 
 
 def _service_running() -> bool:
-    """检查 Windows Service 是否正在运行"""
     try:
-        r = subprocess.run(
-            ['sc', 'query', SERVICE_NAME],
-            capture_output=True, text=True, timeout=5,
-        )
-        return 'STATE' in r.stdout and 'RUNNING' in r.stdout
-    except Exception:
+        status = win32serviceutil.QueryServiceStatus(SERVICE_NAME)
+        return status[1] == win32service.SERVICE_RUNNING
+    except win32service.error:
         return False
 
 
 def _uninstall_service_quiet() -> None:
     """静默卸载 Windows 服务（失败也忽略）"""
     try:
-        subprocess.run(['sc', 'stop', SERVICE_NAME], capture_output=True, timeout=10)
+        win32serviceutil.StopService(SERVICE_NAME)
     except Exception:
         pass
     try:
-        subprocess.run(['sc', 'delete', SERVICE_NAME], capture_output=True, timeout=10)
+        win32serviceutil.RemoveService(SERVICE_NAME)
     except Exception:
         pass
 
@@ -127,14 +121,11 @@ def start_daemon() -> tuple[bool, str]:
     # 1. 尝试 Windows Service
     if _service_installed():
         try:
-            subprocess.run(['sc', 'start', SERVICE_NAME],
-                           capture_output=True, timeout=30)
+            win32serviceutil.StartService(SERVICE_NAME)
             for _ in range(30):
                 if _http_healthy():
                     return True, 'Windows 服务已启动'
                 time.sleep(1)
-            # 服务启动超时 — 可能是二进制路径失效（exe 升级后路径变更）
-            # 自动清理失效的服务，回退到子进程模式
             logger.warning('Windows 服务启动超时，尝试清理失效服务并回退子进程')
             _uninstall_service_quiet()
         except Exception as e:
@@ -179,12 +170,10 @@ def stop_daemon() -> tuple[bool, str]:
     # 1. 尝试 Windows Service
     if _service_installed():
         try:
-            subprocess.run(['sc', 'stop', SERVICE_NAME],
-                           capture_output=True, timeout=15)
+            win32serviceutil.StopService(SERVICE_NAME)
             for _ in range(6):
                 if not _service_running():
                     _cleanup_json()
-                    # 如果服务已失效（二进制路径不存在），顺带删除
                     _uninstall_service_quiet()
                     return True, 'Windows 服务已停止'
                 time.sleep(1)

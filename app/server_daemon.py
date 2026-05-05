@@ -24,6 +24,11 @@ from app.config import Config
 from app.logging import setup_logging
 from app.bootstrap import bootstrap
 
+# ServiceFramework 桥接 — win_service.py 注入
+_win_service_handle = None  # DaemonService 实例
+_is_service = False          # True 表示由 SCM 启动
+_uvicorn_server = None       # uvicorn.Server 引用，供 SvcStop 触发关闭
+
 
 def write_status(status, **extra):
     """写入 JSON 状态文件供 TUI 读取"""
@@ -88,23 +93,26 @@ def _health_check_loop(app, config, logger):
 
 
 def main():
+    global _uvicorn_server
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--server-daemon', action='store_true',
                         help='以守护进程模式运行（冻结 EXE 入口）')
     parser.parse_known_args()
 
     # Windows 命名互斥体：防止启动多个守护进程实例
-    import ctypes
-    MUTEX_NAME = 'iOSPrintServerDaemon'
-    mutex = ctypes.windll.kernel32.CreateMutexW(None, True, MUTEX_NAME)
-    if not mutex:
-        # 不应该发生，但以防万一
-        print('[FATAL] 无法创建互斥体')
-        sys.exit(1)
-    if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
-        ctypes.windll.kernel32.CloseHandle(mutex)
-        print('[FATAL] 守护进程已在运行')
-        sys.exit(1)
+    # 服务模式下 SCM 已保证单实例，无需重复加锁
+    if not _is_service:
+        import ctypes
+        MUTEX_NAME = 'iOSPrintServerDaemon'
+        mutex = ctypes.windll.kernel32.CreateMutexW(None, True, MUTEX_NAME)
+        if not mutex:
+            print('[FATAL] 无法创建互斥体')
+            sys.exit(1)
+        if ctypes.windll.kernel32.GetLastError() == 183:
+            ctypes.windll.kernel32.CloseHandle(mutex)
+            print('[FATAL] 守护进程已在运行')
+            sys.exit(1)
 
     config = Config()
     logger = setup_logging(level=config.get('log_level', 'INFO'))
@@ -152,6 +160,7 @@ def main():
         logger.info(f'守护进程运行在 http://0.0.0.0:{port} (无 SSL)')
 
     server = uvicorn.Server(uvicorn_config)
+    _uvicorn_server = server  # 供 ServiceFramework.SvcStop 触发关闭
     server.run()
 
     logger.info('守护进程已完全关闭')
