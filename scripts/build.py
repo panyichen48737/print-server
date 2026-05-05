@@ -54,12 +54,6 @@ def build(version: str):
     env = os.environ.copy()
     env['RELEASE_VERSION'] = f'v{version}'
 
-    # 确保依赖已安装
-    subprocess.run(
-        [sys.executable, '-m', 'pip', 'install', '-e', '.'],
-        cwd=PROJECT_ROOT, check=True, capture_output=True,
-    )
-
     # 将运行时需要的资源文件集中到 build_resources/，供 --add-data 内嵌
     res_dir = BUILD_DIR / 'resources'
     res_dir.mkdir(parents=True, exist_ok=True)
@@ -87,7 +81,6 @@ def build(version: str):
     args = [
         sys.executable, '-m', 'PyInstaller',
         '--noconfirm',
-        '--clean',
         '--name', APP_NAME,
         '--console',
         '--onefile',
