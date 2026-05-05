@@ -14,8 +14,8 @@ class JobRepository:
     def __init__(self, db_path: Optional[str] = None) -> None:
         """初始化数据库连接，db_path 默认为 jobs/jobs.db"""
         if db_path is None:
-            from app._paths import app_root, ensure_dir
-            db_dir = ensure_dir(app_root(), 'jobs')
+            from app._paths import persistent_dir, ensure_dir
+            db_dir = ensure_dir(persistent_dir(), 'jobs')
             db_path = os.path.join(db_dir, 'jobs.db')
         self.db_path = db_path
         self._lock = threading.Lock()

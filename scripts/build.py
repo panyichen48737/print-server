@@ -83,18 +83,18 @@ def build(version: str):
         shutil.copy2(nssm_src, res_dir / 'nssm.exe')
         print(f'[build] 已包含 nssm.exe')
 
-    # PyInstaller 参数
+    # PyInstaller 参数（--onefile：所有内容打包进单一 exe，启动时解压到 %TEMP%）
     args = [
         sys.executable, '-m', 'PyInstaller',
         '--noconfirm',
         '--clean',
         '--name', APP_NAME,
         '--console',
-        # Data 文件
+        '--onefile',
+        # Data 文件（--add-data 资源嵌入 exe，运行时由 MEIPASS 访问）
         '--add-data', f'{PROJECT_ROOT / "app" / "templates"}{os.pathsep}app/templates',
         '--add-data', f'{PROJECT_ROOT / "app" / "static"}{os.pathsep}app/static',
-        '--add-data', f'{PROJECT_ROOT / "app" / "server_daemon.py"}{os.pathsep}app',
-        # 内嵌资源（放在 _internal/resources/，通过 app/resources.py 按需释放）
+        # 内嵌资源（嵌入 exe，运行时由 MEIPASS 访问，通过 app/resources.py 按需释放）
         '--add-data', f'{res_dir}{os.pathsep}resources',
     ]
 

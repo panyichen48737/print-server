@@ -111,10 +111,10 @@ class Config(BaseSettings):
     def __init__(self, config_path: str | None = None, **kwargs: Any) -> None:
         _skip_file = kwargs.pop('_skip_file', False)
         super().__init__(**kwargs)
-        from app._paths import app_root
+        from app._paths import persistent_dir
 
         object.__setattr__(self, '_config_path',
-                           config_path or os.path.join(app_root(), 'config.json'))
+                           config_path or os.path.join(persistent_dir(), 'config.json'))
         object.__setattr__(self, '_lock', threading.Lock())
         object.__setattr__(self, '_errors', [])
         if not _skip_file:

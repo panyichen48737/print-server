@@ -12,12 +12,8 @@ def _get_version() -> str:
         return env_ver.lstrip('v')
 
     # 2. version.txt（PyInstaller --add-data 内嵌到 resources/）
-    if getattr(sys, 'frozen', False):
-        # 优先 _MEIPASS/resources/version.txt（包体内）
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
         ver_file = Path(sys._MEIPASS) / 'resources' / 'version.txt'
-        if not ver_file.exists():
-            # 回退到已释放到数据目录的版本
-            ver_file = Path(sys.executable).parent / 'resources' / 'version.txt'
     else:
         ver_file = Path(__file__).resolve().parent.parent / 'version.txt'
     if ver_file.exists():

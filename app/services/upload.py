@@ -4,7 +4,7 @@ import os
 import uuid
 from dataclasses import dataclass
 from loguru import logger
-from app._paths import app_root, ensure_dir
+from app._paths import persistent_dir, ensure_dir
 
 
 @dataclass
@@ -55,7 +55,7 @@ def handle_file_upload(
 
     safe_name = os.path.basename(filename)
     job_id = str(uuid.uuid4())
-    jobs_dir = ensure_dir(app_root(), 'jobs')
+    jobs_dir = ensure_dir(persistent_dir(), 'jobs')
     save_path = os.path.join(jobs_dir, f'{job_id}_{safe_name}')
 
     with open(save_path, 'wb') as f:

@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.auth import require_auth
-from app._paths import app_root, data_root
+from app._paths import app_root, data_root, persistent_dir
 from app.utils import safe_int as _safe_int, format_time
 from app.schemas import AdminActionResponse, LogsResponse, SettingsResponse
 
@@ -186,7 +186,7 @@ async def api_stats(request: Request):
 @admin_router.get('/api/logs', response_model=LogsResponse)
 async def admin_api_logs(request: Request, lines: int = 50):
     """获取最新日志行"""
-    log_file = os.path.join(app_root(), 'logs', 'print_server.log')
+    log_file = os.path.join(persistent_dir(), 'logs', 'print_server.log')
     try:
         with open(log_file, 'r', encoding='utf-8') as f:
             last_lines = deque(f, maxlen=lines)

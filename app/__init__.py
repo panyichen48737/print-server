@@ -3,7 +3,7 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from app._paths import app_root, ensure_dir, data_root
+from app._paths import persistent_dir, ensure_dir, data_root
 
 
 from app.version import __version__
@@ -27,8 +27,8 @@ def create_app(lifespan=_default_lifespan) -> FastAPI:
     app.include_router(api_router, prefix='/api')
     app.include_router(admin_router, prefix='/admin')
 
-    ensure_dir(app_root(), 'jobs')
-    ensure_dir(app_root(), 'logs')
+    ensure_dir(persistent_dir(), 'jobs')
+    ensure_dir(persistent_dir(), 'logs')
 
     from app.services.sse_broadcaster import init_app
     init_app(app)

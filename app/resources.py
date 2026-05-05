@@ -20,9 +20,9 @@ def _bundled_dir() -> str | None:
 
 
 def _target_dir() -> str:
-    """资源释放目标目录 — app_root()/resources/"""
-    from app._paths import app_root
-    d = os.path.join(app_root(), 'resources')
+    """资源释放目标目录 — persistent_dir()/resources/"""
+    from app._paths import persistent_dir
+    d = os.path.join(persistent_dir(), 'resources')
     os.makedirs(d, exist_ok=True)
     return d
 

@@ -105,7 +105,7 @@ class TestLogsEndpoint:
 
     @pytest.fixture
     def temp_log_dir(self):
-        """创建临时目录模拟 app_root"""
+        """创建临时目录模拟 persistent_dir"""
         with tempfile.TemporaryDirectory() as tmpdir:
             os.makedirs(os.path.join(tmpdir, "logs"), exist_ok=True)
             yield tmpdir
@@ -114,11 +114,11 @@ class TestLogsEndpoint:
     # lines 参数
     # ------------------------------------------------------------------
 
-    @patch("app.routes.api.app_root")
+    @patch("app.routes.api.persistent_dir")
     def test_logs_returns_requested_lines(
-        self, mock_app_root, app_instance, temp_log_dir
+        self, mock_persistent_dir, app_instance, temp_log_dir
     ):
-        mock_app_root.return_value = temp_log_dir
+        mock_persistent_dir.return_value = temp_log_dir
         lines = [f"line{i}\n" for i in range(1, 6)]
         log_file = os.path.join(temp_log_dir, "logs", "print_server.log")
         with open(log_file, "w", encoding="utf-8") as f:
@@ -136,12 +136,12 @@ class TestLogsEndpoint:
     # 默认 lines=50
     # ------------------------------------------------------------------
 
-    @patch("app.routes.api.app_root")
+    @patch("app.routes.api.persistent_dir")
     def test_logs_default_returns_all_when_less_than_50(
-        self, mock_app_root, app_instance, temp_log_dir
+        self, mock_persistent_dir, app_instance, temp_log_dir
     ):
         """文件行数 < 默认 50 时，应返回全部行"""
-        mock_app_root.return_value = temp_log_dir
+        mock_persistent_dir.return_value = temp_log_dir
         lines = ["line1\n", "line2\n", "line3\n"]
         log_file = os.path.join(temp_log_dir, "logs", "print_server.log")
         with open(log_file, "w", encoding="utf-8") as f:
@@ -159,11 +159,11 @@ class TestLogsEndpoint:
     # 文件名中文字符 (UTF-8 编码保证)
     # ------------------------------------------------------------------
 
-    @patch("app.routes.api.app_root")
+    @patch("app.routes.api.persistent_dir")
     def test_logs_chinese_content(
-        self, mock_app_root, app_instance, temp_log_dir
+        self, mock_persistent_dir, app_instance, temp_log_dir
     ):
-        mock_app_root.return_value = temp_log_dir
+        mock_persistent_dir.return_value = temp_log_dir
         lines = ["打印成功\n", "任务完成\n"]
         log_file = os.path.join(temp_log_dir, "logs", "print_server.log")
         with open(log_file, "w", encoding="utf-8") as f:
@@ -183,11 +183,11 @@ class TestLogsEndpoint:
     # 文件不存在
     # ------------------------------------------------------------------
 
-    @patch("app.routes.api.app_root")
+    @patch("app.routes.api.persistent_dir")
     def test_logs_file_not_found_returns_empty_list(
-        self, mock_app_root, app_instance, temp_log_dir
+        self, mock_persistent_dir, app_instance, temp_log_dir
     ):
-        mock_app_root.return_value = temp_log_dir
+        mock_persistent_dir.return_value = temp_log_dir
 
         from fastapi.testclient import TestClient
 
@@ -200,12 +200,12 @@ class TestLogsEndpoint:
     # 大文件 — lines 参数小于文件行数
     # ------------------------------------------------------------------
 
-    @patch("app.routes.api.app_root")
+    @patch("app.routes.api.persistent_dir")
     def test_logs_large_file_truncates(
-        self, mock_app_root, app_instance, temp_log_dir
+        self, mock_persistent_dir, app_instance, temp_log_dir
     ):
         """文件 100 行，请求 5 行，应返回末尾 5 行"""
-        mock_app_root.return_value = temp_log_dir
+        mock_persistent_dir.return_value = temp_log_dir
         lines = [f"line{i}\n" for i in range(100)]
         log_file = os.path.join(temp_log_dir, "logs", "print_server.log")
         with open(log_file, "w", encoding="utf-8") as f:
@@ -225,11 +225,11 @@ class TestLogsEndpoint:
     # lines=0 的边界行为
     # ------------------------------------------------------------------
 
-    @patch("app.routes.api.app_root")
+    @patch("app.routes.api.persistent_dir")
     def test_logs_zero_lines_returns_empty(
-        self, mock_app_root, app_instance, temp_log_dir
+        self, mock_persistent_dir, app_instance, temp_log_dir
     ):
-        mock_app_root.return_value = temp_log_dir
+        mock_persistent_dir.return_value = temp_log_dir
         lines = ["line1\n", "line2\n"]
         log_file = os.path.join(temp_log_dir, "logs", "print_server.log")
         with open(log_file, "w", encoding="utf-8") as f:

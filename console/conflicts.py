@@ -14,8 +14,8 @@ PID_FILE: Path | None = None  # lazy init
 def _get_pid_file() -> Path:
     global PID_FILE
     if PID_FILE is None:
-        from app._paths import app_root
-        PID_FILE = Path(app_root()) / 'logs' / 'console.pid'
+        from app._paths import persistent_dir
+        PID_FILE = Path(persistent_dir()) / 'logs' / 'console.pid'
     return PID_FILE
 
 

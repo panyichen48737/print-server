@@ -12,7 +12,7 @@ from pathlib import Path
 
 import uvicorn
 
-from app._paths import app_root
+from app._paths import app_root, persistent_dir
 from app.resources import ensure_resources
 
 root = app_root()
@@ -27,7 +27,7 @@ from app.bootstrap import bootstrap
 
 def write_status(status, **extra):
     """写入 JSON 状态文件供 TUI 读取"""
-    f = Path(app_root()) / 'logs' / 'daemon.json'
+    f = Path(persistent_dir()) / 'logs' / 'daemon.json'
     try:
         data = {'status': status, 'pid': os.getpid(), **extra}
         f.write_text(json.dumps(data, ensure_ascii=False))
@@ -38,7 +38,7 @@ def write_status(status, **extra):
 def _find_cert() -> tuple[str | None, str | None]:
     """查找 SSL 证书：释放的资源目录 → exe 同级 certs/ → 项目目录 certs/"""
     search_dirs = [
-        os.path.join(app_root(), 'resources', 'certs'),  # ensure_resources 释放位置
+        os.path.join(persistent_dir(), 'resources', 'certs'),  # ensure_resources 释放位置
         os.path.join(app_root(), 'certs'),
     ]
     if getattr(sys, 'frozen', False):

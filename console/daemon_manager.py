@@ -20,8 +20,8 @@ SERVICE_NAME = 'iOSPrintServer'
 
 
 def _daemon_json_path() -> Path:
-    from app._paths import app_root
-    return Path(app_root()) / 'logs' / 'daemon.json'
+    from app._paths import persistent_dir
+    return Path(persistent_dir()) / 'logs' / 'daemon.json'
 
 
 def read_daemon_status() -> dict:
@@ -128,8 +128,8 @@ def start_daemon() -> tuple[bool, str]:
             return False, f'服务启动失败: {e}'
 
     # 2. 回退子进程模式
-    from app._paths import app_root
-    log_dir = Path(app_root()) / 'logs'
+    from app._paths import persistent_dir
+    log_dir = Path(persistent_dir()) / 'logs'
     log_dir.mkdir(parents=True, exist_ok=True)
 
     try:

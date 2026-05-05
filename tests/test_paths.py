@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app._paths import app_root, data_root, ensure_dir
+from app._paths import app_root, data_root, persistent_dir, ensure_dir
 
 
 class TestAppRoot:
@@ -47,3 +47,21 @@ class TestEnsureDir:
     def test_returns_full_path(self, tmp_path):
         result = ensure_dir(str(tmp_path), 'x', 'y')
         assert result == str(tmp_path / 'x' / 'y')
+
+
+class TestPersistentDir:
+    @patch('app._paths.sys.frozen', False, create=True)
+    def test_dev_mode_equals_app_root(self):
+        assert persistent_dir() == app_root()
+
+    @patch('app._paths.sys.frozen', True, create=True)
+    @patch('app._paths.os.environ', {'APPDATA': r'C:\Users\test\AppData\Roaming'})
+    def test_frozen_mode_uses_appdata(self):
+        assert persistent_dir() == r'C:\Users\test\AppData\Roaming\iOSPrintServer'
+
+    @patch('app._paths.sys.frozen', True, create=True)
+    @patch('app._paths.os.environ', {})  # 无 APPDATA 时回退到 ~
+    def test_frozen_mode_fallback_to_home(self):
+        from app._paths import persistent_dir
+        result = persistent_dir()
+        assert result.endswith('iOSPrintServer')
