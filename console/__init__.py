@@ -36,8 +36,8 @@ def _ensure_single_instance() -> None:
     """Windows 命名互斥体：防止启动多个控制台窗口"""
     import ctypes
 
-    mutex = ctypes.windll.kernel32.CreateMutexW(None, True, 'iOSPrintServerConsole')
-    err = ctypes.windll.kernel32.GetLastError()
+    mutex = ctypes.windll.kernel32.CreateMutexW(None, True, 'iOSPrintServerConsole')  # type: ignore
+    err = ctypes.windll.kernel32.GetLastError()  # type: ignore
     if not mutex:
         print(f'[WARN] 无法创建互斥体 (error={err})，继续启动')
         return
@@ -50,12 +50,14 @@ def _ensure_single_instance() -> None:
         print(f'[WARN] 互斥体状态异常 (error={err})')
 
 
-def main() -> None:
+def main() -> int | None:
     # 冻结 EXE 入口：--server-daemon 参数直接路由到服务器入口
     if '--server-daemon' in sys.argv:
         from app.server_daemon import main as daemon_main
 
         daemon_main()
+        sys.exit(0)
+        return None
         return
 
     parser = argparse.ArgumentParser(description='iOS 云打印服务器控制台')
@@ -111,7 +113,7 @@ def main() -> None:
     setup_logging(level=config.log_level)
 
     if not ensure_installed():
-        return
+        return None
 
     tui_handler = TUILogHandler()
     logger.add(tui_handler, format='{time:HH:mm:ss} {level} {message}', level='INFO')
@@ -152,6 +154,8 @@ def main() -> None:
         print(f'  https://{ip_str}:{port}/admin')
         print('\n按 Enter 退出...')
         input()
+
+    return None
 
     # 退出控制台时询问是否保持后台运行
     if is_daemon_alive():

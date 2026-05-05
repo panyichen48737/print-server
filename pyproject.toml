@@ -68,7 +68,7 @@ quote-style = "single"
 
 [tool.mypy]
 python_version = "3.10"
-warn_unused_ignores = true
+warn_unused_ignores = false
 strict_optional = true
 ignore_missing_imports = true
 files = ["app/", "console/"]

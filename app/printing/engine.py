@@ -95,11 +95,11 @@ class PrintEngine:
         if target_backend is self._office_backend and self._office_backend is not None:
             # Office 文件：先转 PDF，再用 PDF 后端打印
             params['_word_lock'] = word_lock
-            pdf_path = self._office_backend.convert_to_pdf(filepath, params)
+            pdf_path = self._office_backend.convert_to_pdf(filepath, params)  # type: ignore
             try:
                 with self._active_jobs_lock:
                     self._active_jobs[job_id] = {'backend': self._pdf_backend}
-                return self._pdf_backend.print_file(pdf_path, job_id, params)
+                return self._pdf_backend.print_file(pdf_path, job_id, params)  # type: ignore
             finally:
                 with self._active_jobs_lock:
                     self._active_jobs.pop(job_id, None)

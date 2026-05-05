@@ -64,7 +64,7 @@ class SSEBroadcaster:
     # ── 远程订阅 ──
 
     def subscribe(self) -> tuple[str, queue.Queue]:
-        q = queue.Queue(maxsize=self._maxsize)
+        q: queue.Queue = queue.Queue(maxsize=self._maxsize)
         sub_id = str(uuid.uuid4())
         with self._lock:
             self._subscribers[sub_id] = q

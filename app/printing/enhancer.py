@@ -44,7 +44,7 @@ class QuarkEnhancer:
             ext = os.path.splitext(filepath)[1].lower()
             max_api_size = 10 * 1024 * 1024
 
-            img = Image.open(filepath)
+            img: Image.Image = Image.open(filepath)
             if img.mode in ('RGBA', 'P', 'LA'):
                 img = img.convert('RGB')
 

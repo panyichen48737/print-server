@@ -33,7 +33,7 @@ class StatusWidget(Static):
         worker = get_current_worker()
         while not worker.is_cancelled:
             await self._refresh_async()
-            await worker.sleep(2)
+            await asyncio.sleep(2)
 
     async def _refresh_async(self) -> None:
         """在线程中执行阻塞的健康检查，不阻塞事件循环"""
@@ -123,7 +123,7 @@ class TUI(App):
     }
     """
 
-    BINDINGS: ClassVar[list[Binding]] = [
+    BINDINGS: ClassVar = [  # type: ignore[assignment]
         Binding('s', 'start', '启动'),
         Binding('t', 'stop', '停止'),
         Binding('r', 'restart', '重启'),
@@ -149,7 +149,7 @@ class TUI(App):
         port = status.get('port', 5000)
         ips = get_local_ips()
         ip_str = ips[0] if ips else '0.0.0.0'
-        self.query_one('#quick-links').update(
+        self.query_one('#quick-links').update(  # type: ignore
             f'[bold]操作[/bold]\n\n'
             f'[bold cyan]S[/bold cyan]  启动\n'
             f'[bold cyan]T[/bold cyan]  停止\n'

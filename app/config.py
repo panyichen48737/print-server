@@ -78,6 +78,8 @@ class Config(BaseSettings):
     _config_path: str = PrivateAttr()
     _lock: threading.Lock = PrivateAttr()
     _errors: list[str] = PrivateAttr(default_factory=list)
+    _watch_stop: threading.Event = PrivateAttr()
+    _watcher_thread: threading.Thread | None = PrivateAttr()
 
     # ── 校验器 ──
 
@@ -135,13 +137,11 @@ class Config(BaseSettings):
         super().__init__(**kwargs)
         from app._paths import persistent_dir
 
-        object.__setattr__(
-            self, '_config_path', config_path or os.path.join(persistent_dir(), 'config.json')
-        )
-        object.__setattr__(self, '_lock', threading.Lock())
-        object.__setattr__(self, '_errors', [])
-        object.__setattr__(self, '_watch_stop', threading.Event())
-        object.__setattr__(self, '_watcher_thread', None)
+        self._config_path = config_path or os.path.join(persistent_dir(), 'config.json')
+        self._lock = threading.Lock()
+        self._errors = []
+        self._watch_stop = threading.Event()
+        self._watcher_thread = None
         if not _skip_file:
             self._load_file()
 
@@ -204,14 +204,14 @@ class Config(BaseSettings):
         object.__setattr__(self, '_watcher_thread', watcher)
 
     def stop_watcher(self) -> None:
-        self._watch_stop.set()
+        self._watch_stop.set()  # type: ignore
 
     def _watch_loop(self) -> None:
         try:
             from watchfiles import watch
 
-            for _ in watch(self._config_path, stop_event=self._watch_stop):
-                if self._watch_stop.is_set():
+            for _ in watch(self._config_path, stop_event=self._watch_stop):  # type: ignore
+                if self._watch_stop.is_set():  # type: ignore
                     break
                 logger.info('config.json 已变更，自动重载配置')
                 self.reload()

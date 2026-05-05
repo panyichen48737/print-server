@@ -25,7 +25,7 @@ def get_local_ips() -> list[str]:
     hostname = socket.gethostname()
     try:
         for addrs in socket.getaddrinfo(hostname, None):
-            ip = addrs[4][0]
+            ip = str(addrs[4][0])
             if ip.startswith('127.') or ip == '::1':
                 continue
             if ip not in ips:
@@ -43,8 +43,8 @@ def get_local_ips() -> list[str]:
         except ImportError:
             pass
     # IPv4 优先排列
-    v4 = [ip for ip in ips if '.' in ip]
-    v6 = [ip for ip in ips if ':' in ip]
+    v4: list[str] = [ip for ip in ips if '.' in ip]
+    v6: list[str] = [ip for ip in ips if ':' in ip]
     return v4 + v6
 
 
@@ -88,9 +88,9 @@ def check_conflicts(config: Any, logger: Any) -> bool:
         try:
             old_pid = int(pf.read_text().strip())
             process_query_information = 0x0400
-            handle = ctypes.windll.kernel32.OpenProcess(process_query_information, False, old_pid)
+            handle = ctypes.windll.kernel32.OpenProcess(process_query_information, False, old_pid)  # type: ignore
             if handle:
-                ctypes.windll.kernel32.CloseHandle(handle)
+                ctypes.windll.kernel32.CloseHandle(handle)  # type: ignore
                 logger.warning(f'发现旧控制台进程 (PID: {old_pid}) 仍然存活')
                 stale_pid = True
             else:

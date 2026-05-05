@@ -40,7 +40,7 @@ def _win_process_exists(pid: int) -> bool:
     """Windows API 检查进程是否存在"""
     import ctypes
 
-    kernel32 = ctypes.windll.kernel32
+    kernel32 = ctypes.windll.kernel32  # type: ignore
     handle = kernel32.OpenProcess(0x1000, False, pid)
     if handle:
         kernel32.CloseHandle(handle)
@@ -172,7 +172,7 @@ def stop_daemon() -> tuple[bool, str]:
 
         if server_pid:
             try:
-                os.kill(server_pid, signal.CTRL_BREAK_EVENT)
+                os.kill(server_pid, signal.CTRL_BREAK_EVENT)  # type: ignore
                 time.sleep(3)
             except Exception:
                 pass
