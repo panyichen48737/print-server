@@ -116,7 +116,7 @@ def main() -> int | None:
         return None
 
     tui_handler = TUILogHandler()
-    logger.add(tui_handler, format='{time:HH:mm:ss} {level} {message}', level='INFO')
+    logger.add(tui_handler, format='{time:HH:mm:ss} {level} {message}', level='ERROR')
 
     try:
         # TUI 先启动，界面就绪后再后台启动守护进程

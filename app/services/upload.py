@@ -59,9 +59,10 @@ def handle_file_upload(
         )
 
     safe_name = os.path.basename(filename)
+    ext = os.path.splitext(safe_name)[1] or '.bin'
     job_id = str(uuid.uuid4())
     jobs_dir = ensure_dir(persistent_dir(), 'jobs')
-    save_path = os.path.join(jobs_dir, f'{job_id}_{safe_name}')
+    save_path = os.path.join(jobs_dir, f'{job_id}{ext}')
 
     with open(save_path, 'wb') as f:
         f.write(file_bytes)

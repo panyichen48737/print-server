@@ -29,7 +29,7 @@ def setup_logging(log_dir: str | None = None, level: str = 'INFO'):
     loguru.logger.add(
         sys.stderr,
         format='{time:HH:mm:ss} [{level}] {message}',
-        level=level,
+        level='ERROR',
     )
 
     return loguru.logger
