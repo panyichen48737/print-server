@@ -18,8 +18,6 @@ from app.version import __version__
 admin_router = APIRouter()
 templates = Jinja2Templates(directory=os.path.join(data_root(), 'app', 'templates'))
 
-# Make version available to all templates
-from app.version import __version__
 templates.env.globals['version'] = __version__
 
 
