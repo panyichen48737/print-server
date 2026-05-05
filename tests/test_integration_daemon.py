@@ -10,7 +10,7 @@ import pytest
 async def test_daemon_health():
     from app.bootstrap import bootstrap
     from app.config import Config
-    from console import _server_lifespan, ServerHandle
+    from console import ServerHandle, _server_lifespan
 
     config = Config()
     app, *_ = bootstrap(config, lifespan=_server_lifespan)
@@ -42,7 +42,7 @@ async def test_daemon_health():
 async def test_web_admin():
     from app.bootstrap import bootstrap
     from app.config import Config
-    from console import _server_lifespan, ServerHandle
+    from console import ServerHandle, _server_lifespan
 
     config = Config()
     app, *_ = bootstrap(config, lifespan=_server_lifespan)
