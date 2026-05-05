@@ -174,8 +174,12 @@ function getExtension(filename) {
 // ── 持久化任务 ID（Keychain），支持从主屏幕取消 ──
 
 function getActiveJobs() {
-  const json = Keychain.get(ACTIVE_JOBS_KEY);
-  return json ? JSON.parse(json) : [];
+  try {
+    const json = Keychain.get(ACTIVE_JOBS_KEY);
+    return json ? JSON.parse(json) : [];
+  } catch (e) {
+    return [];
+  }
 }
 
 function saveActiveJobs(jobs) {
