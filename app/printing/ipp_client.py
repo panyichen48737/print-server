@@ -6,6 +6,7 @@ targeting IPP Everywhere endpoints at http://{ip}:631/ipp/print.
 
 from __future__ import annotations
 
+import contextlib
 import http.client
 import os
 import re
@@ -124,10 +125,8 @@ def get_printer_ip(printer_name: str) -> str | None:
         logger.warning(f"Failed to get printer info for '{printer_name}': {exc}")
         return None
     finally:
-        try:
+        with contextlib.suppress(Exception):
             win32print.ClosePrinter(handle)
-        except Exception:
-            pass
 
     port_name = info.get('pPortName') if isinstance(info, dict) else None
     if not port_name:
@@ -211,10 +210,8 @@ def print_via_ipp(printer_ip: str, pdf_path: str, copies: int = 1, duplex: bool 
         return False
     finally:
         if conn is not None:
-            try:
+            with contextlib.suppress(Exception):
                 conn.close()
-            except Exception:
-                pass
 
 
 def is_printer_ipp_supported(printer_name: str) -> bool:

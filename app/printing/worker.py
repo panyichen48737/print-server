@@ -1,5 +1,6 @@
 """工作线程与任务执行器"""
 
+import contextlib
 import datetime
 import os
 import shutil
@@ -36,10 +37,8 @@ class JobExecutor:
         self._pool = ThreadPoolExecutor(max_workers=1)
 
     def shutdown(self):
-        try:
+        with contextlib.suppress(Exception):
             self._pool.shutdown(wait=False)
-        except Exception:
-            pass
 
     def execute(self, job_id: str, worker_id: int, attempt: int = 0) -> tuple[bool, str | None]:
         """执行单个打印任务"""
@@ -90,10 +89,10 @@ class JobExecutor:
 
     def _make_temp_copy(self, original_path, filename):
         suffix = os.path.splitext(filename)[1]
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-        tmp.close()
-        shutil.copy2(original_path, tmp.name)
-        return tmp.name
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp_path = tmp.name
+        shutil.copy2(original_path, tmp_path)
+        return tmp_path
 
     def _execute_print(self, temp_path, job, job_id):
         print_params = {
@@ -128,7 +127,7 @@ class JobExecutor:
         except FuturesTimeout:
             return 'timeout'
 
-    def _finalize(self, job_id, original_path, temp_path, result, job):
+    def _finalize(self, job_id, original_path, _temp_path, result, job):
         if result == 'cancelled':
             return True, None
 

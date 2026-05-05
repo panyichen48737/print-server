@@ -13,7 +13,7 @@ class BarkNotifier(Notifier):
     def __init__(self, config: Any) -> None:
         self.config = config
 
-    def send_notification(self, title: str, message: str, level: str = 'info') -> None:
+    def send_notification(self, title: str, message: str, _level: str = 'info') -> None:
         if self.config.get('notify_channel', 'disabled') != 'bark':
             return
         key = self.config.get('bark_key', '')

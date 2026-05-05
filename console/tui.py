@@ -2,6 +2,7 @@
 
 import asyncio
 import webbrowser
+from typing import ClassVar
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -122,7 +123,7 @@ class TUI(App):
     }
     """
 
-    BINDINGS = [
+    BINDINGS: ClassVar[list[Binding]] = [
         Binding('s', 'start', '启动'),
         Binding('t', 'stop', '停止'),
         Binding('r', 'restart', '重启'),

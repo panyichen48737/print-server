@@ -50,10 +50,7 @@ def is_print_related_error(raw_error: str) -> bool:
     """返回 False 表示属于本地系统错误，不应发送通知"""
     if not raw_error:
         return True
-    for pattern in LOCAL_ERROR_PATTERNS:
-        if pattern.search(raw_error):
-            return False
-    return True
+    return all(not pattern.search(raw_error) for pattern in LOCAL_ERROR_PATTERNS)
 
 
 def format_error_message(raw_error: str) -> str:

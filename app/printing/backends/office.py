@@ -1,5 +1,6 @@
 """Office 文档 → PDF 转换（win32com），然后通过 PDF 后端打印"""
 
+import contextlib
 import os
 import threading
 from contextlib import contextmanager
@@ -32,10 +33,8 @@ class OfficeBackend(PrinterBackend):
                 yield app
             finally:
                 if app:
-                    try:
+                    with contextlib.suppress(Exception):
                         app.Quit(SaveChanges=0)
-                    except Exception:
-                        pass
 
     # ── 外部入口 ──
 
@@ -67,7 +66,7 @@ class OfficeBackend(PrinterBackend):
             finally:
                 doc.Close(SaveChanges=0)
 
-    def _excel_to_pdf(self, filepath, pdf_path, print_params):
+    def _excel_to_pdf(self, filepath, pdf_path, _print_params):
         with self._com_context('Excel.Application', self.excel_lock, display_alerts=False) as excel:
             wb = excel.Workbooks.Open(os.path.abspath(filepath))
             try:
@@ -75,7 +74,7 @@ class OfficeBackend(PrinterBackend):
             finally:
                 wb.Close(SaveChanges=False)
 
-    def _ppt_to_pdf(self, filepath, pdf_path, print_params):
+    def _ppt_to_pdf(self, filepath, pdf_path, _print_params):
         with self._com_context('PowerPoint.Application', self.ppt_lock) as ppt:
             pres = ppt.Presentations.Open(os.path.abspath(filepath))
             try:
@@ -85,8 +84,8 @@ class OfficeBackend(PrinterBackend):
 
     # ── PrinterBackend 存根（实际打印委托给 PdfBackend）──
 
-    def print_file(self, filepath, job_id, print_params, lock=None):
+    def print_file(self, _filepath, _job_id, _print_params, _lock=None):
         raise PrintError('OfficeBackend 不再直接打印，请通过 convert_to_pdf + PdfBackend')
 
-    def cancel(self, job_id, info):
+    def cancel(self, _job_id, _info):
         return True

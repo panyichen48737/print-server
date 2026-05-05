@@ -74,7 +74,7 @@ async def health(request: Request):
 
 
 @api_router.get('/logs', response_model=LogsResponse)
-async def api_logs(request: Request, lines: int = 50):
+async def api_logs(_request: Request, lines: int = 50):
     """获取最新日志行"""
     log_file = os.path.join(persistent_dir(), 'logs', 'print_server.log')
     try:
@@ -96,7 +96,7 @@ async def print_file(
     duplex: str = Form(None),
     color: str = Form(None),
     paper_size: str = Form(None),
-    auth=Depends(require_auth),
+    _auth=Depends(require_auth),
 ):
     """提交打印任务（iOS 端使用）"""
     return await _handle_upload(request, file, printer, copies, duplex, color, paper_size, 'ios')
@@ -132,7 +132,7 @@ async def printer_status(request: Request):
 async def cancel_job_api(
     job_id: str,
     request: Request,
-    auth=Depends(require_auth),
+    _auth=Depends(require_auth),
 ):
     """取消任务"""
     job_queue = request.app.state.job_queue
@@ -155,7 +155,7 @@ async def upload_file(
     duplex: str = Form(None),
     color: str = Form(None),
     paper_size: str = Form(None),
-    auth=Depends(require_auth),
+    _auth=Depends(require_auth),
 ):
     """Web 上传打印"""
     result = await _handle_upload(request, file, printer, copies, duplex, color, paper_size, 'web')
@@ -167,7 +167,7 @@ async def upload_file(
 async def set_default_printer(
     request: Request,
     body: SetDefaultPrinterRequest,
-    auth=Depends(require_auth),
+    _auth=Depends(require_auth),
 ):
     config = request.app.state.app_config
     config.set('default_printer', body.printer)
@@ -180,7 +180,7 @@ async def set_default_printer(
 async def retry_job(
     job_id: str,
     request: Request,
-    auth=Depends(require_auth),
+    _auth=Depends(require_auth),
 ):
     job_queue = request.app.state.job_queue
     new_id, error = job_queue.retry_job(job_id)
@@ -193,7 +193,7 @@ async def retry_job(
 async def test_notification(
     request: Request,
     background_tasks: BackgroundTasks,
-    auth=Depends(require_auth),
+    _auth=Depends(require_auth),
 ):
     config = request.app.state.app_config
     channel = config.get('notify_channel', 'disabled')
@@ -219,7 +219,7 @@ async def test_notification(
 @api_router.post('/cancel_all_queued', response_model=CancelAllResponse)
 async def cancel_all_queued(
     request: Request,
-    auth=Depends(require_auth),
+    _auth=Depends(require_auth),
 ):
     job_queue = request.app.state.job_queue
     count = job_queue.cancel_all_queued()
@@ -236,13 +236,13 @@ async def sse_events(request: Request):
     import time as _time
 
     start = _time.monotonic()
-    MAX_DURATION = 3600
+    max_duration = 3600
 
     def generate():
         try:
             while True:
                 elapsed = _time.monotonic() - start
-                if elapsed > MAX_DURATION:
+                if elapsed > max_duration:
                     break
                 try:
                     event_type, data = q.get(timeout=30)

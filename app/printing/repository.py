@@ -1,3 +1,4 @@
+import contextlib
 import os
 import sqlite3
 import threading
@@ -268,7 +269,5 @@ class JobRepository:
         )
 
     def close(self):
-        try:
+        with contextlib.suppress(Exception):
             self._conn.close()
-        except Exception:
-            pass

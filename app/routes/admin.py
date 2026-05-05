@@ -127,7 +127,7 @@ async def settings_post(
     port: str = Form('5000'),
     log_level: str = Form('INFO'),
     ssl_enabled: str = Form('0'),
-    auth=Depends(require_auth),
+    _auth=Depends(require_auth),
 ):
     config = request.app.state.app_config
     try:
@@ -213,7 +213,7 @@ async def api_stats(request: Request):
 
 
 @admin_router.get('/api/logs', response_model=LogsResponse)
-async def admin_api_logs(request: Request, lines: int = 50):
+async def admin_api_logs(_request: Request, lines: int = 50):
     """获取最新日志行"""
     log_file = os.path.join(persistent_dir(), 'logs', 'print_server.log')
     try:
@@ -253,7 +253,7 @@ async def admin_test_notification(request: Request, background_tasks: Background
 
 
 @admin_router.post('/api/restart', response_model=AdminActionResponse)
-async def api_restart(request: Request, auth=Depends(require_auth)):
+async def api_restart(request: Request, _auth=Depends(require_auth)):
     """重启后台服务——通过 uvicorn.Server.should_exit 触发 lifespan 优雅关闭"""
     server = getattr(request.app.state, '_server', None)
     if server:

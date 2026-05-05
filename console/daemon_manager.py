@@ -3,6 +3,7 @@
 使用子进程模式管理守护进程（启动文件夹开机自启），不依赖 Windows Service。
 """
 
+import contextlib
 import json
 import os
 import signal
@@ -59,12 +60,10 @@ def _cleanup_stale_daemon() -> None:
 
     if pid and _win_process_exists(pid) and not _http_healthy(timeout=2):
         logger.warning(f'检测到僵尸进程 PID {pid}，强制终止')
-        try:
+        with contextlib.suppress(Exception):
             subprocess.run(
                 ['taskkill', '/F', '/PID', str(pid)], capture_output=True, timeout=5, check=False
             )
-        except Exception:
-            pass
         _cleanup_json()
 
     if status.get('status') in ('crashed', 'stopped'):
@@ -131,17 +130,21 @@ def start_daemon() -> tuple[bool, str]:
             cmd = [sys.executable, DAEMON_SCRIPT]
             cwd = os.path.dirname(os.path.dirname(DAEMON_SCRIPT))
 
-        CREATE_NEW_PROCESS_GROUP = 0x00000200
-        DETACHED_PROCESS = 0x00000008
-        flags = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        create_new_process_group = 0x00000200
+        detached_process = 0x00000008
+        flags = detached_process | create_new_process_group
 
+        stdout_file = open(log_dir / 'daemon_stdout.log', 'a', encoding='utf-8')  # noqa: SIM115
+        stderr_file = open(log_dir / 'daemon_stderr.log', 'a', encoding='utf-8')  # noqa: SIM115
         proc = subprocess.Popen(
             cmd,
             cwd=cwd,
             creationflags=flags,
-            stdout=open(log_dir / 'daemon_stdout.log', 'a', encoding='utf-8'),
-            stderr=open(log_dir / 'daemon_stderr.log', 'a', encoding='utf-8'),
+            stdout=stdout_file,
+            stderr=stderr_file,
         )
+        stdout_file.close()
+        stderr_file.close()
         for _ in range(30):
             if is_daemon_alive():
                 return True, f'守护进程已启动 (PID: {proc.pid})'
@@ -162,12 +165,10 @@ def stop_daemon() -> tuple[bool, str]:
 
     try:
         f_daemon = _daemon_json_path()
-        try:
+        with contextlib.suppress(Exception):
             f_daemon.write_text(
                 json.dumps({'status': 'stopped', 'pid': server_pid}, ensure_ascii=False)
             )
-        except Exception:
-            pass
 
         if server_pid:
             try:
@@ -194,7 +195,7 @@ def stop_daemon() -> tuple[bool, str]:
 
 def restart_daemon() -> tuple[bool, str]:
     """重启守护进程"""
-    ok, msg = stop_daemon()
+    _, _ = stop_daemon()
     time.sleep(1)
     return start_daemon()
 

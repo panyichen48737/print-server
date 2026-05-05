@@ -53,12 +53,14 @@ def ensure_resources() -> None:
     bundled_tag = ''
     tag_src = os.path.join(src, 'version.txt')
     if os.path.isfile(tag_src):
-        bundled_tag = open(tag_src, encoding='utf-8').read().strip()
+        with open(tag_src, encoding='utf-8') as f:
+            bundled_tag = f.read().strip()
 
     # 读取已释放的版本标记
     released_tag = ''
     if os.path.isfile(tag_file):
-        released_tag = open(tag_file, encoding='utf-8').read().strip()
+        with open(tag_file, encoding='utf-8') as f:
+            released_tag = f.read().strip()
 
     if bundled_tag and bundled_tag == released_tag:
         return  # 版本一致，无需更新

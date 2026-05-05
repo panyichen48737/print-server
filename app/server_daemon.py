@@ -23,9 +23,9 @@ os.chdir(root)
 if not getattr(sys, 'frozen', False) and not getattr(sys, '__compiled__', False):
     sys.path.insert(0, root)
 
-from app.bootstrap import bootstrap
-from app.config import Config
-from app.logging import setup_logging
+from app.bootstrap import bootstrap  # noqa: E402
+from app.config import Config  # noqa: E402
+from app.logging import setup_logging  # noqa: E402
 
 _redirect_server = None  # HTTP→HTTPS 重定向服务器
 
@@ -69,11 +69,11 @@ class _RedirectHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b'')
 
-    do_POST = do_GET
-    do_PUT = do_GET
-    do_DELETE = do_GET
-    do_HEAD = do_GET
-    do_OPTIONS = do_GET
+    do_POST = do_GET  # noqa: N815
+    do_PUT = do_GET  # noqa: N815
+    do_DELETE = do_GET  # noqa: N815
+    do_HEAD = do_GET  # noqa: N815
+    do_OPTIONS = do_GET  # noqa: N815
 
     def log_message(self, fmt, *args):
         pass  # 静默
@@ -145,8 +145,8 @@ def main():
     # Windows 命名互斥体：防止启动多个守护进程实例
     import ctypes
 
-    MUTEX_NAME = 'iOSPrintServerDaemon'
-    mutex = ctypes.windll.kernel32.CreateMutexW(None, True, MUTEX_NAME)
+    mutex_name = 'iOSPrintServerDaemon'
+    mutex = ctypes.windll.kernel32.CreateMutexW(None, True, mutex_name)
     if not mutex:
         print('[FATAL] 无法创建互斥体')
         sys.exit(1)
@@ -181,9 +181,7 @@ def main():
         worker_pool.stop()
         write_status('stopped')
 
-    app, job_queue, worker_pool, print_engine, printer_monitor, heartbeat = bootstrap(
-        config, lifespan=server_lifespan
-    )
+    app, _, worker_pool, _, printer_monitor, heartbeat = bootstrap(config, lifespan=server_lifespan)
     printer_monitor.start()
 
     port = config.get('port', 5000)

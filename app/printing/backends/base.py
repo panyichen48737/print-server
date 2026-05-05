@@ -1,7 +1,7 @@
 """打印后端抽象基类 + 插件注册机制"""
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, ClassVar
 
 _backend_registry: dict[str, type['PrinterBackend']] = {}
 
@@ -26,7 +26,7 @@ def discover_backends() -> dict[str, type['PrinterBackend']]:
 class PrinterBackend(ABC):
     """打印机后端接口"""
 
-    _supported_extensions: set[str] = set()
+    _supported_extensions: ClassVar[set[str]] = set()
 
     @abstractmethod
     def print_file(

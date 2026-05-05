@@ -8,10 +8,8 @@
 """
 
 import argparse
-import os
 import sys
 import threading
-from typing import Any
 
 from loguru import logger
 
@@ -146,7 +144,6 @@ def main() -> None:
         print(f'\nTUI 界面启动失败: {e}')
         print('服务已在后台运行，请访问 Web 管理页面:')
         from .conflicts import get_local_ips
-        from .daemon_manager import read_daemon_status
 
         status = read_daemon_status()
         port = status.get('port', 5000)
@@ -170,7 +167,7 @@ def _start_daemon_background():
     ok, msg = start_daemon()
     logger.info(msg)
     if ok and not is_autostart_installed():
-        ok2, msg2 = install_autostart()
+        _ok2, msg2 = install_autostart()
         logger.info(msg2)
 
 

@@ -1,5 +1,6 @@
 """PDF 打印后端 — IPP → RAW → Chromium 三阶策略"""
 
+import contextlib
 import os
 import subprocess
 import threading
@@ -22,16 +23,15 @@ class PdfBackend(PrinterBackend):
         self._active_jobs_lock = threading.Lock()
         self._chrome_path = None
 
-    def print_file(self, filepath, job_id, print_params, lock=None):
+    def print_file(self, filepath, job_id, print_params, _lock=None):
         printer_name = self._resolve_printer(print_params)
         self._track_job(job_id, printer_name, 'pending')
 
         try:
             # ❶ IPP Everywhere — PDF 直送打印机硬件 RIP，质量最高
             printer_ip = get_printer_ip(printer_name)
-            if printer_ip:
-                if self._try_ipp(printer_ip, filepath, job_id, print_params):
-                    return True
+            if printer_ip and self._try_ipp(printer_ip, filepath, job_id, print_params):
+                return True
 
             # ❷ RAW — PDF 字节直送 Windows Spooler，零渲染
             if self._try_raw(printer_name, filepath, job_id):
@@ -98,7 +98,7 @@ class PdfBackend(PrinterBackend):
             logger.warning(f'RAW 失败 ({printer_name}): {e}')
             return False
 
-    def _try_chromium(self, printer_name, filepath, job_id, print_params):
+    def _try_chromium(self, printer_name, filepath, job_id, _print_params):
         chrome_path = self._find_chromium()
         if not chrome_path:
             raise PrintError('未找到 Chromium 浏览器 (Chrome/Edge)')
@@ -121,24 +121,22 @@ class PdfBackend(PrinterBackend):
         )
         self._track_job(job_id, printer_name, 'chromium', pid=proc.pid)
 
-        stdout, stderr = proc.communicate(timeout=self.config.get('job_timeout', 300))
+        _, stderr = proc.communicate(timeout=self.config.get('job_timeout', 300))
         if proc.returncode != 0:
             raise PrintError(
                 f'Chrome 打印失败: {proc.returncode}\n{stderr[:500].decode("utf-8", errors="replace")}'
             )
 
-    def cancel(self, job_id, info):
+    def cancel(self, job_id, _info):
         with self._active_jobs_lock:
             job_info = self._active_jobs.get(job_id)
         if job_info:
             pid = job_info.get('pid')
             if pid:
-                try:
+                with contextlib.suppress(Exception):
                     subprocess.run(
                         ['taskkill', '/F', '/PID', str(pid)], capture_output=True, timeout=5
                     )
-                except Exception:
-                    pass
             cancel_all_spooler_jobs(job_info['printer'])
         return True
 

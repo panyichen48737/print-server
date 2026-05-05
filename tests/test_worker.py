@@ -116,7 +116,7 @@ class TestJobExecutorExecute:
         with patch('app.printing.worker.tempfile.NamedTemporaryFile') as tmp_mock:
             tmp_file = MagicMock()
             tmp_file.name = r'C:\tmp\__temp__.pdf'
-            tmp_mock.return_value = tmp_file
+            tmp_mock.return_value.__enter__.return_value = tmp_file
             with patch('app.printing.worker.shutil.copy2') as copy_mock:
                 job_executor.execute('job-001', 1)
 

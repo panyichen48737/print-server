@@ -1,3 +1,4 @@
+import contextlib
 import ctypes
 import os
 import socket
@@ -86,8 +87,8 @@ def check_conflicts(config: Any, logger: Any) -> bool:
     if pf.exists():
         try:
             old_pid = int(pf.read_text().strip())
-            PROCESS_QUERY_INFORMATION = 0x0400
-            handle = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_INFORMATION, False, old_pid)
+            process_query_information = 0x0400
+            handle = ctypes.windll.kernel32.OpenProcess(process_query_information, False, old_pid)
             if handle:
                 ctypes.windll.kernel32.CloseHandle(handle)
                 logger.warning(f'发现旧控制台进程 (PID: {old_pid}) 仍然存活')
@@ -117,10 +118,8 @@ def check_conflicts(config: Any, logger: Any) -> bool:
 
     if stale_pid:
         logger.warning('终止无窗口旧控制台进程...')
-        try:
+        with contextlib.suppress(Exception):
             subprocess.run(['taskkill', '/F', '/PID', str(old_pid)], capture_output=True)
-        except Exception:
-            pass
         cleanup_pid()
 
     return True
