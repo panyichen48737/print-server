@@ -1,9 +1,6 @@
 """控制台监控面板 — Textual 版（事件驱动，零轮询）"""
 
 import asyncio
-import contextlib
-import ctypes
-import sys
 import webbrowser
 from typing import ClassVar
 
@@ -16,32 +13,15 @@ from app.version import __version__
 
 from .autostart import install_autostart, is_autostart_installed, uninstall_autostart
 from .conflicts import get_local_ips
-from .daemon_manager import (
-    is_daemon_alive,
-    read_daemon_status,
-    restart_daemon,
-    start_daemon,
-    stop_daemon,
-)
 from .log_handler import LOG_BUFFER, LOG_EVENT
 
 
-def _enable_vt_processing() -> None:
-    """启用 Windows 控制台 VT 处理（Textual 必需）"""
-    if sys.platform != 'win32':
-        return
-    with contextlib.suppress(Exception):
-        kernel32 = ctypes.windll.kernel32
-        std_out = -11
-        enable_vt = 0x0004
-        handle = kernel32.GetStdHandle(std_out)
-        mode = ctypes.c_uint32()
-        if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
-            kernel32.SetConsoleMode(handle, mode.value | enable_vt)
-
-
 class StatusWidget(Static):
-    """服务状态面板 — 后台线程每 2s 刷新一次（阻塞调用在线程中执行）"""
+    """服务状态面板 — 直接检查 ServerHandle（无 HTTP 轮询）"""
+
+    def __init__(self, server_handle, **kwargs):
+        super().__init__(**kwargs)
+        self._handle = server_handle
 
     def on_mount(self) -> None:
         self.run_worker(self._poll_loop(), exclusive=True)
@@ -49,12 +29,11 @@ class StatusWidget(Static):
     async def _poll_loop(self) -> None:
         worker = get_current_worker()
         while not worker.is_cancelled:
-            await self._refresh_async()
+            await self._refresh()
             await asyncio.sleep(2)
 
-    async def _refresh_async(self) -> None:
-        """在线程中执行阻塞的健康检查，不阻塞事件循环"""
-        alive = await asyncio.to_thread(is_daemon_alive)
+    async def _refresh(self) -> None:
+        alive = self._handle.is_running
         if not alive:
             self.update(
                 f'[bold]iOS 云打印服务器[/bold] [dim]v{__version__}[/dim]\n\n'
@@ -62,16 +41,15 @@ class StatusWidget(Static):
                 f'[dim]后台服务初始化中，请稍候[/dim]'
             )
             return
-        status = await asyncio.to_thread(read_daemon_status)
-        port = status.get('port', '-')
-        pid = status.get('pid', '-')
+        port = self._handle.port or '-'
+        proto = 'https' if self._handle.ssl_enabled else 'http'
         ips = await asyncio.to_thread(get_local_ips)
         ip_str = ips[0] if ips else '0.0.0.0'
         self.update(
             f'[bold]iOS 云打印服务器[/bold] [dim]v{__version__}[/dim]\n\n'
             f'状态: [bold green]运行中[/bold green]\n'
-            f'PID: {pid}    端口: {port}\n'
-            f'管理地址: [bold yellow]{"https" if status.get("ssl", False) else "http"}://{ip_str}:{port}[/bold yellow]\n\n'
+            f'端口: {port}\n'
+            f'管理地址: [bold yellow]{proto}://{ip_str}:{port}[/bold yellow]\n\n'
             f'[dim]打印机状态与运行统计请访问 Web 管理页面[/dim]'
         )
 
@@ -98,7 +76,7 @@ class LogWidget(RichLog):
 
 
 class TUI(App):
-    """控制台监控面板 — 管理后台守护进程"""
+    """控制台监控面板 — 管理后台服务器"""
 
     TITLE = f'iOS 云打印服务器 v{__version__}'
     CSS = """
@@ -140,7 +118,7 @@ class TUI(App):
     }
     """
 
-    BINDINGS: ClassVar = [  # type: ignore[assignment]
+    BINDINGS: ClassVar = [
         Binding('s', 'start', '启动'),
         Binding('t', 'stop', '停止'),
         Binding('r', 'restart', '重启'),
@@ -149,25 +127,30 @@ class TUI(App):
         Binding('q', 'quit', '退出'),
     ]
 
+    def __init__(self, server_handle=None, app=None, config=None, **kwargs):
+        super().__init__(**kwargs)
+        self._handle = server_handle
+        self._app = app
+        self._config = config
+
     def compose(self) -> ComposeResult:
         yield Header()
-        yield StatusWidget()
+        yield StatusWidget(server_handle=self._handle)
         yield Static(id='quick-links')
         yield LogWidget()
         yield Footer()
 
     def on_mount(self) -> None:
-        _enable_vt_processing()
         self._update_quick_links()
 
     def _update_quick_links(self) -> None:
         autostart = is_autostart_installed()
         u_label = '卸载自启' if autostart else '注册自启'
-        status = read_daemon_status()
-        port = status.get('port', 5000)
+        port = self._handle.port or 5000
+        proto = 'https' if self._handle.ssl_enabled else 'http'
         ips = get_local_ips()
         ip_str = ips[0] if ips else '0.0.0.0'
-        self.query_one('#quick-links').update(  # type: ignore
+        self.query_one('#quick-links').update(
             f'[bold]操作[/bold]\n\n'
             f'[bold cyan]S[/bold cyan]  启动\n'
             f'[bold cyan]T[/bold cyan]  停止\n'
@@ -176,27 +159,30 @@ class TUI(App):
             f'[bold cyan]U[/bold cyan]  {u_label}\n'
             f'[bold cyan]Q[/bold cyan]  退出\n\n'
             f'[bold]管理地址[/bold]\n'
-            f'{"https" if status.get("ssl", False) else "http"}://{ip_str}:{port}/admin'
+            f'{proto}://{ip_str}:{port}/admin'
         )
 
     def action_start(self) -> None:
-        ok, msg = start_daemon()
+        if self._handle.is_running:
+            self.notify('服务器已在运行', severity='information')
+            return
+        ok = self._handle.start(self._app, self._config)
         self._update_quick_links()
-        self.notify(msg, severity='information' if ok else 'error')
+        self.notify('服务器已启动' if ok else '启动失败', severity='information' if ok else 'error')
 
     def action_stop(self) -> None:
-        ok, msg = stop_daemon()
+        self._handle.stop()
         self._update_quick_links()
-        self.notify(msg, severity='information' if ok else 'error')
+        self.notify('服务器已停止', severity='information')
 
     def action_restart(self) -> None:
-        ok, msg = restart_daemon()
+        self._handle.stop()
+        ok = self._handle.start(self._app, self._config)
         self._update_quick_links()
-        self.notify(msg, severity='information' if ok else 'error')
+        self.notify('服务器已重启' if ok else '重启失败', severity='information' if ok else 'error')
 
     def action_open_web(self) -> None:
-        status = read_daemon_status()
-        port = status.get('port', 5000)
+        port = self._handle.port or 5000
         webbrowser.open(f'http://127.0.0.1:{port}/admin')
         self.notify('已在浏览器打开管理后台', severity='information')
 

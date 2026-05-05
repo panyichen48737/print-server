@@ -33,10 +33,9 @@ def _startup_folder() -> Path:
 def _exe_path() -> tuple[str, str]:
     """返回 (可执行路径, 参数)"""
     if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
-        return sys.executable, '--server-daemon'
+        return sys.executable, '--headless'
     this_dir = Path(__file__).resolve().parent.parent
-    daemon = this_dir / 'app' / 'server_daemon.py'
-    return sys.executable, f'"{daemon}"'
+    return sys.executable, f'"{this_dir}" -m console --headless'
 
 
 def _startup_link_path() -> Path:
