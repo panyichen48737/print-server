@@ -210,11 +210,20 @@ class Config(BaseSettings):
         try:
             from watchfiles import watch
 
-            for _ in watch(self._config_path, stop_event=self._watch_stop):  # type: ignore
+            watch_dir = os.path.dirname(self._config_path)
+            if not os.path.isdir(watch_dir):
+                logger.debug(f'配置文件目录不存在，跳过监听: {watch_dir}')
+                return
+
+            for changes in watch(watch_dir, stop_event=self._watch_stop):  # type: ignore
                 if self._watch_stop.is_set():  # type: ignore
                     break
-                logger.info('config.json 已变更，自动重载配置')
-                self.reload()
+                # 仅处理 config.json 的变更
+                for _change, path in changes:
+                    if os.path.basename(path) == 'config.json':
+                        logger.info('config.json 已变更，自动重载配置')
+                        self.reload()
+                        break
         except ImportError:
             logger.debug('watchfiles 未安装，配置热加载不可用')
         except Exception as e:
