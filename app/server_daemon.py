@@ -58,10 +58,11 @@ def _find_cert() -> tuple[str | None, str | None]:
 
 def _health_check_loop(app, config, logger):
     port = config.get('port', 5000)
+    use_ssl = config.get('ssl_enabled', False)
     cert_file, _ = _find_cert()
-    proto = 'https' if cert_file else 'http'
+    proto = 'https' if (use_ssl and cert_file) else 'http'
     ctx = None
-    if cert_file:
+    if use_ssl and cert_file:
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
@@ -152,7 +153,8 @@ def main():
         app, host='0.0.0.0', port=port,
         log_level='info', access_log=False,
     )
-    if cert_file and key_file and os.path.isfile(cert_file) and os.path.isfile(key_file):
+    # 仅当配置明确启用 SSL 且证书存在时才启用 HTTPS
+    if config.get('ssl_enabled', False) and cert_file and key_file and os.path.isfile(cert_file) and os.path.isfile(key_file):
         uvicorn_config.ssl_certfile = cert_file
         uvicorn_config.ssl_keyfile = key_file
         logger.info(f'守护进程运行在 https://0.0.0.0:{port} (SSL)')

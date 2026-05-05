@@ -27,6 +27,12 @@ def create_app(lifespan=_default_lifespan) -> FastAPI:
     app.include_router(api_router, prefix='/api')
     app.include_router(admin_router, prefix='/admin')
 
+    # 根路径重定向到管理后台
+    @app.get('/', include_in_schema=False)
+    async def root_redirect():
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url='/admin')
+
     ensure_dir(persistent_dir(), 'jobs')
     ensure_dir(persistent_dir(), 'logs')
 

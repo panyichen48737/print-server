@@ -1209,7 +1209,7 @@ body, .sidebar, .top-bar, .card, .stat-card, .printer-card,
 .log-entry {
   padding: 0 12px 0 44px;
   white-space: nowrap;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   position: relative;
   min-height: 20px;
   display: flex;
@@ -1261,6 +1261,7 @@ body, .sidebar, .top-bar, .card, .stat-card, .printer-card,
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--text-primary);
 }
 
 .log-controls {

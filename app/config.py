@@ -44,6 +44,7 @@ class Config(BaseSettings):
     job_retention_days: int = Field(default=30, ge=1, le=365)
     print_dpi: int = Field(default=600, ge=72, le=1200)
     auto_rotate: bool = True
+    ssl_enabled: bool = False
     word_timeout: int = Field(default=120, ge=30, le=600)
     allowed_extensions: list[str] = Field(default_factory=lambda: [
         '.doc', '.docx', '.pdf', '.xls', '.xlsx', '.ppt', '.pptx',
