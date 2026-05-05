@@ -71,11 +71,6 @@ def build(version: str):
         print(f'[build] 已包含 SSL 证书')
     elif cert_dir.exists():
         print(f'[build] 警告: certs/ 目录存在但缺少 cert.pem 或 key.pem，跳过证书打包')
-    # nssm（如存在）— 注册为 Windows 服务用
-    nssm_src = PROJECT_ROOT / 'bin' / 'nssm.exe'
-    if nssm_src.exists():
-        shutil.copy2(nssm_src, res_dir / 'nssm.exe')
-        print(f'[build] 已包含 nssm.exe')
 
     # PyInstaller 参数（--onefile：所有内容打包进单一 exe，启动时解压到 %TEMP%）
     args = [

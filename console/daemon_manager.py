@@ -70,6 +70,18 @@ def _service_running() -> bool:
         return False
 
 
+def _uninstall_service_quiet() -> None:
+    """静默卸载 Windows 服务（失败也忽略）"""
+    try:
+        subprocess.run(['sc', 'stop', SERVICE_NAME], capture_output=True, timeout=10)
+    except Exception:
+        pass
+    try:
+        subprocess.run(['sc', 'delete', SERVICE_NAME], capture_output=True, timeout=10)
+    except Exception:
+        pass
+
+
 def is_daemon_alive() -> bool:
     """检查守护进程是否存活
 
@@ -117,15 +129,17 @@ def start_daemon() -> tuple[bool, str]:
         try:
             subprocess.run(['sc', 'start', SERVICE_NAME],
                            capture_output=True, timeout=30)
-            # server_daemon.py 未注册 SCM 回调，sc query 不会显示 RUNNING，
-            # 因此直接用 HTTP 健康检查判断服务是否就绪
             for _ in range(30):
                 if _http_healthy():
                     return True, 'Windows 服务已启动'
                 time.sleep(1)
-            return False, 'Windows 服务启动超时 (30s)'
+            # 服务启动超时 — 可能是二进制路径失效（exe 升级后路径变更）
+            # 自动清理失效的服务，回退到子进程模式
+            logger.warning('Windows 服务启动超时，尝试清理失效服务并回退子进程')
+            _uninstall_service_quiet()
         except Exception as e:
-            return False, f'服务启动失败: {e}'
+            logger.warning(f'Windows 服务启动失败 ({e})，回退子进程模式')
+            _uninstall_service_quiet()
 
     # 2. 回退子进程模式
     from app._paths import persistent_dir
@@ -170,6 +184,8 @@ def stop_daemon() -> tuple[bool, str]:
             for _ in range(6):
                 if not _service_running():
                     _cleanup_json()
+                    # 如果服务已失效（二进制路径不存在），顺带删除
+                    _uninstall_service_quiet()
                     return True, 'Windows 服务已停止'
                 time.sleep(1)
             return False, 'Windows 服务停止超时'
