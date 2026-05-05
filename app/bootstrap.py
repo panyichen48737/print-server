@@ -25,7 +25,7 @@ def bootstrap(config: Config, lifespan=None):
     channel = config.get('notify_channel', 'disabled')
     dingtalk = None
     bark = None
-    notifier = None
+    notifier: object = None
     if channel == 'dingtalk':
         dingtalk = DingTalk(config)
         notifier = dingtalk

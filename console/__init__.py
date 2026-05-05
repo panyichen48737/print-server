@@ -42,7 +42,7 @@ def _ensure_single_instance() -> None:
         print(f'[WARN] 无法创建互斥体 (error={err})，继续启动')
         return
     if err == 183:  # ERROR_ALREADY_EXISTS
-        ctypes.windll.kernel32.CloseHandle(mutex)
+        ctypes.windll.kernel32.CloseHandle(mutex)  # type: ignore
         print('控制台已在运行')
         sys.exit(0)
     # err == 0: 新创建，正常持有；其他异常值记录日志
