@@ -1208,25 +1208,14 @@ body, .sidebar, .top-bar, .card, .stat-card, .printer-card,
 
 .log-entry {
   padding: 0 12px 0 44px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-all;
   color: var(--text-secondary);
   position: relative;
   min-height: 20px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   cursor: pointer;
-}
-
-.log-entry.wrap, .log-viewer.wrap .log-entry {
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-  word-break: break-all;
-  min-height: 18px;
-  padding-top: 1px;
-  padding-bottom: 1px;
 }
 
 .log-entry::before {
@@ -1711,7 +1700,7 @@ select:focus:not(:focus-visible) {
 
   /* ── Mobile Log Viewer ── */
   .log-viewer { height: 50vh; min-height: 200px; }
-  .log-entry { white-space: normal; padding: 2px 12px 2px 36px; min-height: 18px; }
+  .log-entry { padding: 1px 12px 1px 36px; }
   .log-entry::before { width: 22px; font-size: 9px; }
   .log-entry .log-level { width: 36px; font-size: 9px; }
   .log-entry .log-timestamp { font-size: 9px; min-width: 60px; }
