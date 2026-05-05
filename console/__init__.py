@@ -54,7 +54,22 @@ def _ensure_single_instance() -> None:
             sys.exit(0)
 
 
+def _enable_vt_processing() -> None:
+    """启用 Windows 控制台 VT 处理（Textual 必需）"""
+    import contextlib
+    import ctypes
+
+    with contextlib.suppress(Exception):
+        kernel32 = ctypes.windll.kernel32
+        ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+        handle = kernel32.GetStdHandle(-11)
+        mode = ctypes.c_uint32()
+        if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            kernel32.SetConsoleMode(handle, mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+
+
 def main() -> int | None:
+    _enable_vt_processing()
     # 冻结 EXE 入口：--server-daemon 参数直接路由到服务器入口
     if '--server-daemon' in sys.argv:
         from app.server_daemon import main as daemon_main

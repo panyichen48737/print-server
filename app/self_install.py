@@ -92,9 +92,12 @@ def ensure_installed() -> bool:
         exe = _installed_exe_path()
         args = '--server-daemon' if '--server-daemon' in sys.argv else ''
         logger.info(f'启动安装目录中的程序: {exe} {args}')
+        # CREATE_NEW_CONSOLE: 新进程获得独立控制台，避免父进程退出后控制台被销毁导致 TUI 黑屏
+        flags = subprocess.CREATE_NEW_CONSOLE if '--server-daemon' not in sys.argv else 0
         subprocess.Popen(
             [exe] + (['--server-daemon'] if '--server-daemon' in sys.argv else []),
             close_fds=True,
+            creationflags=flags,
         )
         return False  # 通知调用方退出当前进程
     except Exception as e:

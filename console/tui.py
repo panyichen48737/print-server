@@ -1,6 +1,9 @@
 """控制台监控面板 — Textual 版（事件驱动，零轮询）"""
 
 import asyncio
+import contextlib
+import ctypes
+import sys
 import webbrowser
 from typing import ClassVar
 
@@ -10,6 +13,20 @@ from textual.widgets import Footer, Header, RichLog, Static
 from textual.worker import get_current_worker
 
 from app.version import __version__
+
+
+def _enable_vt_processing() -> None:
+    """启用 Windows 控制台 VT 处理（Textual 必需）"""
+    if sys.platform != 'win32':
+        return
+    with contextlib.suppress(Exception):
+        kernel32 = ctypes.windll.kernel32
+        STD_OUTPUT_HANDLE = -11
+        ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+        handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
+        mode = ctypes.c_uint32()
+        if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            kernel32.SetConsoleMode(handle, mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
 
 from .autostart import install_autostart, is_autostart_installed, uninstall_autostart
 from .conflicts import get_local_ips
@@ -140,6 +157,7 @@ class TUI(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        _enable_vt_processing()
         self._update_quick_links()
 
     def _update_quick_links(self) -> None:
