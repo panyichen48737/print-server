@@ -71,9 +71,15 @@ def _service_running() -> bool:
 
 
 def is_daemon_alive() -> bool:
-    """检查守护进程是否存活（服务优先，回退 PID 检查）"""
-    if _service_installed():
-        return _service_running()
+    """检查守护进程是否存活
+
+    优先 HTTP 健康检查（最准确），回退 PID 检查。
+    服务模式下 server_daemon.py 未注册 SCM 回调，sc query 不可靠。
+    """
+    # HTTP 健康检查是最终权威判断
+    if _http_healthy(timeout=2):
+        return True
+    # 回退：检查 daemon.json 中的 PID
     status = read_daemon_status()
     pid = status.get('pid')
     if not pid or status.get('status') != 'running':
@@ -81,6 +87,23 @@ def is_daemon_alive() -> bool:
     try:
         return _win_process_exists(pid)
     except (OSError, PermissionError):
+        return False
+
+
+def _http_healthy(timeout: int = 3) -> bool:
+    """HTTP 健康检查 — 确认服务器实际在响应请求"""
+    status = read_daemon_status()
+    port = status.get('port', 5000)
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            f'http://127.0.0.1:{port}/api/health',
+            method='GET',
+            headers={'Connection': 'close'},
+        )
+        urllib.request.urlopen(req, timeout=timeout)
+        return True
+    except Exception:
         return False
 
 
@@ -93,12 +116,14 @@ def start_daemon() -> tuple[bool, str]:
     if _service_installed():
         try:
             subprocess.run(['sc', 'start', SERVICE_NAME],
-                           capture_output=True, timeout=15)
-            for _ in range(15):
-                if _service_running():
+                           capture_output=True, timeout=30)
+            # server_daemon.py 未注册 SCM 回调，sc query 不会显示 RUNNING，
+            # 因此直接用 HTTP 健康检查判断服务是否就绪
+            for _ in range(30):
+                if _http_healthy():
                     return True, 'Windows 服务已启动'
                 time.sleep(1)
-            return False, 'Windows 服务启动超时'
+            return False, 'Windows 服务启动超时 (30s)'
         except Exception as e:
             return False, f'服务启动失败: {e}'
 
@@ -126,11 +151,11 @@ def start_daemon() -> tuple[bool, str]:
             stdout=open(log_dir / 'daemon_stdout.log', 'a', encoding='utf-8'),
             stderr=open(log_dir / 'daemon_stderr.log', 'a', encoding='utf-8'),
         )
-        for _ in range(12):
+        for _ in range(30):
             if is_daemon_alive():
                 return True, f'守护进程已启动 (PID: {proc.pid})'
             time.sleep(1)
-        return False, '守护进程启动超时'
+        return False, '守护进程启动超时 (30s)'
     except Exception as e:
         return False, f'启动失败: {e}'
 
