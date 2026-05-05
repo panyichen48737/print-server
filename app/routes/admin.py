@@ -10,7 +10,7 @@ from loguru import logger
 from app._paths import data_root, persistent_dir
 from app.auth import require_auth
 from app.exceptions import PrintServerError
-from app.schemas import AdminActionResponse, LogsResponse, SettingsResponse
+from app.schemas import AdminActionResponse, LogsResponse
 from app.utils import format_time
 from app.utils import safe_int as _safe_int
 
@@ -105,7 +105,7 @@ async def settings_get(request: Request):
     )
 
 
-@admin_router.post('/settings', response_model=SettingsResponse)
+@admin_router.post('/settings')
 async def settings_post(
     request: Request,
     api_key: str = Form(''),
@@ -160,13 +160,13 @@ async def settings_post(
         config.set_many(updates)
         config.save()
         logger.info('配置已保存')
-        return {'success': True}
+        return HTMLResponse('<span style="color: var(--text-success);">✓ 配置已保存</span>')
     except PrintServerError as e:
         logger.error(f'保存配置失败: {e}')
-        raise HTTPException(status_code=400, detail=str(e)) from None
+        return HTMLResponse(f'<span style="color: var(--text-error);">✗ 保存失败: {e}</span>')
     except Exception as e:
         logger.error(f'保存配置失败: {e}')
-        raise HTTPException(status_code=500, detail=str(e)) from None
+        return HTMLResponse(f'<span style="color: var(--text-error);">✗ 保存失败: {e}</span>')
 
 
 @admin_router.get('/printers', name='printers')

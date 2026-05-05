@@ -70,7 +70,3 @@ class SetDefaultPrinterRequest(BaseModel):
 
 class AdminActionResponse(BaseModel):
     success: bool
-
-
-class SettingsResponse(BaseModel):
-    success: bool
