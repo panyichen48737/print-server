@@ -118,14 +118,13 @@ def main() -> int | None:
     tui_handler = TUILogHandler()
     logger.add(tui_handler, format='{time:HH:mm:ss} {level} {message}', level='INFO')
 
-    # 后台启动守护进程（不阻塞 TUI 启动）
-    threading.Thread(target=_start_daemon_background, daemon=True).start()
-
     try:
-        # Textual TUI（阻塞调用通过 asyncio.to_thread 避免卡死）
+        # TUI 先启动，界面就绪后再后台启动守护进程
         from .tui import TUI
 
-        TUI().run()
+        app = TUI()
+        threading.Thread(target=_start_daemon_background, daemon=True).start()
+        app.run()
     except KeyboardInterrupt:
         pass
     except Exception as e:
