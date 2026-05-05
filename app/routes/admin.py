@@ -17,6 +17,10 @@ from app.utils import safe_int as _safe_int
 admin_router = APIRouter()
 templates = Jinja2Templates(directory=os.path.join(data_root(), 'app', 'templates'))
 
+# Make version available to all templates
+from app.version import __version__
+templates.env.globals['version'] = __version__
+
 
 # -- Custom url_for for Jinja2 templates (Flask blueprint compatibility) --
 

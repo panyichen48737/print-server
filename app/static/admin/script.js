@@ -86,23 +86,40 @@
     /* ── Sidebar toggle (mobile) ── */
     var sidebarToggle = document.getElementById('sidebarToggle');
     var sidebar = document.getElementById('sidebar');
+    var sidebarBackdrop = document.getElementById('sidebarBackdrop');
 
     if (sidebarToggle && sidebar) {
         sidebarToggle.setAttribute('aria-label', '切换侧栏');
         sidebarToggle.setAttribute('aria-expanded', 'false');
 
+        function openSidebar() {
+            sidebar.classList.add('open');
+            sidebarToggle.setAttribute('aria-expanded', 'true');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeSidebar() {
+            sidebar.classList.remove('open');
+            sidebarToggle.setAttribute('aria-expanded', 'false');
+            document.body.style.overflow = '';
+        }
+
         sidebarToggle.addEventListener('click', function() {
-            var isOpen = sidebar.classList.toggle('open');
-            sidebarToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            var isOpen = sidebar.classList.contains('open');
+            if (isOpen) closeSidebar(); else openSidebar();
         });
+
+        // Close sidebar on backdrop click
+        if (sidebarBackdrop) {
+            sidebarBackdrop.addEventListener('click', closeSidebar);
+        }
 
         // Close sidebar on outside click (mobile)
         document.addEventListener('click', function(e) {
             if (window.innerWidth <= 768 &&
                 !sidebar.contains(e.target) &&
                 !sidebarToggle.contains(e.target)) {
-                sidebar.classList.remove('open');
-                sidebarToggle.setAttribute('aria-expanded', 'false');
+                closeSidebar();
             }
         });
     }

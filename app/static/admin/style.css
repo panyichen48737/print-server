@@ -1614,11 +1614,24 @@ select:focus:not(:focus-visible) {
     transform: translateX(0);
     box-shadow: 4px 0 24px rgba(0,0,0,0.3);
   }
+
+  /* ── Sidebar backdrop overlay ── */
+  .sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: -1;
+  }
+  .sidebar.open .sidebar-backdrop {
+    display: block;
+  }
+
   .main-content { margin-left: 0; }
   .sidebar-toggle { display: block; }
 
-  .top-bar { padding: 12px 16px; }
-  .content-area { padding: 20px; }
+  .top-bar { padding: 12px 16px; padding: 12px max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left)); }
+  .content-area { padding: 20px; padding: 20px max(16px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
 
   .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .printer-grid { grid-template-columns: 1fr; }
@@ -1637,6 +1650,53 @@ select:focus:not(:focus-visible) {
     align-items: stretch;
   }
 
+  /* ── Touch-friendly targets ── */
+  .nav-item { padding: 12px 10px; }
+  .btn { padding: 10px 16px; font-size: 14px; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .form-select, .form-input { padding: 10px 12px; font-size: 16px; }  /* 16px prevents iOS zoom on focus */
+  .sidebar-toggle { padding: 12px; }
+
+  /* ── Table → Card on mobile ── */
+  .table-container table.table,
+  .table-container thead,
+  .table-container tbody,
+  .table-container th,
+  .table-container td,
+  .table-container tr {
+    display: block;
+  }
+  .table-container thead { display: none; }
+  .table-container tbody tr {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .table-container tbody tr:hover td { background: transparent; }
+  .table-container tbody tr:last-child { border-bottom: none; }
+  .table-container td {
+    padding: 4px 0;
+    border: none;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .table-container td::before {
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary);
+    min-width: 70px;
+    flex-shrink: 0;
+  }
+  .table-container td:first-child { padding-top: 0; }
+  .table-container td:last-child { padding-bottom: 0; }
+
+  /* Hide label on checkbox column */
+  .table-container td:first-child::before { content: none; display: none; }
+
   /* ── Mobile Log Viewer ── */
   .log-viewer { height: 50vh; min-height: 200px; }
   .log-entry { white-space: normal; padding: 2px 12px 2px 36px; min-height: 18px; }
@@ -1647,6 +1707,13 @@ select:focus:not(:focus-visible) {
   .log-search-wrapper { flex: 1; min-width: 120px; }
   .log-search-wrapper .form-input { min-width: 80px; font-size: 12px; }
   .log-level-filter select { width: 80px !important; font-size: 12px; }
+
+  /* ── Toast smaller on mobile ── */
+  .toast { min-width: auto; width: calc(100vw - 24px); font-size: 13px; }
+  .toast-container { right: 6px; top: 6px; }
+
+  /* ── Modal full width on mobile ── */
+  .modal-box { width: 95%; margin: 0 auto; }
 }
 
 @media (max-width: 480px) {
