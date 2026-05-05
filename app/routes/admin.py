@@ -1,7 +1,7 @@
 import os
 from collections import deque
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from jinja2 import pass_context
@@ -13,6 +13,7 @@ from app.exceptions import PrintServerError
 from app.schemas import AdminActionResponse, LogsResponse
 from app.utils import format_time
 from app.utils import safe_int as _safe_int
+from app.version import __version__
 
 admin_router = APIRouter()
 templates = Jinja2Templates(directory=os.path.join(data_root(), 'app', 'templates'))
