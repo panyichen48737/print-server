@@ -1,23 +1,27 @@
 """图片打印后端（现代化方式：PIL 排版 → PDF → Chromium 打印）"""
+
+import contextlib
 import io
 import tempfile
-from loguru import logger
+from typing import ClassVar
 
+from loguru import logger
 from PIL import Image, ImageOps
 
-from app.printing.backends.base import PrinterBackend
+from app.printing.backends.base import PrinterBackend, register
 from app.printing.backends.pdf import PdfBackend
 from app.printing.enhancer import QuarkEnhancer
 from app.utils import safe_remove
 
 
+@register('.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif', '.heic', '.heif')
 class ImageBackend(PrinterBackend):
     """图片打印：Quark API 预处理 → PIL 排版 → PDF 中间格式 → Chromium 打印"""
 
-    PAPER_SIZES = {
-        'A4':     (8.27, 11.69),
-        'Letter': (8.5,  11.0),
-        'A3':     (11.69, 16.54),
+    PAPER_SIZES: ClassVar[dict[str, tuple[float, float]]] = {
+        'A4': (8.27, 11.69),
+        'Letter': (8.5, 11.0),
+        'A3': (11.69, 16.54),
     }
 
     def __init__(self, config, pdf_backend: PdfBackend):
@@ -25,10 +29,10 @@ class ImageBackend(PrinterBackend):
         self._quark = QuarkEnhancer(config)
         self._pdf_backend = pdf_backend
 
-    def print_file(self, filepath, job_id, print_params, lock=None):
+    def print_file(self, filepath, job_id, print_params, _lock=None):
         return self._print_image(filepath, job_id, print_params)
 
-    def cancel(self, job_id, info):
+    def cancel(self, job_id, _info):
         """委托给 PdfBackend 的取消逻辑（kill Chrome PID + 清理 Spooler）"""
         pdf_info = self._pdf_backend.get_active_job(job_id)
         if pdf_info:
@@ -40,16 +44,11 @@ class ImageBackend(PrinterBackend):
         try:
             processed = self._quark.enhance(filepath)
 
-            if processed:
-                img = Image.open(io.BytesIO(processed))
-            else:
-                img = Image.open(filepath)
+            img = Image.open(io.BytesIO(processed)) if processed else Image.open(filepath)
 
             if self.config.get('auto_rotate', True):
-                try:
+                with contextlib.suppress(Exception):
                     img = ImageOps.exif_transpose(img)
-                except Exception:
-                    pass
 
             dpi = self.config.get('print_dpi', 300)
             paper_size = print_params.get('paper_size') or self.config.get('paper_size', 'A4')
@@ -64,7 +63,9 @@ class ImageBackend(PrinterBackend):
             new_w, new_h = int(img_w * scale), int(img_h * scale)
 
             color_val = print_params.get('color')
-            use_color = bool(color_val) if color_val is not None else self.config.get('default_color', True)
+            use_color = (
+                bool(color_val) if color_val is not None else self.config.get('default_color', True)
+            )
 
             mode = 'RGB' if use_color else 'L'
             canvas = Image.new(mode, (pw, ph), 255)
@@ -81,14 +82,14 @@ class ImageBackend(PrinterBackend):
             else:
                 canvas.paste(img_resized, (x, y))
 
-            temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
-            try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_pdf:
                 canvas.save(temp_pdf, 'PDF', resolution=dpi)
-                temp_pdf.close()
-                logger.info(f'图片已渲染为 PDF 临时文件: {temp_pdf.name}')
-                return self._pdf_backend.print_file(temp_pdf.name, job_id, print_params)
+                pdf_path = temp_pdf.name
+            logger.info(f'图片已渲染为 PDF 临时文件: {pdf_path}')
+            try:
+                return self._pdf_backend.print_file(pdf_path, job_id, print_params)
             finally:
-                safe_remove(temp_pdf.name, '临时 PDF')
+                safe_remove(pdf_path, '临时 PDF')
 
         except Exception as e:
             logger.error(f'图片打印失败: {e}')

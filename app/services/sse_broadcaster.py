@@ -4,11 +4,13 @@ EventBus:     on/off/publish    — 服务间本地解耦（JobQueue → Notifie
 SSEBroadcaster: subscribe/unsubscribe/publish    — SSE/WS 远程推送
                 同时委托 EventBus 处理本地监听，一次 publish 两端覆盖。
 """
+
 import queue
 import threading
 import time
 import uuid
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from loguru import logger
 
@@ -100,7 +102,8 @@ class SSEBroadcaster:
                         self._stale_count.pop(sub_id, None)
                         self._subscribe_time.pop(sub_id, None)
                         logger.warning(
-                            f'SSE 订阅者 {sub_id[:8]} 已连续 {_STALE_LIMIT} 次队列满，已移除')
+                            f'SSE 订阅者 {sub_id[:8]} 已连续 {_STALE_LIMIT} 次队列满，已移除'
+                        )
                     else:
                         self._stale_count[sub_id] = count
 
@@ -114,11 +117,7 @@ class SSEBroadcaster:
         now = time.monotonic()
         removed = 0
         with self._lock:
-            idle_ids = [
-                sub_id
-                for sub_id, t in self._subscribe_time.items()
-                if now - t > timeout
-            ]
+            idle_ids = [sub_id for sub_id, t in self._subscribe_time.items() if now - t > timeout]
             for sub_id in idle_ids:
                 self._subscribers.pop(sub_id, None)
                 self._stale_count.pop(sub_id, None)

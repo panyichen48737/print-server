@@ -1,5 +1,6 @@
 """测试通知工具函数"""
-from app.services.notifier import format_error_message, is_print_related_error, KNOWN_ERROR_PATTERNS
+
+from app.services.notifier import format_error_message, is_print_related_error
 
 
 class TestFormatErrorMessage:

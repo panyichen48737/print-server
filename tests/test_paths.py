@@ -1,10 +1,8 @@
 """测试路径工具"""
-import sys
+
 from unittest.mock import patch
 
-import pytest
-
-from app._paths import app_root, data_root, persistent_dir, ensure_dir
+from app._paths import app_root, data_root, ensure_dir, persistent_dir
 
 
 class TestAppRoot:
@@ -63,5 +61,6 @@ class TestPersistentDir:
     @patch('app._paths.os.environ', {})  # 无 APPDATA 时回退到 ~
     def test_frozen_mode_fallback_to_home(self):
         from app._paths import persistent_dir
+
         result = persistent_dir()
         assert result.endswith('iOSPrintServer')

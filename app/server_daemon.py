@@ -1,33 +1,33 @@
 """后台守护进程 — 无界面运行服务器"""
-import os
-import sys
+
+import argparse
 import json
+import os
 import ssl
+import sys
+import threading
 import time
 import urllib.request
-import argparse
-import threading
 from contextlib import asynccontextmanager
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import uvicorn
 
 from app._paths import app_root, persistent_dir
 from app.resources import ensure_resources
+from app.self_install import ensure_installed
 
 root = app_root()
 os.chdir(root)
 if not getattr(sys, 'frozen', False) and not getattr(sys, '__compiled__', False):
     sys.path.insert(0, root)
 
+from app.bootstrap import bootstrap
 from app.config import Config
 from app.logging import setup_logging
-from app.bootstrap import bootstrap
 
-# ServiceFramework 桥接 — win_service.py 注入
-_win_service_handle = None  # DaemonService 实例
-_is_service = False          # True 表示由 SCM 启动
-_uvicorn_server = None       # uvicorn.Server 引用，供 SvcStop 触发关闭
+_redirect_server = None  # HTTP→HTTPS 重定向服务器
 
 
 def write_status(status, **extra):
@@ -41,9 +41,9 @@ def write_status(status, **extra):
 
 
 def _find_cert() -> tuple[str | None, str | None]:
-    """查找 SSL 证书：释放的资源目录 → exe 同级 certs/ → 项目目录 certs/"""
+    """查找 SSL 证书：certs/ 目录"""
     search_dirs = [
-        os.path.join(persistent_dir(), 'resources', 'certs'),  # ensure_resources 释放位置
+        os.path.join(persistent_dir(), 'resources', 'certs'),
         os.path.join(app_root(), 'certs'),
     ]
     if getattr(sys, 'frozen', False):
@@ -54,6 +54,46 @@ def _find_cert() -> tuple[str | None, str | None]:
         if os.path.isfile(cf) and os.path.isfile(kf):
             return cf, kf
     return None, None
+
+
+class _RedirectHandler(BaseHTTPRequestHandler):
+    """HTTP→HTTPS 重定向处理器"""
+
+    main_port = 5000  # 会被 _start_redirect_server 覆盖
+
+    def do_GET(self):
+        host = self.headers.get('Host', '127.0.0.1').split(':')[0]
+        self.send_response(301)
+        self.send_header('Location', f'https://{host}:{self.main_port}{self.path}')
+        self.send_header('Connection', 'close')
+        self.end_headers()
+        self.wfile.write(b'')
+
+    do_POST = do_GET
+    do_PUT = do_GET
+    do_DELETE = do_GET
+    do_HEAD = do_GET
+    do_OPTIONS = do_GET
+
+    def log_message(self, fmt, *args):
+        pass  # 静默
+
+
+def _start_redirect_server(
+    main_port: int, redirect_port: int | None = None, logger=None
+) -> HTTPServer | None:
+    """启动 HTTP 重定向服务器（301 → HTTPS）"""
+    try:
+        rp = redirect_port if redirect_port and redirect_port > 0 else main_port + 1
+        _RedirectHandler.main_port = main_port
+        server = HTTPServer(('0.0.0.0', rp), _RedirectHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        logger.info(f'HTTP 重定向服务运行在 http://0.0.0.0:{rp} → https://0.0.0.0:{main_port}')
+        return server
+    except Exception as e:
+        logger.warning(f'HTTP 重定向服务启动失败: {e}')
+        return None
 
 
 def _health_check_loop(app, config, logger):
@@ -77,7 +117,7 @@ def _health_check_loop(app, config, logger):
             req = urllib.request.Request(
                 f'{proto}://127.0.0.1:{port}/api/health',
                 method='GET',
-                headers={'Connection': 'close'}
+                headers={'Connection': 'close'},
             )
             urllib.request.urlopen(req, timeout=5, context=ctx)
             consecutive_failures = 0
@@ -97,26 +137,30 @@ def main():
     global _uvicorn_server
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--server-daemon', action='store_true',
-                        help='以守护进程模式运行（冻结 EXE 入口）')
+    parser.add_argument(
+        '--server-daemon', action='store_true', help='以守护进程模式运行（冻结 EXE 入口）'
+    )
     parser.parse_known_args()
 
     # Windows 命名互斥体：防止启动多个守护进程实例
-    # 服务模式下 SCM 已保证单实例，无需重复加锁
-    if not _is_service:
-        import ctypes
-        MUTEX_NAME = 'iOSPrintServerDaemon'
-        mutex = ctypes.windll.kernel32.CreateMutexW(None, True, MUTEX_NAME)
-        if not mutex:
-            print('[FATAL] 无法创建互斥体')
-            sys.exit(1)
-        if ctypes.windll.kernel32.GetLastError() == 183:
-            ctypes.windll.kernel32.CloseHandle(mutex)
-            print('[FATAL] 守护进程已在运行')
-            sys.exit(1)
+    import ctypes
+
+    MUTEX_NAME = 'iOSPrintServerDaemon'
+    mutex = ctypes.windll.kernel32.CreateMutexW(None, True, MUTEX_NAME)
+    if not mutex:
+        print('[FATAL] 无法创建互斥体')
+        sys.exit(1)
+    if ctypes.windll.kernel32.GetLastError() == 183:
+        ctypes.windll.kernel32.CloseHandle(mutex)
+        print('[FATAL] 守护进程已在运行')
+        sys.exit(1)
 
     config = Config()
     logger = setup_logging(level=config.get('log_level', 'INFO'))
+
+    # 自安装：复制到专属目录并创建开始在菜单
+    if not ensure_installed():
+        sys.exit(0)
 
     write_status('starting')
     logger.info('守护进程启动中...')
@@ -127,16 +171,19 @@ def main():
     # 定义 FastAPI lifespan，处理优雅关闭
     @asynccontextmanager
     async def server_lifespan(app):
-        write_status('running', port=config.get('port', 5000))
+        write_status('running', port=config.get('port', 5000), ssl=config.get('ssl_enabled', False))
         app.state._server = server
         yield
         logger.info('守护进程关闭中...')
+        config.stop_watcher()
         printer_monitor.stop()
         heartbeat.stop()
         worker_pool.stop()
         write_status('stopped')
 
-    app, job_queue, worker_pool, print_engine, printer_monitor, heartbeat = bootstrap(config, lifespan=server_lifespan)
+    app, job_queue, worker_pool, print_engine, printer_monitor, heartbeat = bootstrap(
+        config, lifespan=server_lifespan
+    )
     printer_monitor.start()
 
     port = config.get('port', 5000)
@@ -145,24 +192,34 @@ def main():
 
     # 启动健康检查线程
     health_thread = threading.Thread(
-        target=_health_check_loop, args=(app, config, logger), daemon=True)
+        target=_health_check_loop, args=(app, config, logger), daemon=True
+    )
     health_thread.start()
 
     # 使用 uvicorn.Server 以便通过 should_exit 触发优雅关闭
     uvicorn_config = uvicorn.Config(
-        app, host='0.0.0.0', port=port,
-        log_level='info', access_log=False,
+        app,
+        host='0.0.0.0',
+        port=port,
+        log_level='info',
+        access_log=False,
     )
-    # 仅当配置明确启用 SSL 且证书存在时才启用 HTTPS
-    if config.get('ssl_enabled', False) and cert_file and key_file and os.path.isfile(cert_file) and os.path.isfile(key_file):
+
+    use_ssl = config.get('ssl_enabled', False) and cert_file and key_file
+    if use_ssl:
         uvicorn_config.ssl_certfile = cert_file
         uvicorn_config.ssl_keyfile = key_file
         logger.info(f'守护进程运行在 https://0.0.0.0:{port} (SSL)')
+        # 启动 HTTP→HTTPS 重定向服务器
+        global _redirect_server
+        redirect_port = config.get('redirect_port', 0)
+        _redirect_server = _start_redirect_server(port, redirect_port, logger)
     else:
+        if config.get('ssl_enabled', False):
+            logger.warning('SSL 已启用但未找到证书文件（cert.pem / key.pem），回退到 HTTP')
         logger.info(f'守护进程运行在 http://0.0.0.0:{port} (无 SSL)')
 
     server = uvicorn.Server(uvicorn_config)
-    _uvicorn_server = server  # 供 ServiceFramework.SvcStop 触发关闭
     server.run()
 
     logger.info('守护进程已完全关闭')

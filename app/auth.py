@@ -2,6 +2,8 @@
 
 from fastapi import HTTPException, Request
 
+from app.exceptions import AuthError
+
 
 async def require_auth(request: Request) -> None:
     """FastAPI 依赖：验证 Bearer Token"""
@@ -9,4 +11,7 @@ async def require_auth(request: Request) -> None:
     config = request.app.state.app_config
     expected = f'Bearer {config.get("api_key", "print-server-key-2026")}'
     if auth != expected:
-        raise HTTPException(status_code=401, detail='Unauthorized')
+        try:
+            raise AuthError('Unauthorized')
+        except AuthError as e:
+            raise HTTPException(status_code=401, detail=str(e)) from None

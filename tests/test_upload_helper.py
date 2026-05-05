@@ -1,4 +1,5 @@
 """测试文件上传辅助模块"""
+
 import os
 import sys
 from unittest.mock import MagicMock, patch
@@ -8,7 +9,7 @@ import pytest
 # 确保项目根在 sys.path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from app.services.upload import handle_file_upload, UploadResult
+from app.services.upload import UploadResult, handle_file_upload
 
 
 class TestHandleFileUpload:
@@ -18,12 +19,14 @@ class TestHandleFileUpload:
     def config(self):
         """模拟 Config 对象"""
         cfg = MagicMock()
+
         def fake_get(key, default=None):
             values = {
                 'allowed_extensions': ['.pdf', '.doc', '.docx', '.jpg', '.png'],
                 'max_file_size_mb': 50,
             }
             return values.get(key, default)
+
         cfg.get.side_effect = fake_get
         return cfg
 
@@ -71,9 +74,16 @@ class TestHandleFileUpload:
         with patch('app.services.upload.ensure_dir', return_value='/tmp/jobs'):
             with patch('builtins.open', MagicMock()):
                 result = handle_file_upload(
-                    'doc.docx', b'doc content', config, queue_mgr,
-                    source='web', printer='HP123', copies='2',
-                    duplex='1', color='0', paper_size='A3'
+                    'doc.docx',
+                    b'doc content',
+                    config,
+                    queue_mgr,
+                    source='web',
+                    printer='HP123',
+                    copies='2',
+                    duplex='1',
+                    color='0',
+                    paper_size='A3',
                 )
                 assert result.success is True
                 _, kwargs = queue_mgr.add_job.call_args

@@ -1,14 +1,18 @@
 """PDF 打印后端 — IPP → RAW → Chromium 三阶策略"""
+
 import os
 import subprocess
 import threading
+
 from loguru import logger
 
-from app.printing.backends.base import PrinterBackend
-from app.printing.utils import cancel_all_spooler_jobs
+from app.exceptions import PrintError
+from app.printing.backends.base import PrinterBackend, register
 from app.printing.ipp_client import get_printer_ip, print_via_ipp
+from app.printing.utils import cancel_all_spooler_jobs
 
 
+@register('.pdf')
 class PdfBackend(PrinterBackend):
     """PDF 打印后端 — IPP(直送) → RAW(Spooler) → Chromium(渲染) 三阶降级"""
 
@@ -57,6 +61,7 @@ class PdfBackend(PrinterBackend):
         printer_name = print_params.get('printer_name') or self.config.get('default_printer', '')
         if not printer_name:
             import win32print
+
             printer_name = win32print.GetDefaultPrinter()
         return printer_name
 
@@ -75,6 +80,7 @@ class PdfBackend(PrinterBackend):
 
     def _try_raw(self, printer_name, filepath, job_id):
         import win32print
+
         try:
             self._track_job(job_id, printer_name, 'raw')
             with open(filepath, 'rb') as f:
@@ -95,23 +101,31 @@ class PdfBackend(PrinterBackend):
     def _try_chromium(self, printer_name, filepath, job_id, print_params):
         chrome_path = self._find_chromium()
         if not chrome_path:
-            raise RuntimeError('未找到 Chromium 浏览器 (Chrome/Edge)')
+            raise PrintError('未找到 Chromium 浏览器 (Chrome/Edge)')
 
         # 净化打印机名称：移除可能干扰 Chrome 参数解析的字符
         safe_printer = printer_name.replace('"', '').replace("'", '')
 
         proc = subprocess.Popen(
-            [chrome_path, '--headless', '--disable-gpu',
-             f'--print-to-printer="{safe_printer}"',
-             '--no-margins', '--no-pdf-header-footer',
-             os.path.abspath(filepath)],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            [
+                chrome_path,
+                '--headless',
+                '--disable-gpu',
+                f'--print-to-printer="{safe_printer}"',
+                '--no-margins',
+                '--no-pdf-header-footer',
+                os.path.abspath(filepath),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         self._track_job(job_id, printer_name, 'chromium', pid=proc.pid)
 
         stdout, stderr = proc.communicate(timeout=self.config.get('job_timeout', 300))
         if proc.returncode != 0:
-            raise RuntimeError(f'Chrome 打印失败: {proc.returncode}\n{stderr[:500].decode("utf-8", errors="replace")}')
+            raise PrintError(
+                f'Chrome 打印失败: {proc.returncode}\n{stderr[:500].decode("utf-8", errors="replace")}'
+            )
 
     def cancel(self, job_id, info):
         with self._active_jobs_lock:
@@ -120,7 +134,9 @@ class PdfBackend(PrinterBackend):
             pid = job_info.get('pid')
             if pid:
                 try:
-                    subprocess.run(['taskkill', '/F', '/PID', str(pid)], capture_output=True, timeout=5)
+                    subprocess.run(
+                        ['taskkill', '/F', '/PID', str(pid)], capture_output=True, timeout=5
+                    )
                 except Exception:
                     pass
             cancel_all_spooler_jobs(job_info['printer'])

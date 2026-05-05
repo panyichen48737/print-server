@@ -5,6 +5,7 @@
   app_root()    — exe 所在目录（仅作参考）
   persistent_dir() — 可写持久化数据，frozen → %%APPDATA%%/iOSPrintServer
 """
+
 import os
 import sys
 

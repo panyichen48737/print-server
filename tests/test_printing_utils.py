@@ -1,8 +1,6 @@
 """测试打印模块工具函数"""
-import sys
-from unittest.mock import MagicMock, patch
 
-import pytest
+from unittest.mock import MagicMock, patch
 
 from app.printing.utils import cancel_all_spooler_jobs
 
@@ -17,9 +15,7 @@ class TestCancelAllSpoolerJobs:
         mock_w32 = MagicMock()
         mock_handle = MagicMock()
         mock_w32.OpenPrinter.return_value = mock_handle
-        mock_w32.EnumJobs.return_value = [
-            {'JobId': 1}, {'JobId': 2}, {'JobId': 3}
-        ]
+        mock_w32.EnumJobs.return_value = [{'JobId': 1}, {'JobId': 2}, {'JobId': 3}]
 
         with _with_win32print(mock_w32):
             cancel_all_spooler_jobs('HP1020')

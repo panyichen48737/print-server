@@ -3,7 +3,7 @@
 {% block page_title %}实时日志{% endblock %}
 
 {% block content %}
-<div class="card">
+<div class="card" x-data="logViewer()" @ws-log.window="onWsLog($event)">
     <div class="card-header">
         <span>系统日志</span>
         <div class="log-controls">
@@ -14,10 +14,10 @@
                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                     </svg>
                 </span>
-                <input type="text" class="form-input" id="logSearchInput" placeholder="搜索日志内容..." oninput="debouncedFilterLogs()" style="min-width:160px;">
+                <input type="text" class="form-input" id="logSearchInput" x-model.debounce.250ms="search" placeholder="搜索日志内容..." oninput="debouncedFilterLogs()" style="min-width:160px;">
             </div>
             <div class="log-level-filter">
-                <select id="levelFilter" style="width: 110px;" aria-label="日志级别筛选">
+                <select id="levelFilter" x-model="filter" style="width: 110px;" aria-label="日志级别筛选">
                     <option value="ALL">全部</option>
                     <option value="ERROR">ERROR</option>
                     <option value="WARNING">WARNING</option>
@@ -71,6 +71,27 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+function logViewer() {
+    return {
+        logs: [],
+        filter: 'ALL',
+        search: '',
+        paused: false,
+        get filteredLogs() {
+            return this.logs.filter(l => {
+                if (this.filter !== 'ALL' && l.level !== this.filter) return false;
+                if (this.search && !l.text.toLowerCase().includes(this.search.toLowerCase())) return false;
+                return true;
+            });
+        },
+        onWsLog(event) {
+            if (!this.paused) this.logs.push(event.detail);
+        },
+        togglePause() { this.paused = !this.paused; }
+    };
+}
+</script>
 <script>
 (function() {
     var logViewer = document.getElementById('logViewer');

@@ -1,12 +1,15 @@
 """Office 文档 → PDF 转换（win32com），然后通过 PDF 后端打印"""
+
 import os
 import threading
 from contextlib import contextmanager
 from tempfile import NamedTemporaryFile
 
-from app.printing.backends.base import PrinterBackend
+from app.exceptions import FileTypeError, PrintError
+from app.printing.backends.base import PrinterBackend, register
 
 
+@register('.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx')
 class OfficeBackend(PrinterBackend):
     """Word / Excel / PowerPoint → PDF 转换器"""
 
@@ -19,6 +22,7 @@ class OfficeBackend(PrinterBackend):
     def _com_context(self, app_name, lock, display_alerts=None):
         with lock:
             import win32com.client
+
             app = None
             try:
                 app = win32com.client.Dispatch(app_name)
@@ -48,7 +52,7 @@ class OfficeBackend(PrinterBackend):
         elif ext in ('.ppt', '.pptx'):
             self._ppt_to_pdf(filepath, pdf_path, print_params)
         else:
-            raise ValueError(f'Office 后端不支持的文件类型: {ext}')
+            raise FileTypeError(f'Office 后端不支持的文件类型: {ext}')
 
         return pdf_path
 
@@ -82,7 +86,7 @@ class OfficeBackend(PrinterBackend):
     # ── PrinterBackend 存根（实际打印委托给 PdfBackend）──
 
     def print_file(self, filepath, job_id, print_params, lock=None):
-        raise RuntimeError('OfficeBackend 不再直接打印，请通过 convert_to_pdf + PdfBackend')
+        raise PrintError('OfficeBackend 不再直接打印，请通过 convert_to_pdf + PdfBackend')
 
     def cancel(self, job_id, info):
         return True

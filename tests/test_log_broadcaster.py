@@ -1,4 +1,5 @@
 """测试 LogBroadcaster"""
+
 from unittest.mock import MagicMock
 
 from app.services.log_broadcaster import LogBroadcaster
@@ -16,11 +17,14 @@ class TestLogBroadcaster:
         broadcaster = MagicMock()
         lb = LogBroadcaster(broadcaster)
         lb.write('hello world')
-        broadcaster.publish.assert_called_once_with('log', {
-            'message': 'hello world',
-            'level': 'INFO',
-            'name': 'print_server',
-        })
+        broadcaster.publish.assert_called_once_with(
+            'log',
+            {
+                'message': 'hello world',
+                'level': 'INFO',
+                'name': 'print_server',
+            },
+        )
 
     def test_no_broadcaster_does_not_crash(self):
         lb = LogBroadcaster(None)

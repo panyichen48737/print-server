@@ -2,6 +2,7 @@
 
 优先级：环境变量 > config.json > 默认值
 """
+
 import json
 import os
 import threading
@@ -10,6 +11,8 @@ from typing import Any
 from loguru import logger
 from pydantic import Field, PrivateAttr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.exceptions import ConfigError
 
 
 class Config(BaseSettings):
@@ -44,12 +47,30 @@ class Config(BaseSettings):
     job_retention_days: int = Field(default=30, ge=1, le=365)
     print_dpi: int = Field(default=600, ge=72, le=1200)
     auto_rotate: bool = True
-    ssl_enabled: bool = False
+    ssl_enabled: bool = True
+    redirect_port: int = Field(default=0, ge=0, le=65535)
     word_timeout: int = Field(default=120, ge=30, le=600)
-    allowed_extensions: list[str] = Field(default_factory=lambda: [
-        '.doc', '.docx', '.pdf', '.xls', '.xlsx', '.ppt', '.pptx',
-        '.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif', '.heic', '.heif',
-    ])
+    allowed_extensions: list[str] = Field(
+        default_factory=lambda: [
+            '.doc',
+            '.docx',
+            '.pdf',
+            '.xls',
+            '.xlsx',
+            '.ppt',
+            '.pptx',
+            '.jpg',
+            '.jpeg',
+            '.png',
+            '.bmp',
+            '.gif',
+            '.webp',
+            '.tiff',
+            '.tif',
+            '.heic',
+            '.heif',
+        ]
+    )
     job_timeout: int = Field(default=300, ge=30, le=3600)
     auto_retry_count: int = Field(default=0, ge=0, le=10)
 
@@ -65,7 +86,7 @@ class Config(BaseSettings):
     def _check_ppt_output(cls, v: str) -> str:
         allowed = ('slides', 'handout2', 'handout3', 'handout6')
         if v not in allowed:
-            raise ValueError(f'ppt_output_type 必须为 {allowed} 之一')
+            raise ConfigError(f'ppt_output_type 必须为 {allowed} 之一')
         return v
 
     @field_validator('paper_size')
@@ -73,7 +94,7 @@ class Config(BaseSettings):
     def _check_paper(cls, v: str) -> str:
         allowed = ('A3', 'A4', 'Letter')
         if v not in allowed:
-            raise ValueError(f'paper_size 必须为 {allowed} 之一')
+            raise ConfigError(f'paper_size 必须为 {allowed} 之一')
         return v
 
     @field_validator('notify_channel')
@@ -81,7 +102,7 @@ class Config(BaseSettings):
     def _check_notify(cls, v: str) -> str:
         allowed = ('disabled', 'dingtalk', 'bark')
         if v not in allowed:
-            raise ValueError(f'notify_channel 必须为 {allowed} 之一')
+            raise ConfigError(f'notify_channel 必须为 {allowed} 之一')
         return v
 
     @field_validator('dingtalk_level')
@@ -89,7 +110,7 @@ class Config(BaseSettings):
     def _check_dingtalk_level(cls, v: str) -> str:
         allowed = ('error', 'warning', 'info')
         if v not in allowed:
-            raise ValueError(f'dingtalk_level 必须为 {allowed} 之一')
+            raise ConfigError(f'dingtalk_level 必须为 {allowed} 之一')
         return v
 
     @field_validator('log_level')
@@ -97,14 +118,14 @@ class Config(BaseSettings):
     def _check_log_level(cls, v: str) -> str:
         allowed = ('DEBUG', 'INFO', 'WARNING', 'ERROR')
         if v.upper() not in allowed:
-            raise ValueError(f'log_level 必须为 {allowed} 之一')
+            raise ConfigError(f'log_level 必须为 {allowed} 之一')
         return v
 
     @field_validator('allowed_extensions')
     @classmethod
     def _check_extensions(cls, v: list[str]) -> list[str]:
         if not v or not all(e.startswith('.') for e in v):
-            raise ValueError('allowed_extensions 每个元素必须以 . 开头')
+            raise ConfigError('allowed_extensions 每个元素必须以 . 开头')
         return v
 
     # ── 构造与持久化 ──
@@ -114,17 +135,20 @@ class Config(BaseSettings):
         super().__init__(**kwargs)
         from app._paths import persistent_dir
 
-        object.__setattr__(self, '_config_path',
-                           config_path or os.path.join(persistent_dir(), 'config.json'))
+        object.__setattr__(
+            self, '_config_path', config_path or os.path.join(persistent_dir(), 'config.json')
+        )
         object.__setattr__(self, '_lock', threading.Lock())
         object.__setattr__(self, '_errors', [])
+        object.__setattr__(self, '_watch_stop', threading.Event())
+        object.__setattr__(self, '_watcher_thread', None)
         if not _skip_file:
             self._load_file()
 
     def _load_file(self) -> None:
         """从 config.json 加载，不覆盖已通过环境变量设置的字段"""
         try:
-            with open(self._config_path, 'r', encoding='utf-8') as f:
+            with open(self._config_path, encoding='utf-8') as f:
                 file_data = json.load(f)
         except FileNotFoundError:
             return
@@ -167,6 +191,34 @@ class Config(BaseSettings):
     @property
     def errors(self) -> list[str]:
         return list(self._errors)
+
+    # ── 热加载 ──
+
+    def start_watcher(self) -> None:
+        """启动文件监听线程（config.json 变化自动重载）"""
+        if self._watcher_thread and self._watcher_thread.is_alive():
+            return
+        self._watch_stop.clear()
+        watcher = threading.Thread(target=self._watch_loop, daemon=True)
+        watcher.start()
+        object.__setattr__(self, '_watcher_thread', watcher)
+
+    def stop_watcher(self) -> None:
+        self._watch_stop.set()
+
+    def _watch_loop(self) -> None:
+        try:
+            from watchfiles import watch
+
+            for _ in watch(self._config_path, stop_event=self._watch_stop):
+                if self._watch_stop.is_set():
+                    break
+                logger.info('config.json 已变更，自动重载配置')
+                self.reload()
+        except ImportError:
+            logger.debug('watchfiles 未安装，配置热加载不可用')
+        except Exception as e:
+            logger.warning(f'配置文件监听异常: {e}')
 
     def __repr__(self) -> str:
         return f'Config(path={self._config_path})'

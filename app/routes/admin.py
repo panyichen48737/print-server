@@ -1,21 +1,25 @@
 import os
 from collections import deque
-from loguru import logger
-from jinja2 import pass_context
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Form
+
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from jinja2 import pass_context
+from loguru import logger
 
+from app._paths import data_root, persistent_dir
 from app.auth import require_auth
-from app._paths import app_root, data_root, persistent_dir
-from app.utils import safe_int as _safe_int, format_time
+from app.exceptions import PrintServerError
 from app.schemas import AdminActionResponse, LogsResponse, SettingsResponse
+from app.utils import format_time
+from app.utils import safe_int as _safe_int
 
 admin_router = APIRouter()
 templates = Jinja2Templates(directory=os.path.join(data_root(), 'app', 'templates'))
 
 
 # -- Custom url_for for Jinja2 templates (Flask blueprint compatibility) --
+
 
 @pass_context
 def _url_for(ctx, name, **path_params):
@@ -35,14 +39,16 @@ templates.env.globals['url_for'] = _url_for
 
 # -- Template routes --
 
+
 @admin_router.get('/', name='dashboard')
 async def dashboard(request: Request):
     repo = request.app.state.job_repo
     stats = repo.get_stats()
     recent_jobs = repo.get_jobs(limit=10, offset=0)
     return templates.TemplateResponse(
-        request, 'admin/dashboard.html',
-        {'request': request, 'stats': stats, 'recent_jobs': recent_jobs}
+        request,
+        'admin/dashboard.html',
+        {'request': request, 'stats': stats, 'recent_jobs': recent_jobs},
     )
 
 
@@ -67,12 +73,21 @@ async def history(
 
     jobs = repo.get_jobs(status=status_param, search=search_param, limit=per_page, offset=offset)
 
-    return templates.TemplateResponse(request, 'admin/history.html', {
-        'request': request, 'jobs': jobs,
-        'total': total, 'page': page, 'total_pages': total_pages,
-        'status_filter': status, 'search': search,
-        'date_from': date_from, 'date_to': date_to,
-    })
+    return templates.TemplateResponse(
+        request,
+        'admin/history.html',
+        {
+            'request': request,
+            'jobs': jobs,
+            'total': total,
+            'page': page,
+            'total_pages': total_pages,
+            'status_filter': status,
+            'search': search,
+            'date_from': date_from,
+            'date_to': date_to,
+        },
+    )
 
 
 @admin_router.get('/logs', name='logs')
@@ -86,8 +101,7 @@ async def settings_get(request: Request):
     monitor = request.app.state.printer_monitor
     printers = list(monitor.get_all_statuses().keys())
     return templates.TemplateResponse(
-        request, 'admin/settings.html',
-        {'request': request, 'config': config, 'printers': printers}
+        request, 'admin/settings.html', {'request': request, 'config': config, 'printers': printers}
     )
 
 
@@ -112,6 +126,7 @@ async def settings_post(
     auto_retry_count: str = Form('0'),
     port: str = Form('5000'),
     log_level: str = Form('INFO'),
+    ssl_enabled: str = Form('0'),
     auth=Depends(require_auth),
 ):
     config = request.app.state.app_config
@@ -131,6 +146,7 @@ async def settings_post(
             'auto_retry_count': _safe_int(auto_retry_count, 0),
             'port': max(1024, min(65535, _safe_int(port, 5000))),
             'log_level': log_level,
+            'ssl_enabled': ssl_enabled == '1',
         }
 
         for secret_field, val in [
@@ -145,9 +161,12 @@ async def settings_post(
         config.save()
         logger.info('配置已保存')
         return {'success': True}
+    except PrintServerError as e:
+        logger.error(f'保存配置失败: {e}')
+        raise HTTPException(status_code=400, detail=str(e)) from None
     except Exception as e:
         logger.error(f'保存配置失败: {e}')
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from None
 
 
 @admin_router.get('/printers', name='printers')
@@ -156,8 +175,9 @@ async def printers(request: Request):
     monitor = request.app.state.printer_monitor
     printer_list = list(monitor.get_all_statuses().keys())
     return templates.TemplateResponse(
-        request, 'admin/printers.html',
-        {'request': request, 'config': config, 'printers': printer_list}
+        request,
+        'admin/printers.html',
+        {'request': request, 'config': config, 'printers': printer_list},
     )
 
 
@@ -166,21 +186,30 @@ async def upload_page(request: Request):
     config = request.app.state.app_config
     monitor = request.app.state.printer_monitor
     printer_list = list(monitor.get_all_statuses().keys())
-    return templates.TemplateResponse(request, 'admin/upload.html', {
-        'request': request,
-        'config': config,
-        'printers': printer_list,
-        'allowed_extensions': config.get('allowed_extensions', []),
-    })
+    return templates.TemplateResponse(
+        request,
+        'admin/upload.html',
+        {
+            'request': request,
+            'config': config,
+            'printers': printer_list,
+            'allowed_extensions': config.get('allowed_extensions', []),
+        },
+    )
 
 
 @admin_router.get('/api/stats')
 async def api_stats(request: Request):
     """HTMX: 返回统计面板 HTML 片段"""
     stats = request.app.state.job_repo.get_stats()
-    return templates.TemplateResponse(request, 'admin/_stats.html', {
-        'request': request, 'stats': stats,
-    })
+    return templates.TemplateResponse(
+        request,
+        'admin/_stats.html',
+        {
+            'request': request,
+            'stats': stats,
+        },
+    )
 
 
 @admin_router.get('/api/logs', response_model=LogsResponse)
@@ -188,7 +217,7 @@ async def admin_api_logs(request: Request, lines: int = 50):
     """获取最新日志行"""
     log_file = os.path.join(persistent_dir(), 'logs', 'print_server.log')
     try:
-        with open(log_file, 'r', encoding='utf-8') as f:
+        with open(log_file, encoding='utf-8') as f:
             last_lines = deque(f, maxlen=lines)
         return {'lines': list(last_lines)}
     except FileNotFoundError:
@@ -209,14 +238,18 @@ async def admin_test_notification(request: Request, background_tasks: Background
         bark = getattr(request.app.state, 'bark', None)
         try:
             if channel == 'dingtalk' and dingtalk:
-                dingtalk.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}', level='info')
+                dingtalk.send_notification(
+                    '测试通知', f'这是一条测试消息\n时间: {time_str}', level='info'
+                )
             elif channel == 'bark' and bark:
                 bark.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}')
         except Exception as e:
             logger.warning(f'发送测试通知失败: {e}')
 
     background_tasks.add_task(_send)
-    return HTMLResponse(f'<span style="color: var(--text-success);">✓ 测试通知已加入发送队列 ({channel})</span>')
+    return HTMLResponse(
+        f'<span style="color: var(--text-success);">✓ 测试通知已加入发送队列 ({channel})</span>'
+    )
 
 
 @admin_router.post('/api/restart', response_model=AdminActionResponse)

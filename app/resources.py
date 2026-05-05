@@ -3,10 +3,11 @@
 打包时将 certs/nssm 等文件通过 --add-data 内嵌到 _internal/resources/，
 首次启动时释放到 app_root()/resources/，防止用户误删，也方便更新覆盖。
 """
+
 import os
-import sys
 import shutil
-from pathlib import Path
+import sys
+
 from loguru import logger
 
 
@@ -22,6 +23,7 @@ def _bundled_dir() -> str | None:
 def _target_dir() -> str:
     """资源释放目标目录 — persistent_dir()/resources/"""
     from app._paths import persistent_dir
+
     d = os.path.join(persistent_dir(), 'resources')
     os.makedirs(d, exist_ok=True)
     return d

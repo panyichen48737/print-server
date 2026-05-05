@@ -1,55 +1,98 @@
 """打印引擎 — 根据文件类型委托给对应的后端策略"""
-import threading
-from typing import Any, Optional
 
-from app.printing.backends import OfficeBackend, PdfBackend, ImageBackend
+from __future__ import annotations
+
+import sys
+import threading
+from typing import Any
+
+from app.exceptions import FileTypeError
+from app.printing.backends import (  # noqa: F401 保留命名空间供测试 mock
+    ImageBackend,
+    OfficeBackend,
+    PdfBackend,
+    PrinterBackend,
+    discover_backends,
+)
 from app.utils import safe_remove
 
-OFFICE_EXTS = {'.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'}
-IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif', '.heic', '.heif'}
+# 以便测试用 @patch('app.printing.engine.OfficeBackend') 替换
 
 
 class PrintEngine:
     """打印调度层，按文件类型分发到不同的 PrinterBackend"""
 
-    def __init__(self, config: Any,
-                 excel_lock: threading.Lock,
-                 ppt_lock: threading.Lock) -> None:
+    def __init__(self, config: Any, excel_lock: threading.Lock, ppt_lock: threading.Lock) -> None:
         self.config = config
+        self._excel_lock = excel_lock
+        self._ppt_lock = ppt_lock
 
-        pdf_backend = PdfBackend(config)
-        office_backend = OfficeBackend(config, excel_lock, ppt_lock)
-        image_backend = ImageBackend(config, pdf_backend)
+        self._backends: dict[str, PrinterBackend] = {}
+        self._instances: dict[type, PrinterBackend] = {}
+        office_instance = None
+        pdf_instance = None
+        for ext, cls in discover_backends().items():
+            if cls not in self._instances:
+                self._instances[cls] = self._build_instance(cls)
+            self._backends[ext] = self._instances[cls]
+            if cls.__name__ == 'OfficeBackend':
+                office_instance = self._instances[cls]
+            elif cls.__name__ == 'PdfBackend':
+                pdf_instance = self._instances[cls]
 
-        self._backends: dict[str, Any] = {}
-        for ext in OFFICE_EXTS:
-            self._backends[ext] = office_backend
-        for ext in IMAGE_EXTS:
-            self._backends[ext] = image_backend
-        self._backends['.pdf'] = pdf_backend
-
-        self._office_backend = office_backend
-        self._pdf_backend = pdf_backend
+        self._office_backend = office_instance
+        self._pdf_backend = pdf_instance
         self._active_jobs: dict[str, dict[str, Any]] = {}
         self._active_jobs_lock = threading.Lock()
+
+    def _build_instance(self, cls: type) -> PrinterBackend:
+        # 通过当前模块的全局名查找后端类，便于测试用 @patch('app.printing.engine.XxxBackend') 替换
+        mod = sys.modules[__name__]
+        target = getattr(mod, cls.__name__, cls)
+        name = cls.__name__
+        if name == 'PdfBackend':
+            return target(self.config)
+        if name == 'OfficeBackend':
+            return target(self.config, self._excel_lock, self._ppt_lock)
+        if name == 'ImageBackend':
+            pdf_inst = None
+            for existing_cls, inst in self._instances.items():
+                if existing_cls.__name__ == 'PdfBackend':
+                    pdf_inst = inst
+                    break
+            if pdf_inst is None:
+                # 查找真实 PdfBackend 类
+                for reg_cls in discover_backends().values():
+                    if reg_cls.__name__ == 'PdfBackend':
+                        pdf_inst = self._build_instance(reg_cls)
+                        self._instances[reg_cls] = pdf_inst
+                        break
+            return target(self.config, pdf_inst)
+        return target(self.config)
 
     def _get_backend(self, file_type: str) -> Any:
         ext = file_type.lower()
         backend = self._backends.get(ext)
         if not backend:
-            raise ValueError(f'不支持的文件类型: {ext}')
+            raise FileTypeError(f'不支持的文件类型: {ext}')
         return backend
 
-    def print_file(self, filepath: str, file_type: str, job_id: str,
-                   word_lock: Optional[threading.Lock],
-                   print_params: Optional[dict[str, Any]] = None) -> Any:
+    def print_file(
+        self,
+        filepath: str,
+        file_type: str,
+        job_id: str,
+        word_lock: threading.Lock | None,
+        print_params: dict[str, Any] | None = None,
+    ) -> Any:
         if print_params is None:
             print_params = {}
         params = dict(print_params)
         params['_file_type'] = file_type
         ext = file_type.lower()
 
-        if ext in OFFICE_EXTS:
+        target_backend = self._backends.get(ext)
+        if target_backend is self._office_backend and self._office_backend is not None:
             # Office 文件：先转 PDF，再用 PDF 后端打印
             params['_word_lock'] = word_lock
             pdf_path = self._office_backend.convert_to_pdf(filepath, params)

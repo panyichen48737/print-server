@@ -1636,6 +1636,17 @@ select:focus:not(:focus-visible) {
     flex-direction: column;
     align-items: stretch;
   }
+
+  /* ── Mobile Log Viewer ── */
+  .log-viewer { height: 50vh; min-height: 200px; }
+  .log-entry { white-space: normal; padding: 2px 12px 2px 36px; min-height: 18px; }
+  .log-entry::before { width: 22px; font-size: 9px; }
+  .log-entry .log-level { width: 36px; font-size: 9px; }
+  .log-entry .log-timestamp { font-size: 9px; min-width: 60px; }
+  .log-controls { flex-wrap: wrap; gap: 6px; }
+  .log-search-wrapper { flex: 1; min-width: 120px; }
+  .log-search-wrapper .form-input { min-width: 80px; font-size: 12px; }
+  .log-level-filter select { width: 80px !important; font-size: 12px; }
 }
 
 @media (max-width: 480px) {
@@ -1644,12 +1655,13 @@ select:focus:not(:focus-visible) {
   .top-bar { padding: 10px 12px; }
   .page-title-area h1 { font-size: 16px; }
   .table th, .table td { padding: 8px 12px; font-size: 12px; }
+  .log-controls { flex-wrap: wrap; gap: 4px; }
+  .log-level-filter select { width: 72px !important; }
 }
 
 @media (max-width: 375px) {
   .printer-card { flex-direction: column; text-align: center; }
   .stat-value { font-size: 20px; }
-  .log-controls { flex-wrap: wrap; }
 }
 
 /* ═══ Print Styles ═══ */

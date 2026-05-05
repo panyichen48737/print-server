@@ -1,6 +1,7 @@
 """版本号 — 优先从 version.txt 读取（PyInstaller 打包后使用），其次 git tag，最后回退"""
-import subprocess
+
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -23,7 +24,9 @@ def _get_version() -> str:
     try:
         desc = subprocess.run(
             ['git', 'describe', '--tags', '--always', '--dirty'],
-            capture_output=True, text=True, timeout=2,
+            capture_output=True,
+            text=True,
+            timeout=2,
             cwd=Path(__file__).resolve().parent.parent,
         )
         if desc.returncode == 0 and desc.stdout.strip():

@@ -19,13 +19,18 @@ dependencies = [
     "jinja2>=3.0",
     "textual>=1.0.0",
     "python-multipart>=0.0.18",
+    "watchfiles>=1.0.0",
 ]
 
 [project.urls]
 Homepage = "https://github.com/panyichen48737/print-server"
 
 [project.optional-dependencies]
-dev = ["pytest>=9", "pytest-cov>=7", "httpx>=0.28", "pyinstaller>=6"]
+dev = [
+    "pytest>=9", "pytest-cov>=7", "httpx>=0.28", "pyinstaller>=6",
+    "ruff>=0.11.0", "mypy>=1.15.0", "pre-commit>=4.2.0",
+    "hypothesis>=6.130.0",
+]
 
 [project.scripts]
 ios-print-server = "console:main"
@@ -42,3 +47,25 @@ include = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "integration: marks tests that start a real daemon process",
+    "hypothesis: marks hypothesis property-based tests",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "ARG", "RUF"]
+ignore = ["E501", "RUF002", "RUF001", "RUF003", "N818", "B008"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_ignores = true
+strict_optional = true
+ignore_missing_imports = true
+files = ["app/", "console/"]

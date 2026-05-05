@@ -1,4 +1,5 @@
 """WebSocket 端点 — 复用 SSEBroadcaster 的发布/订阅机制"""
+
 import asyncio
 import queue as _queue
 import time as _time
@@ -23,12 +24,13 @@ def register_ws_routes(app: FastAPI) -> None:
                 if _time.monotonic() - start > _MAX_DURATION:
                     break
                 try:
-                    event_type, data = await loop.run_in_executor(
-                        None, lambda: q.get(timeout=5))
-                    await websocket.send_json({
-                        'event': event_type,
-                        'data': data,
-                    })
+                    event_type, data = await loop.run_in_executor(None, lambda: q.get(timeout=5))
+                    await websocket.send_json(
+                        {
+                            'event': event_type,
+                            'data': data,
+                        }
+                    )
                 except _queue.Empty:
                     continue
         except WebSocketDisconnect:

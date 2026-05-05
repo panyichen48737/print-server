@@ -1,20 +1,39 @@
-import os
 import json
+import os
 from collections import deque
-from loguru import logger
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, UploadFile, File, Form
-from fastapi.responses import StreamingResponse
 
-from app.auth import require_auth
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+)
+from fastapi.responses import StreamingResponse
+from loguru import logger
+
 from app._paths import persistent_dir
-from app.version import __version__
+from app.auth import require_auth
+from app.exceptions import FileTypeError, PrintServerError
+from app.schemas import (
+    CancelAllResponse,
+    CancelResponse,
+    HealthResponse,
+    LogsResponse,
+    NotificationTestResponse,
+    PrinterListResponse,
+    PrinterStatusResponse,
+    PrintResponse,
+    RetryResponse,
+    SetDefaultPrinterRequest,
+    StatusResponse,
+)
 from app.services.upload import handle_file_upload
 from app.utils import format_time
-from app.schemas import (
-    HealthResponse, PrintResponse, StatusResponse, CancelResponse, CancelAllResponse,
-    PrinterListResponse, PrinterStatusResponse, RetryResponse, LogsResponse,
-    NotificationTestResponse, SetDefaultPrinterRequest,
-)
+from app.version import __version__
 
 api_router = APIRouter()
 
@@ -23,11 +42,23 @@ async def _handle_upload(request, file, printer, copies, duplex, color, paper_si
     config = request.app.state.app_config
     job_queue = request.app.state.job_queue
     content = await file.read()
-    result = handle_file_upload(
-        file.filename, content, config, job_queue,
-        source=source, printer=printer, copies=copies,
-        duplex=duplex, color=color, paper_size=paper_size,
-    )
+    try:
+        result = handle_file_upload(
+            file.filename,
+            content,
+            config,
+            job_queue,
+            source=source,
+            printer=printer,
+            copies=copies,
+            duplex=duplex,
+            color=color,
+            paper_size=paper_size,
+        )
+    except FileTypeError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+    except PrintServerError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from None
     if not result.success:
         raise HTTPException(status_code=400, detail=result.error)
     return {'success': True, 'job_id': result.job_id}
@@ -47,7 +78,7 @@ async def api_logs(request: Request, lines: int = 50):
     """获取最新日志行"""
     log_file = os.path.join(persistent_dir(), 'logs', 'print_server.log')
     try:
-        with open(log_file, 'r', encoding='utf-8') as f:
+        with open(log_file, encoding='utf-8') as f:
             last_lines = deque(f, maxlen=lines)
         return {'lines': list(last_lines)}
     except FileNotFoundError:
@@ -106,7 +137,10 @@ async def cancel_job_api(
     """取消任务"""
     job_queue = request.app.state.job_queue
     print_engine = request.app.state.print_engine
-    success, error = job_queue.cancel_job(job_id, print_engine=print_engine)
+    try:
+        success, error = job_queue.cancel_job(job_id, print_engine=print_engine)
+    except PrintServerError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from None
     if not success:
         raise HTTPException(status_code=400, detail=error)
     return {'success': True}
@@ -170,7 +204,9 @@ async def test_notification(
         bark = getattr(request.app.state, 'bark', None)
         try:
             if channel == 'dingtalk' and dingtalk:
-                dingtalk.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}', level='info')
+                dingtalk.send_notification(
+                    '测试通知', f'这是一条测试消息\n时间: {time_str}', level='info'
+                )
             elif channel == 'bark' and bark:
                 bark.send_notification('测试通知', f'这是一条测试消息\n时间: {time_str}')
         except Exception as e:
@@ -210,7 +246,7 @@ async def sse_events(request: Request):
                     break
                 try:
                     event_type, data = q.get(timeout=30)
-                    yield f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+                    yield f'event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n'
                 except _queue.Empty:
                     continue
         except GeneratorExit:

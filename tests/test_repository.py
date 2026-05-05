@@ -1,4 +1,5 @@
 """测试 JobRepository"""
+
 import os
 import sys
 import tempfile
@@ -36,6 +37,7 @@ class TestJobRepository:
         """初始化应创建 jobs 表"""
         repo = JobRepository(db_path)
         import sqlite3
+
         with sqlite3.connect(db_path) as conn:
             tables = conn.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name='jobs'"
@@ -50,9 +52,14 @@ class TestJobRepository:
 
     def test_get_job_returns_correct_data(self, repo):
         """查询任务应返回匹配的数据"""
-        job_id = repo.add_job('test.pdf', '/path/to/test.pdf',
-                              file_size=1024, file_type='.pdf',
-                              copies=2, source='web')
+        job_id = repo.add_job(
+            'test.pdf',
+            '/path/to/test.pdf',
+            file_size=1024,
+            file_type='.pdf',
+            copies=2,
+            source='web',
+        )
         job = repo.get_job(job_id)
         assert job is not None
         assert job['filename'] == 'test.pdf'
@@ -150,10 +157,11 @@ class TestJobRepository:
         repo.add_job('old.pdf', '/p/old.pdf')
         # 直接操作数据库设置过去的日期
         import sqlite3
+
         with sqlite3.connect(repo.db_path) as conn:
             conn.execute(
                 "UPDATE jobs SET created_at = ? WHERE filename = 'old.pdf'",
-                ((datetime.now() - timedelta(days=60)).isoformat(),)
+                ((datetime.now() - timedelta(days=60)).isoformat(),),
             )
 
         repo.add_job('new.pdf', '/p/new.pdf')
@@ -174,8 +182,9 @@ class TestJobRepository:
         """migrate_db 应为旧表添加缺失列"""
         # 先创建旧表（无新列）
         import sqlite3
+
         with sqlite3.connect(db_path) as conn:
-            conn.execute('''
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS jobs (
                     id TEXT PRIMARY KEY,
                     filename TEXT NOT NULL,
@@ -183,7 +192,7 @@ class TestJobRepository:
                     status TEXT NOT NULL DEFAULT 'queued',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            ''')
+            """)
             conn.commit()
 
         # 运行迁移
@@ -191,7 +200,7 @@ class TestJobRepository:
 
         # 验证列已添加
         with sqlite3.connect(db_path) as conn:
-            cursor = conn.execute("PRAGMA table_info(jobs)")
+            cursor = conn.execute('PRAGMA table_info(jobs)')
             columns = {row[1] for row in cursor.fetchall()}
         assert 'duplex' in columns
         assert 'color' in columns

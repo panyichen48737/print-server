@@ -2,18 +2,19 @@
 
 验证事件从发布者到 SSE 订阅者的完整链路，覆盖本次 SSEBroadcaster 替换改动的核心逻辑。
 """
+
 import queue
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from app.services.log_broadcaster import LogBroadcaster
 from app.services.sse_broadcaster import SSEBroadcaster
 
-
 # =============================================================================
 # SSEBroadcaster 路由：publish → subscriber + EventBus
 # =============================================================================
+
 
 class TestSSEPublishToSubscriber:
     """SSEBroadcaster.publish → subscriber queue 送达"""
@@ -119,6 +120,7 @@ class TestSSEDualDelivery:
 # 模拟 Worker._update_and_broadcast → SSE subscriber
 # =============================================================================
 
+
 class TestJobStatusEventRouting:
     """模拟 JobQueue / Worker 发布 job_status 事件"""
 
@@ -171,6 +173,7 @@ class TestJobStatusEventRouting:
 # 模拟 PrinterMonitor._poll → SSE subscriber
 # =============================================================================
 
+
 class TestPrinterStatusEventRouting:
     """PrinterMonitor 使用 SSEBroadcaster 时的事件路由"""
 
@@ -192,21 +195,27 @@ class TestPrinterStatusEventRouting:
 
     def test_printer_removed_event(self, sse_broadcaster):
         sub_id, q = sse_broadcaster.subscribe()
-        sse_broadcaster.publish('printer_status', {
-            'name': 'Old Printer',
-            'overall': 'removed',
-            'statuses': [],
-        })
+        sse_broadcaster.publish(
+            'printer_status',
+            {
+                'name': 'Old Printer',
+                'overall': 'removed',
+                'statuses': [],
+            },
+        )
         _, received = q.get(timeout=1)
         assert received['overall'] == 'removed'
 
     def test_printer_status_with_active_statuses(self, sse_broadcaster):
         sub_id, q = sse_broadcaster.subscribe()
-        sse_broadcaster.publish('printer_status', {
-            'name': 'Busy Printer',
-            'overall': 'busy',
-            'statuses': [{'key': 'printing', 'label': '打印中'}],
-        })
+        sse_broadcaster.publish(
+            'printer_status',
+            {
+                'name': 'Busy Printer',
+                'overall': 'busy',
+                'statuses': [{'key': 'printing', 'label': '打印中'}],
+            },
+        )
         _, received = q.get(timeout=1)
         assert received['overall'] == 'busy'
         assert received['statuses'][0]['key'] == 'printing'
@@ -221,6 +230,7 @@ class TestPrinterStatusEventRouting:
 # =============================================================================
 # LogBroadcaster + SSEBroadcaster 集成
 # =============================================================================
+
 
 class TestLogBroadcasterIntegration:
     """LogBroadcaster(SSEBroadcaster) → SSE subscriber"""
@@ -272,6 +282,7 @@ class TestLogBroadcasterIntegration:
 # 队列满处理
 # =============================================================================
 
+
 class TestFullQueueHandling:
     """订阅者队列满时：丢弃旧事件，EventBus 仍送达"""
 
@@ -316,6 +327,7 @@ class TestFullQueueHandling:
 # init_app 集成测试
 # =============================================================================
 
+
 class TestInitApp:
     """init_app 正确初始化 app.state"""
 
@@ -323,6 +335,7 @@ class TestInitApp:
         assert hasattr(app_instance.state, 'event_bus')
         assert hasattr(app_instance.state, 'sse')
         from app.services.sse_broadcaster import SSEBroadcaster
+
         assert isinstance(app_instance.state.sse, SSEBroadcaster)
 
     def test_sse_endpoint_registered(self, app_instance):

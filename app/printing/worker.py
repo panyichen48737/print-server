@@ -1,12 +1,15 @@
 """工作线程与任务执行器"""
-import os
-import time
-import threading
-import tempfile
-import shutil
+
 import datetime
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+import os
+import shutil
+import tempfile
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
 from typing import Any
+
 from loguru import logger
 
 from app.utils import safe_remove
@@ -15,8 +18,15 @@ from app.utils import safe_remove
 class JobExecutor:
     """封装单个打印任务的执行流程（临时文件、取消检测、超时）"""
 
-    def __init__(self, config: Any, event_bus: Any, repo, print_engine: Any,
-                 get_cancelled_fn, word_lock: threading.Lock):
+    def __init__(
+        self,
+        config: Any,
+        event_bus: Any,
+        repo,
+        print_engine: Any,
+        get_cancelled_fn,
+        word_lock: threading.Lock,
+    ):
         self.config = config
         self._event_bus = event_bus
         self._repo = repo
@@ -44,7 +54,9 @@ class JobExecutor:
         else:
             logger.info(f'{prefix} 第 {attempt} 次重试: {filename}')
 
-        self._update_and_broadcast(job_id, 'printing', filename=filename, source=job.get('source', 'api'))
+        self._update_and_broadcast(
+            job_id, 'printing', filename=filename, source=job.get('source', 'api')
+        )
 
         original_path = job['filepath']
         temp_path = None
@@ -54,7 +66,9 @@ class JobExecutor:
             return self._finalize(job_id, original_path, temp_path, result, job)
         except Exception as e:
             error_msg = str(e)
-            self._update_and_broadcast(job_id, 'failed', error_msg, filename, job.get('source', 'api'))
+            self._update_and_broadcast(
+                job_id, 'failed', error_msg, filename, job.get('source', 'api')
+            )
             logger.error(f'打印异常: {filename} - {error_msg}')
             return False, error_msg
         finally:
@@ -64,9 +78,11 @@ class JobExecutor:
         self._repo.update_status(job_id, status, error_message)
         if self._event_bus:
             data = {
-                'job_id': job_id, 'filename': filename,
-                'status': status, 'source': source,
-                'ts': datetime.datetime.now().isoformat()
+                'job_id': job_id,
+                'filename': filename,
+                'status': status,
+                'source': source,
+                'ts': datetime.datetime.now().isoformat(),
             }
             if error_message:
                 data['error'] = error_message
@@ -92,7 +108,11 @@ class JobExecutor:
         try:
             fut = self._pool.submit(
                 self._print_engine.print_file,
-                temp_path, job['file_type'], job_id, self._word_lock, print_params
+                temp_path,
+                job['file_type'],
+                job_id,
+                self._word_lock,
+                print_params,
             )
             while True:
                 remaining = deadline - time.monotonic()
@@ -136,20 +156,23 @@ class JobExecutor:
 class JobWorker:
     """单个工作线程 — 从 JobQueue 取任务并委托给 JobExecutor"""
 
-    def __init__(self, worker_id: int, config, job_queue, repo, event_bus, stop_evt,
-                 print_engine, word_lock):
+    def __init__(
+        self, worker_id: int, config, job_queue, repo, event_bus, stop_evt, print_engine, word_lock
+    ):
         self.worker_id = worker_id
         self._config = config
         self._job_queue = job_queue
         self._repo = repo
         self._event_bus = event_bus
         self._stop_evt = stop_evt
-        self._executor = JobExecutor(config, event_bus, repo, print_engine,
-                                     job_queue.is_cancelled, word_lock)
+        self._executor = JobExecutor(
+            config, event_bus, repo, print_engine, job_queue.is_cancelled, word_lock
+        )
 
     def run(self):
         """由 ThreadPoolExecutor 调用，运行事件循环直到收到停止信号"""
         import pythoncom
+
         pythoncom.CoInitialize()
         try:
             logger.info(f'工作线程 {self.worker_id} 已启动')

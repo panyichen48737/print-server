@@ -1,14 +1,14 @@
-import hashlib
-import uuid
-import time
 import base64
+import hashlib
 import io
 import os
-from typing import Optional, Any
+import time
+import uuid
+from typing import Any
 
+import httpx
 from loguru import logger
 from PIL import Image
-import httpx
 
 
 class QuarkEnhancer:
@@ -26,7 +26,7 @@ class QuarkEnhancer:
         except Exception:
             pass
 
-    def enhance(self, filepath: str) -> Optional[bytes]:
+    def enhance(self, filepath: str) -> bytes | None:
         """
         对图片进行 Quark API 增强处理
 
@@ -70,7 +70,9 @@ class QuarkEnhancer:
 
             sign_nonce = uuid.uuid4().hex
             timestamp = int(time.time() * 1000)
-            signature = self._sign(client_id, client_secret, 'vision', 'SHA3-256', sign_nonce, timestamp)
+            signature = self._sign(
+                client_id, client_secret, 'vision', 'SHA3-256', sign_nonce, timestamp
+            )
 
             payload = {
                 'serviceOption': 'scan',
@@ -116,8 +118,15 @@ class QuarkEnhancer:
             logger.warning(f'Quark API 调用失败，使用原图: {e}')
             return None
 
-    def _sign(self, client_id: str, client_secret: str, business: str,
-               sign_method: str, sign_nonce: str, timestamp: int) -> str:
+    def _sign(
+        self,
+        client_id: str,
+        client_secret: str,
+        business: str,
+        sign_method: str,
+        sign_nonce: str,
+        timestamp: int,
+    ) -> str:
         """计算签名"""
         sign_str = f'{client_id}_{business}_{sign_method}_{sign_nonce}_{timestamp}_{client_secret}'
         return hashlib.sha3_256(sign_str.encode('utf-8')).hexdigest().lower()

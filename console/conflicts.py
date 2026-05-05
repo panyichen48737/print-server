@@ -1,12 +1,10 @@
+import ctypes
 import os
 import socket
-import ctypes
 import subprocess
 import time
 from pathlib import Path
 from typing import Any
-
-from loguru import logger
 
 PID_FILE: Path | None = None  # lazy init
 
@@ -15,6 +13,7 @@ def _get_pid_file() -> Path:
     global PID_FILE
     if PID_FILE is None:
         from app._paths import persistent_dir
+
         PID_FILE = Path(persistent_dir()) / 'logs' / 'console.pid'
     return PID_FILE
 
@@ -35,6 +34,7 @@ def get_local_ips() -> list[str]:
     if not ips:
         try:
             import psutil
+
             for _, addrs in psutil.net_if_addrs().items():
                 for addr in addrs:
                     if addr.family == socket.AF_INET and not addr.address.startswith('127.'):

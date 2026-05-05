@@ -6,9 +6,10 @@
     python -m console --stop  停止后台服务
     python -m console --status 查看后台服务状态
 """
-import sys
-import os
+
 import argparse
+import os
+import sys
 import threading
 from typing import Any
 
@@ -20,15 +21,23 @@ sys.path.insert(0, app_root())
 
 from app.config import Config
 from app.logging import setup_logging
+from app.self_install import ensure_installed
+
+from .autostart import install_autostart, is_autostart_installed, uninstall_autostart
+from .daemon_manager import (
+    is_daemon_alive,
+    read_daemon_status,
+    restart_daemon,
+    start_daemon,
+    stop_daemon,
+)
 from .log_handler import TUILogHandler
-from .daemon_manager import start_daemon, stop_daemon, read_daemon_status, is_daemon_alive, restart_daemon
-from .autostart import install_autostart, uninstall_autostart, is_autostart_installed
-from .tui import TUI
 
 
 def _ensure_single_instance() -> None:
     """Windows 命名互斥体：防止启动多个控制台窗口"""
     import ctypes
+
     mutex = ctypes.windll.kernel32.CreateMutexW(None, True, 'iOSPrintServerConsole')
     err = ctypes.windll.kernel32.GetLastError()
     if not mutex:
@@ -46,13 +55,9 @@ def _ensure_single_instance() -> None:
 def main() -> None:
     # 冻结 EXE 入口：--server-daemon 参数直接路由到服务器入口
     if '--server-daemon' in sys.argv:
-        if '--service' in sys.argv:
-            # --service 表示由 SCM 启动，走 ServiceFramework
-            from app.win_service import run_as_service
-            run_as_service()
-        else:
-            from app.server_daemon import main as daemon_main
-            daemon_main()
+        from app.server_daemon import main as daemon_main
+
+        daemon_main()
         return
 
     parser = argparse.ArgumentParser(description='iOS 云打印服务器控制台')
@@ -67,6 +72,8 @@ def main() -> None:
     if args.start:
         config = Config()
         setup_logging(level=config.log_level)
+        if not ensure_installed():
+            return 0
         ok, msg = start_daemon()
         print(msg)
         return 0 if ok else 1
@@ -105,6 +112,9 @@ def main() -> None:
     config = Config()
     setup_logging(level=config.log_level)
 
+    if not ensure_installed():
+        return
+
     tui_handler = TUILogHandler()
     logger.add(tui_handler, format='{time:HH:mm:ss} {level} {message}', level='INFO')
 
@@ -112,9 +122,39 @@ def main() -> None:
     threading.Thread(target=_start_daemon_background, daemon=True).start()
 
     try:
+        # Textual TUI（阻塞调用通过 asyncio.to_thread 避免卡死）
+        from .tui import TUI
+
         TUI().run()
     except KeyboardInterrupt:
         pass
+    except Exception as e:
+        import traceback
+
+        error_detail = traceback.format_exc()
+        logger.error(f'TUI 启动失败: {e}\n{error_detail}')
+        try:
+            from pathlib import Path
+
+            from app._paths import persistent_dir
+
+            diag = Path(persistent_dir()) / 'logs' / 'tui_error.log'
+            diag.parent.mkdir(parents=True, exist_ok=True)
+            diag.write_text(error_detail)
+        except Exception:
+            pass
+        print(f'\nTUI 界面启动失败: {e}')
+        print('服务已在后台运行，请访问 Web 管理页面:')
+        from .conflicts import get_local_ips
+        from .daemon_manager import read_daemon_status
+
+        status = read_daemon_status()
+        port = status.get('port', 5000)
+        ips = get_local_ips()
+        ip_str = ips[0] if ips else '127.0.0.1'
+        print(f'  https://{ip_str}:{port}/admin')
+        print('\n按 Enter 退出...')
+        input()
 
     # 退出控制台时询问是否保持后台运行
     if is_daemon_alive():
@@ -129,7 +169,7 @@ def _start_daemon_background():
     """后台线程：启动守护进程 + 首次自动注册开机自启"""
     ok, msg = start_daemon()
     logger.info(msg)
-    if not is_autostart_installed():
+    if ok and not is_autostart_installed():
         ok2, msg2 = install_autostart()
         logger.info(msg2)
 

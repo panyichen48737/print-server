@@ -1,6 +1,7 @@
 """心跳检测模块 — 定期清理过期任务 + 恢复卡住的任务"""
+
 import threading
-from typing import Callable
+from collections.abc import Callable
 
 from loguru import logger
 
@@ -8,9 +9,12 @@ from loguru import logger
 class HeartbeatMonitor:
     """定期执行清理和恢复操作"""
 
-    def __init__(self, interval: float = 30,
-                 cleanup_fn: Callable | None = None,
-                 recover_stuck_fn: Callable | None = None) -> None:
+    def __init__(
+        self,
+        interval: float = 30,
+        cleanup_fn: Callable | None = None,
+        recover_stuck_fn: Callable | None = None,
+    ) -> None:
         self._interval = interval
         self._cleanup_fn = cleanup_fn
         self._recover_stuck_fn = recover_stuck_fn
@@ -35,6 +39,7 @@ class HeartbeatMonitor:
                 fn()
             except Exception as e:
                 logger.warning(f'心跳 {name} 异常: {e}')
+
         t = threading.Thread(target=_wrapped, daemon=True)
         t.start()
         t.join(timeout=timeout)

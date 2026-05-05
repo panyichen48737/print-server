@@ -3,6 +3,7 @@
 SSE 事件流不通过 HTTP 测试（生成器阻塞 q.get 无法被 GeneratorExit 中断），
 改为直接测试 SSEBroadcaster + FastAPI 应用状态集成。
 """
+
 import os
 from unittest.mock import MagicMock
 
@@ -10,10 +11,10 @@ import pytest
 
 from app._paths import app_root
 
-
 # =============================================================================
 # /admin/api/stats — HTML 统计片段
 # =============================================================================
+
 
 class TestStatsEndpoint:
     """GET /admin/api/stats 返回 HTML 统计片段"""
@@ -22,25 +23,32 @@ class TestStatsEndpoint:
     def _setup_repo(self, app_instance):
         mock_repo = MagicMock()
         mock_repo.get_stats.return_value = {
-            'queued': 2, 'printing': 1, 'today_completed': 10,
-            'today_failed': 1, 'success_rate': 90.9, 'total': 100,
+            'queued': 2,
+            'printing': 1,
+            'today_completed': 10,
+            'today_failed': 1,
+            'success_rate': 90.9,
+            'total': 100,
         }
         app_instance.state.job_repo = mock_repo
 
     def test_stats_returns_200(self, app_instance):
         from fastapi.testclient import TestClient
+
         client = TestClient(app_instance)
         resp = client.get('/admin/api/stats')
         assert resp.status_code == 200
 
     def test_stats_is_html(self, app_instance):
         from fastapi.testclient import TestClient
+
         client = TestClient(app_instance)
         resp = client.get('/admin/api/stats')
         assert 'text/html' in resp.headers['content-type']
 
     def test_stats_contains_values(self, app_instance):
         from fastapi.testclient import TestClient
+
         client = TestClient(app_instance)
         resp = client.get('/admin/api/stats')
         html = resp.text
@@ -50,10 +58,15 @@ class TestStatsEndpoint:
 
     def test_stats_zero_values(self, app_instance):
         app_instance.state.job_repo.get_stats.return_value = {
-            'queued': 0, 'printing': 0, 'today_completed': 0,
-            'today_failed': 0, 'success_rate': 0.0, 'total': 0,
+            'queued': 0,
+            'printing': 0,
+            'today_completed': 0,
+            'today_failed': 0,
+            'success_rate': 0.0,
+            'total': 0,
         }
         from fastapi.testclient import TestClient
+
         client = TestClient(app_instance)
         resp = client.get('/admin/api/stats')
         assert resp.status_code == 200
@@ -61,6 +74,7 @@ class TestStatsEndpoint:
     def test_stats_without_job_repo_returns_500(self, app_instance):
         del app_instance.state.job_repo
         from fastapi.testclient import TestClient
+
         client = TestClient(app_instance, raise_server_exceptions=False)
         resp = client.get('/admin/api/stats')
         assert resp.status_code == 500
@@ -69,6 +83,7 @@ class TestStatsEndpoint:
 # =============================================================================
 # /api/events 端点注册验证
 # =============================================================================
+
 
 class TestSSEEndpointRegistration:
     """/api/events 端点在应用中正确注册"""
@@ -89,11 +104,13 @@ class TestSSEEndpointRegistration:
         """app.state.sse 可在端点中访问"""
         assert hasattr(app_instance.state, 'sse')
         from app.services.sse_broadcaster import SSEBroadcaster
+
         assert isinstance(app_instance.state.sse, SSEBroadcaster)
 
     def test_sse_subscribe_publish_cycle(self, app_instance):
         """通过 app.state.sse 的完整发布/订阅周期"""
         import json
+
         broadcaster = app_instance.state.sse
         sub_id, q = broadcaster.subscribe()
 
@@ -103,7 +120,7 @@ class TestSSEEndpointRegistration:
 
         # 模拟端点行为：从 queue 读取并格式化 SSE
         event_type, data = q.get(timeout=1)
-        sse = f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+        sse = f'event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n'
 
         assert sse.startswith('event: job_status')
         assert '"status": "completed"' in sse
@@ -126,6 +143,7 @@ class TestSSEEndpointRegistration:
 # /admin/api/logs — REST 日志接口
 # =============================================================================
 
+
 class TestAdminLogsEndpoint:
     """GET /admin/api/logs"""
 
@@ -145,6 +163,7 @@ class TestAdminLogsEndpoint:
         self._ensure_log(['line1\n', 'line2\n', 'line3\n'])
         try:
             from fastapi.testclient import TestClient
+
             client = TestClient(app_instance)
             resp = client.get('/admin/api/logs?lines=2')
             assert resp.status_code == 200
@@ -157,6 +176,7 @@ class TestAdminLogsEndpoint:
         self._ensure_log(['line1\n', 'line2\n', 'line3\n'])
         try:
             from fastapi.testclient import TestClient
+
             client = TestClient(app_instance)
             resp = client.get('/admin/api/logs')
             assert resp.status_code == 200
@@ -168,6 +188,7 @@ class TestAdminLogsEndpoint:
     def test_logs_file_not_found(self, app_instance):
         self._remove_log()
         from fastapi.testclient import TestClient
+
         client = TestClient(app_instance)
         resp = client.get('/admin/api/logs')
         assert resp.status_code == 200

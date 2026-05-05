@@ -1,4 +1,5 @@
 """日志配置 — loguru 文件 + stderr"""
+
 import os
 import sys
 
@@ -6,6 +7,7 @@ import sys
 def setup_logging(log_dir: str | None = None, level: str = 'INFO'):
     """配置 loguru 日志：文件轮转 + stderr"""
     import loguru
+
     from app._paths import persistent_dir
 
     if log_dir is None:

@@ -1,12 +1,9 @@
 """测试通用工具函数"""
+
 import os
-import time
 from datetime import datetime
-from unittest.mock import patch
 
-import pytest
-
-from app.utils import safe_int, format_time, safe_remove
+from app.utils import format_time, safe_int, safe_remove
 
 
 class TestSafeInt:
@@ -41,6 +38,7 @@ class TestFormatTime:
 class TestSafeRemove:
     def test_removes_existing_file(self):
         import tempfile
+
         with tempfile.NamedTemporaryFile(delete=False) as f:
             path = f.name
         assert os.path.exists(path)
@@ -58,6 +56,7 @@ class TestSafeRemove:
 
     def test_removes_with_label_success(self):
         import tempfile
+
         with tempfile.NamedTemporaryFile(delete=False) as f:
             path = f.name
         safe_remove(path, label='测试文件')

@@ -1,8 +1,9 @@
 """API 请求/响应 Pydantic 模型 — 自动生成 OpenAPI 文档 + 运行时校验"""
+
 from pydantic import BaseModel
 
-
 # ── 响应模型 ──
+
 
 class HealthResponse(BaseModel):
     status: str
@@ -59,11 +60,13 @@ class NotificationTestResponse(BaseModel):
 
 # ── 请求模型 ──
 
+
 class SetDefaultPrinterRequest(BaseModel):
     printer: str
 
 
 # ── 管理后台 ──
+
 
 class AdminActionResponse(BaseModel):
     success: bool

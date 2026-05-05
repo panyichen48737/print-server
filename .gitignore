@@ -19,3 +19,16 @@ Thumbs.db
 config.json
 bin/
 *.spec
+d_*.log
+d_*.err
+final*.log
+qc
+query
+rconsole_err.log
+test_err.log
+test_out.log
+tui*_stdout.log
+tui*_stderr.log
+tui_crash.log
+memory/
+.mcp.json

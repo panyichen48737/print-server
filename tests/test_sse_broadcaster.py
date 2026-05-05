@@ -1,5 +1,6 @@
 """测试 SSE 广播器"""
-from unittest.mock import MagicMock, patch
+
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -29,6 +30,7 @@ class TestSSEBroadcaster:
         b.unsubscribe(sub_id)
         b.publish('test', {'msg': 'hello'})
         import queue
+
         with pytest.raises(queue.Empty):
             q.get(timeout=0.5)
 
@@ -57,8 +59,10 @@ class TestSSEBroadcaster:
 
     def test_listener_exception_does_not_crash(self):
         b = SSEBroadcaster()
+
         def broken(data):
             raise RuntimeError('boom')
+
         b.on('e', broken)
         # 不应抛出异常
         b.publish('e', {'ok': 1})

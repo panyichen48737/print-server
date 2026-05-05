@@ -2,7 +2,7 @@
 
 依赖 mock：printer_engine, repo, event_bus, config
 """
-import os
+
 import threading
 from unittest.mock import MagicMock, patch
 
@@ -14,10 +14,17 @@ def mock_job(tmp_path):
     pdf_path = tmp_path / 'test.pdf'
     pdf_path.write_text('fake pdf content')
     return {
-        'id': 'job-001', 'filename': 'test.pdf', 'filepath': str(pdf_path),
-        'file_type': '.pdf', 'status': 'queued', 'source': 'api',
-        'printer_name': 'HP LaserJet', 'copies': 1, 'duplex': False,
-        'color': True, 'paper_size': 'A4',
+        'id': 'job-001',
+        'filename': 'test.pdf',
+        'filepath': str(pdf_path),
+        'file_type': '.pdf',
+        'status': 'queued',
+        'source': 'api',
+        'printer_name': 'HP LaserJet',
+        'copies': 1,
+        'duplex': False,
+        'color': True,
+        'paper_size': 'A4',
     }
 
 
@@ -25,7 +32,8 @@ def mock_job(tmp_path):
 def mock_config():
     cfg = MagicMock()
     cfg.get.side_effect = lambda key, default=None: {
-        'job_timeout': 300, 'auto_retry_count': 0,
+        'job_timeout': 300,
+        'auto_retry_count': 0,
     }.get(key, default)
     return cfg
 
@@ -33,6 +41,7 @@ def mock_config():
 @pytest.fixture
 def job_executor(mock_config):
     from app.printing.worker import JobExecutor
+
     repo = MagicMock()
     engine = MagicMock()
     bus = MagicMock()
@@ -50,6 +59,7 @@ def job_executor(mock_config):
 # =============================================================================
 # JobExecutor.execute
 # =============================================================================
+
 
 class TestJobExecutorExecute:
     """JobExecutor.execute 的主要路径"""
@@ -112,7 +122,6 @@ class TestJobExecutorExecute:
 
                 copy_mock.assert_called_once_with(mock_job['filepath'], tmp_file.name)
 
-
     def test_cancel_during_printing(self, job_executor, mock_job):
         """打印中取消应返回 cancelled"""
         job_executor._repo.get_job.return_value = mock_job
@@ -120,6 +129,7 @@ class TestJobExecutorExecute:
         # 让打印引擎耗时，然后超时
         def slow_print(*args, **kwargs):
             import time
+
             time.sleep(10)
             return True
 
@@ -128,7 +138,8 @@ class TestJobExecutorExecute:
 
         # 执行，使用短超时
         job_executor.config.get.side_effect = lambda key, default=None: {
-            'job_timeout': 0.1, 'auto_retry_count': 0,
+            'job_timeout': 0.1,
+            'auto_retry_count': 0,
         }.get(key, default)
 
         result = job_executor.execute('job-001', 1)
@@ -139,12 +150,14 @@ class TestJobExecutorExecute:
 # JobWorker
 # =============================================================================
 
+
 class TestJobWorker:
     """JobWorker 初始化和脱离 pythoncom 的逻辑"""
 
     @pytest.fixture
     def worker(self, mock_config):
         from app.printing.worker import JobWorker
+
         queue = MagicMock()
         repo = MagicMock()
         bus = MagicMock()
@@ -161,9 +174,15 @@ class TestJobWorker:
 
     def test_process_calls_executor(self, worker):
         w, evt, q = worker
-        w._repo.get_job.return_value = {'id': 'job-001', 'status': 'queued', 'filename': 'test.pdf', 'source': 'api'}
+        w._repo.get_job.return_value = {
+            'id': 'job-001',
+            'status': 'queued',
+            'filename': 'test.pdf',
+            'source': 'api',
+        }
         w._job_queue.is_cancelled.return_value = False
         from unittest.mock import patch
+
         with patch.object(w, '_executor') as mock_exec:
             mock_exec.execute.return_value = (True, None)
             w._process('job-001')
@@ -190,7 +209,12 @@ class TestJobWorker:
 
     def test_process_retry_on_failure(self, worker, mock_config):
         w, evt, q = worker
-        w._repo.get_job.return_value = {'id': 'job-001', 'status': 'queued', 'filename': 'test.pdf', 'source': 'api'}
+        w._repo.get_job.return_value = {
+            'id': 'job-001',
+            'status': 'queued',
+            'filename': 'test.pdf',
+            'source': 'api',
+        }
         w._job_queue.is_cancelled.return_value = False
         # 配置 2 次重试
         w._config.get.side_effect = lambda key, default=None: {
@@ -198,6 +222,7 @@ class TestJobWorker:
         }.get(key, default)
 
         from unittest.mock import patch
+
         with patch.object(w, '_executor') as mock_exec:
             mock_exec.execute.return_value = (False, '打印失败')
             w._process('job-001')
@@ -210,6 +235,7 @@ class TestJobWorker:
 # =============================================================================
 # JobExecutor._update_and_broadcast
 # =============================================================================
+
 
 class TestUpdateAndBroadcast:
     """_update_and_broadcast 状态更新 + 事件发送"""

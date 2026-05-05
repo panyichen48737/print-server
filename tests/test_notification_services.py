@@ -1,8 +1,8 @@
 """测试 BarkNotifier 和 DingTalk 通知服务"""
+
 from unittest.mock import MagicMock, patch
 
 import httpx
-import pytest
 
 from app.services.bark import BarkNotifier
 from app.services.dingtalk import DingTalk

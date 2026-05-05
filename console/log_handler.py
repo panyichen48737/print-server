@@ -1,4 +1,5 @@
 """loguru sink — TUI 日志缓冲区（事件驱动，零轮询）"""
+
 import threading
 from collections import deque
 

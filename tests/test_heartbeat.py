@@ -1,9 +1,7 @@
 """测试心跳检测"""
-import time
-import threading
-from unittest.mock import MagicMock, patch
 
-import pytest
+import time
+from unittest.mock import MagicMock
 
 from app.services.heartbeat import HeartbeatMonitor
 
@@ -47,14 +45,18 @@ class TestHeartbeatMonitor:
 
     def test_run_with_timeout_handles_slow_fn(self):
         hb = HeartbeatMonitor(interval=1)
+
         def slow():
             time.sleep(5)
+
         hb._run_with_timeout(slow, 'slow', timeout=0.1)  # 不应阻塞太久
 
     def test_run_with_timeout_handles_exception(self):
         hb = HeartbeatMonitor(interval=1)
+
         def broken():
             raise ValueError('test')
+
         hb._run_with_timeout(broken, 'broken')  # 不应抛出
 
     def test_loop_stops_on_stop_event(self):

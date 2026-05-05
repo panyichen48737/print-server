@@ -3,13 +3,16 @@
 import os
 import uuid
 from dataclasses import dataclass
+
 from loguru import logger
-from app._paths import persistent_dir, ensure_dir
+
+from app._paths import ensure_dir, persistent_dir
 
 
 @dataclass
 class UploadResult:
     """文件上传结果"""
+
     success: bool
     job_id: str = ''
     error: str = ''
@@ -51,7 +54,9 @@ def handle_file_upload(
 
     max_size = config.get('max_file_size_mb', 50) * 1024 * 1024
     if len(file_bytes) > max_size:
-        return UploadResult(success=False, error=f'文件过大，最大 {config.get("max_file_size_mb", 50)}MB')
+        return UploadResult(
+            success=False, error=f'文件过大，最大 {config.get("max_file_size_mb", 50)}MB'
+        )
 
     safe_name = os.path.basename(filename)
     job_id = str(uuid.uuid4())
@@ -62,7 +67,10 @@ def handle_file_upload(
         f.write(file_bytes)
 
     actual_job_id = queue_mgr.add_job(
-        filename, save_path, len(file_bytes), ext,
+        filename,
+        save_path,
+        len(file_bytes),
+        ext,
         duplex=int(duplex) if duplex in ('0', '1') else None,
         color=int(color) if color in ('0', '1') else None,
         copies=int(copies) if copies and copies.isdigit() else None,

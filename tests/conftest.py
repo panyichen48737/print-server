@@ -1,4 +1,5 @@
 """共享 fixtures — pytest 全局"""
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -8,6 +9,7 @@ import pytest
 def sse_broadcaster():
     """创建 SSEBroadcaster 实例用于集成测试"""
     from app.services.sse_broadcaster import SSEBroadcaster
+
     return SSEBroadcaster()
 
 
@@ -41,5 +43,6 @@ def mock_repo():
 def app_instance():
     """FastAPI 应用实例（无 lifespan，测试专用）"""
     from app import create_app
+
     app = create_app()
     return app

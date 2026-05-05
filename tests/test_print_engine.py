@@ -1,4 +1,5 @@
 """测试 PrintEngine 文件类型分发与任务管理逻辑"""
+
 import threading
 from unittest.mock import MagicMock, patch
 
@@ -34,7 +35,9 @@ class TestPrintEngine:
     @patch('app.printing.engine.ImageBackend')
     @patch('app.printing.engine.OfficeBackend')
     @patch('app.printing.engine.PdfBackend')
-    def test_office_routes_to_office_then_pdf(self, MockPdfBackend, MockOfficeBackend, MockImageBackend):
+    def test_office_routes_to_office_then_pdf(
+        self, MockPdfBackend, MockOfficeBackend, MockImageBackend
+    ):
         """.docx 文件先调 OfficeBackend.convert_to_pdf，再调 PdfBackend.print_file，
         并传入 word_lock"""
         engine = PrintEngine(self.config, self.excel_lock, self.ppt_lock)
@@ -56,7 +59,9 @@ class TestPrintEngine:
     @patch('app.printing.engine.ImageBackend')
     @patch('app.printing.engine.OfficeBackend')
     @patch('app.printing.engine.PdfBackend')
-    def test_image_routes_to_image_backend(self, MockPdfBackend, MockOfficeBackend, MockImageBackend):
+    def test_image_routes_to_image_backend(
+        self, MockPdfBackend, MockOfficeBackend, MockImageBackend
+    ):
         """.jpg 文件调用 ImageBackend.print_file"""
         engine = PrintEngine(self.config, self.excel_lock, self.ppt_lock)
         mock_image = MockImageBackend.return_value
@@ -72,7 +77,9 @@ class TestPrintEngine:
     @patch('app.printing.engine.ImageBackend')
     @patch('app.printing.engine.OfficeBackend')
     @patch('app.printing.engine.PdfBackend')
-    def test_all_office_extensions_use_office_backend(self, MockPdfBackend, MockOfficeBackend, MockImageBackend):
+    def test_all_office_extensions_use_office_backend(
+        self, MockPdfBackend, MockOfficeBackend, MockImageBackend
+    ):
         """所有 Office 扩展名都应走 convert_to_pdf 路径"""
         engine = PrintEngine(self.config, self.excel_lock, self.ppt_lock)
         mock_office = MockOfficeBackend.return_value
@@ -87,12 +94,25 @@ class TestPrintEngine:
     @patch('app.printing.engine.ImageBackend')
     @patch('app.printing.engine.OfficeBackend')
     @patch('app.printing.engine.PdfBackend')
-    def test_all_image_extensions_use_image_backend(self, MockPdfBackend, MockOfficeBackend, MockImageBackend):
+    def test_all_image_extensions_use_image_backend(
+        self, MockPdfBackend, MockOfficeBackend, MockImageBackend
+    ):
         """所有图片扩展名都应路由到 ImageBackend"""
         engine = PrintEngine(self.config, self.excel_lock, self.ppt_lock)
         mock_image = MockImageBackend.return_value
 
-        img_exts = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif', '.heic', '.heif']
+        img_exts = [
+            '.jpg',
+            '.jpeg',
+            '.png',
+            '.bmp',
+            '.gif',
+            '.webp',
+            '.tiff',
+            '.tif',
+            '.heic',
+            '.heif',
+        ]
         for i, ext in enumerate(img_exts):
             engine.print_file(f'test{ext}', ext, f'job-img-{i}', None)
 
@@ -103,7 +123,9 @@ class TestPrintEngine:
     @patch('app.printing.engine.ImageBackend')
     @patch('app.printing.engine.OfficeBackend')
     @patch('app.printing.engine.PdfBackend')
-    def test_unsupported_type_raises_value_error(self, MockPdfBackend, MockOfficeBackend, MockImageBackend):
+    def test_unsupported_type_raises_value_error(
+        self, MockPdfBackend, MockOfficeBackend, MockImageBackend
+    ):
         """不支持的文件类型应抛出 ValueError"""
         engine = PrintEngine(self.config, self.excel_lock, self.ppt_lock)
 
@@ -115,7 +137,9 @@ class TestPrintEngine:
     @patch('app.printing.engine.ImageBackend')
     @patch('app.printing.engine.OfficeBackend')
     @patch('app.printing.engine.PdfBackend')
-    def test_cancel_active_job_routes_to_backend(self, MockPdfBackend, MockOfficeBackend, MockImageBackend):
+    def test_cancel_active_job_routes_to_backend(
+        self, MockPdfBackend, MockOfficeBackend, MockImageBackend
+    ):
         """取消活跃任务应调用对应 backend.cancel"""
         engine = PrintEngine(self.config, self.excel_lock, self.ppt_lock)
         mock_pdf = MockPdfBackend.return_value
@@ -131,7 +155,9 @@ class TestPrintEngine:
     @patch('app.printing.engine.ImageBackend')
     @patch('app.printing.engine.OfficeBackend')
     @patch('app.printing.engine.PdfBackend')
-    def test_cancel_nonexistent_job_returns_false(self, MockPdfBackend, MockOfficeBackend, MockImageBackend):
+    def test_cancel_nonexistent_job_returns_false(
+        self, MockPdfBackend, MockOfficeBackend, MockImageBackend
+    ):
         """取消不存在的任务应返回 False"""
         engine = PrintEngine(self.config, self.excel_lock, self.ppt_lock)
 
@@ -145,7 +171,9 @@ class TestPrintEngine:
     @patch('app.printing.engine.ImageBackend')
     @patch('app.printing.engine.OfficeBackend')
     @patch('app.printing.engine.PdfBackend')
-    def test_office_cleanup_temp_pdf_in_finally(self, MockPdfBackend, MockOfficeBackend, MockImageBackend, mock_safe_remove):
+    def test_office_cleanup_temp_pdf_in_finally(
+        self, MockPdfBackend, MockOfficeBackend, MockImageBackend, mock_safe_remove
+    ):
         """Office 转换后 finally 块应调用 safe_remove 删除临时 PDF"""
         engine = PrintEngine(self.config, self.excel_lock, self.ppt_lock)
         mock_office = MockOfficeBackend.return_value
@@ -160,7 +188,9 @@ class TestPrintEngine:
     @patch('app.printing.engine.ImageBackend')
     @patch('app.printing.engine.OfficeBackend')
     @patch('app.printing.engine.PdfBackend')
-    def test_office_cleanup_on_pdf_print_failure(self, MockPdfBackend, MockOfficeBackend, MockImageBackend, mock_safe_remove):
+    def test_office_cleanup_on_pdf_print_failure(
+        self, MockPdfBackend, MockOfficeBackend, MockImageBackend, mock_safe_remove
+    ):
         """Office 转换后即便 PdfBackend.print_file 抛异常，也应清理临时 PDF"""
         engine = PrintEngine(self.config, self.excel_lock, self.ppt_lock)
         mock_office = MockOfficeBackend.return_value

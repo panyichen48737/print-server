@@ -1,41 +1,59 @@
 """打印机状态监控 — 每30s轮询 win32print, 通过 SSE 广播器推送"""
+
+import threading
 from typing import Any
 
-from loguru import logger
-import threading
 import win32print
+from loguru import logger
 
 # 打印机状态位 → (bit_mask, 中文标签)
 STATUS_BITS: dict[str, tuple[int, str]] = {
-    'paused':            (0x00000001, '已暂停'),
-    'error':             (0x00000002, '错误'),
-    'pending_deletion':  (0x00000004, '待删除'),
-    'paper_jam':         (0x00000008, '卡纸'),
-    'paper_out':         (0x00000010, '缺纸'),
-    'manual_feed':       (0x00000020, '手动进纸'),
-    'paper_problem':     (0x00000040, '纸张问题'),
-    'offline':           (0x00000080, '离线'),
-    'io_active':         (0x00000100, 'IO 活动中'),
-    'busy':              (0x00000200, '忙'),
-    'printing':          (0x00000400, '打印中'),
-    'output_bin_full':   (0x00000800, '出纸槽已满'),
-    'not_available':     (0x00001000, '不可用'),
-    'waiting':           (0x00002000, '等待中'),
-    'processing':        (0x00004000, '处理中'),
-    'initializing':      (0x00008000, '初始化中'),
-    'warming_up':        (0x00010000, '预热中'),
-    'toner_low':         (0x00020000, '墨量低'),
-    'no_toner':          (0x00040000, '缺墨'),
-    'page_punt':         (0x00080000, '页跳过'),
+    'paused': (0x00000001, '已暂停'),
+    'error': (0x00000002, '错误'),
+    'pending_deletion': (0x00000004, '待删除'),
+    'paper_jam': (0x00000008, '卡纸'),
+    'paper_out': (0x00000010, '缺纸'),
+    'manual_feed': (0x00000020, '手动进纸'),
+    'paper_problem': (0x00000040, '纸张问题'),
+    'offline': (0x00000080, '离线'),
+    'io_active': (0x00000100, 'IO 活动中'),
+    'busy': (0x00000200, '忙'),
+    'printing': (0x00000400, '打印中'),
+    'output_bin_full': (0x00000800, '出纸槽已满'),
+    'not_available': (0x00001000, '不可用'),
+    'waiting': (0x00002000, '等待中'),
+    'processing': (0x00004000, '处理中'),
+    'initializing': (0x00008000, '初始化中'),
+    'warming_up': (0x00010000, '预热中'),
+    'toner_low': (0x00020000, '墨量低'),
+    'no_toner': (0x00040000, '缺墨'),
+    'page_punt': (0x00080000, '页跳过'),
     'user_intervention': (0x00100000, '需用户干预'),
-    'out_of_memory':     (0x00200000, '内存不足'),
-    'door_open':         (0x00400000, '盖板打开'),
-    'power_save':        (0x01000000, '节能模式'),
+    'out_of_memory': (0x00200000, '内存不足'),
+    'door_open': (0x00400000, '盖板打开'),
+    'power_save': (0x01000000, '节能模式'),
 }
 
 # overall 分类
-ERROR_BITS: set[str] = {'offline', 'error', 'paper_jam', 'paper_out', 'no_toner', 'door_open', 'not_available', 'out_of_memory'}
-WARNING_BITS: set[str] = {'toner_low', 'user_intervention', 'output_bin_full', 'manual_feed', 'paper_problem', 'power_save', 'paused'}
+ERROR_BITS: set[str] = {
+    'offline',
+    'error',
+    'paper_jam',
+    'paper_out',
+    'no_toner',
+    'door_open',
+    'not_available',
+    'out_of_memory',
+}
+WARNING_BITS: set[str] = {
+    'toner_low',
+    'user_intervention',
+    'output_bin_full',
+    'manual_feed',
+    'paper_problem',
+    'power_save',
+    'paused',
+}
 BUSY_BITS: set[str] = {'printing', 'busy', 'io_active', 'processing', 'initializing', 'warming_up'}
 
 
@@ -102,11 +120,13 @@ class PrinterMonitor:
                     overall, active = parse_status(status)
                 finally:
                     win32print.ClosePrinter(handle)
-                printers.append({
-                    'name': name,
-                    'overall': overall,
-                    'statuses': active,
-                })
+                printers.append(
+                    {
+                        'name': name,
+                        'overall': overall,
+                        'statuses': active,
+                    }
+                )
         except Exception as e:
             logger.warning(f'枚举打印机失败: {e}')
             return
@@ -137,7 +157,9 @@ class PrinterMonitor:
         for name in removed:
             if self._broadcaster:
                 try:
-                    self._broadcaster.publish('printer_status', {'name': name, 'overall': 'removed', 'statuses': []})
+                    self._broadcaster.publish(
+                        'printer_status', {'name': name, 'overall': 'removed', 'statuses': []}
+                    )
                 except Exception as e:
                     logger.warning(f'PrinterMonitor error: {e}')
 

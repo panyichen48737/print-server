@@ -1,5 +1,6 @@
 """测试 JobQueue"""
-from unittest.mock import MagicMock, patch
+
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -49,8 +50,11 @@ class TestJobQueue:
 
     def test_cancel_queued_job(self, queue, repo, event_bus):
         repo.get_job.return_value = {
-            'id': 'job-1', 'filename': 'f.pdf', 'filepath': '/p/f.pdf',
-            'status': 'queued', 'source': 'web',
+            'id': 'job-1',
+            'filename': 'f.pdf',
+            'filepath': '/p/f.pdf',
+            'status': 'queued',
+            'source': 'web',
         }
         success, error = queue.cancel_job('job-1')
         assert success is True
@@ -98,14 +102,19 @@ class TestJobQueue:
 
     def test_retry_success(self, queue, repo):
         repo.get_job.return_value = {
-            'id': '1', 'status': 'failed', 'filename': 'f.pdf',
-            'filepath': '/f.pdf', 'file_size': 100, 'file_type': '.pdf',
+            'id': '1',
+            'status': 'failed',
+            'filename': 'f.pdf',
+            'filepath': '/f.pdf',
+            'file_size': 100,
+            'file_type': '.pdf',
         }
         new_id, error = queue.retry_job('1')
         assert new_id == 'test-job-id'
 
     def test_recover_stuck_jobs(self, queue, repo):
         from datetime import datetime, timedelta
+
         old = (datetime.now() - timedelta(hours=1)).isoformat()
         repo.get_jobs_by_status.return_value = [
             {'id': 'stuck-1', 'created_at': old},

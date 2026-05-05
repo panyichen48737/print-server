@@ -9,8 +9,11 @@ class LogBroadcaster:
 
     def write(self, message):
         if message.strip() and self._broadcaster:
-            self._broadcaster.publish('log', {
-                'message': message.strip(),
-                'level': 'INFO',
-                'name': 'print_server',
-            })
+            self._broadcaster.publish(
+                'log',
+                {
+                    'message': message.strip(),
+                    'level': 'INFO',
+                    'name': 'print_server',
+                },
+            )

@@ -8,11 +8,12 @@
 环境变量:
     RELEASE_VERSION=v1.0.0   # 发布版本号（可跳过 git tag）
 """
+
+import argparse
 import os
-import sys
 import shutil
 import subprocess
-import argparse
+import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -28,7 +29,9 @@ def get_version() -> str:
     try:
         desc = subprocess.run(
             ['git', 'describe', '--tags', '--always', '--dirty'],
-            capture_output=True, text=True, timeout=2,
+            capture_output=True,
+            text=True,
+            timeout=2,
             cwd=PROJECT_ROOT,
         )
         if desc.returncode == 0 and desc.stdout.strip():
@@ -63,85 +66,122 @@ def build(version: str):
     changelog = PROJECT_ROOT / 'CHANGELOG.md'
     if changelog.exists():
         shutil.copy2(changelog, res_dir / 'CHANGELOG.md')
-    # SSL 证书（如存在）— 内嵌后按需释放到数据目录
+    # SSL 证书 — 内嵌到 exe，运行后按需释放到数据目录
     cert_dir = PROJECT_ROOT / 'certs'
     cert_has_both = (cert_dir / 'cert.pem').exists() and (cert_dir / 'key.pem').exists()
     if cert_has_both:
         shutil.copytree(cert_dir, res_dir / 'certs', dirs_exist_ok=True)
-        print(f'[build] 已包含 SSL 证书')
+        print('[build] 已包含 SSL 证书')
     elif cert_dir.exists():
-        print(f'[build] 警告: certs/ 目录存在但缺少 cert.pem 或 key.pem，跳过证书打包')
+        print('[build] 提示: certs/ 目录为空，SSL 证书未打包（运行时会自检数据目录）')
 
     # PyInstaller 参数（--onefile：所有内容打包进单一 exe，启动时解压到 %TEMP%）
     args = [
-        sys.executable, '-m', 'PyInstaller',
+        sys.executable,
+        '-m',
+        'PyInstaller',
         '--noconfirm',
-        '--name', APP_NAME,
+        '--name',
+        APP_NAME,
         '--console',
         '--onefile',
         # Data 文件（--add-data 资源嵌入 exe，运行时由 MEIPASS 访问）
-        '--add-data', f'{PROJECT_ROOT / "app" / "templates"}{os.pathsep}app/templates',
-        '--add-data', f'{PROJECT_ROOT / "app" / "static"}{os.pathsep}app/static',
+        '--add-data',
+        f'{PROJECT_ROOT / "app" / "templates"}{os.pathsep}app/templates',
+        '--add-data',
+        f'{PROJECT_ROOT / "app" / "static"}{os.pathsep}app/static',
         # 内嵌资源（嵌入 exe，运行时由 MEIPASS 访问，通过 app/resources.py 按需释放）
-        '--add-data', f'{res_dir}{os.pathsep}resources',
+        '--add-data',
+        f'{res_dir}{os.pathsep}resources',
     ]
 
     args += [
-        '--hidden-import', 'win32ui',
-        '--hidden-import', 'win32print',
-        '--hidden-import', 'win32gui',
-        '--hidden-import', 'win32com.client',
-        '--hidden-import', 'pythoncom',
-        '--hidden-import', 'win32service',
-        '--hidden-import', 'win32serviceutil',
-        '--hidden-import', 'win32event',
-        '--hidden-import', 'servicemanager',
-        '--hidden-import', 'python_multipart',
+        '--hidden-import',
+        'win32ui',
+        '--hidden-import',
+        'win32print',
+        '--hidden-import',
+        'win32gui',
+        '--hidden-import',
+        'win32com.client',
+        '--hidden-import',
+        'pythoncom',
+        '--hidden-import',
+        'python_multipart',
         # 隐式导入 — HTTP/ASGI
-        '--hidden-import', 'uvicorn.logging',
-        '--hidden-import', 'uvicorn.loops',
-        '--hidden-import', 'uvicorn.lifespan',
-        '--hidden-import', 'uvicorn.protocols.http',
-        '--hidden-import', 'uvicorn.protocols.websockets',
+        '--hidden-import',
+        'uvicorn.logging',
+        '--hidden-import',
+        'uvicorn.loops',
+        '--hidden-import',
+        'uvicorn.lifespan',
+        '--hidden-import',
+        'uvicorn.protocols.http',
+        '--hidden-import',
+        'uvicorn.protocols.websockets',
         # 隐式导入 — 文档解析
-        '--hidden-import', 'PIL.ImageWin',
-        '--hidden-import', 'PIL.ImageDraw',
-        '--hidden-import', 'http.client',
-        '--hidden-import', 'email.mime.multipart',
-        '--hidden-import', 'email.mime.text',
+        '--hidden-import',
+        'PIL.ImageWin',
+        '--hidden-import',
+        'PIL.ImageDraw',
+        '--hidden-import',
+        'http.client',
+        '--hidden-import',
+        'email.mime.multipart',
+        '--hidden-import',
+        'email.mime.text',
         # 隐式导入 — 应用模块
-        '--hidden-import', 'app.config',
-        '--hidden-import', 'app.routes.api',
-        '--hidden-import', 'app.routes.admin',
-        '--hidden-import', 'app.routes.ws',
-        '--hidden-import', 'app.services.dingtalk',
-        '--hidden-import', 'app.services.bark',
-        '--hidden-import', 'app.services.sse_broadcaster',
-        '--hidden-import', 'app.services.printer_monitor',
-        '--hidden-import', 'app.services.log_broadcaster',
-        '--hidden-import', 'app.printing.job_queue',
-        '--hidden-import', 'app.printing.worker_pool',
-        '--hidden-import', 'app.printing.engine',
-        '--hidden-import', 'app.printing.backends',
+        '--hidden-import',
+        'app.config',
+        '--hidden-import',
+        'app.routes.api',
+        '--hidden-import',
+        'app.routes.admin',
+        '--hidden-import',
+        'app.routes.ws',
+        '--hidden-import',
+        'app.services.dingtalk',
+        '--hidden-import',
+        'app.services.bark',
+        '--hidden-import',
+        'app.services.sse_broadcaster',
+        '--hidden-import',
+        'app.services.printer_monitor',
+        '--hidden-import',
+        'app.services.log_broadcaster',
+        '--hidden-import',
+        'app.printing.job_queue',
+        '--hidden-import',
+        'app.printing.worker_pool',
+        '--hidden-import',
+        'app.printing.engine',
+        '--hidden-import',
+        'app.printing.backends',
         # 排除不需要的库（减小体积）
-        '--exclude-module', 'tkinter',
-        '--exclude-module', 'matplotlib',
-        '--exclude-module', 'scipy',
-        '--exclude-module', 'numpy',
-        '--exclude-module', 'setuptools',
-        '--exclude-module', 'pip',
+        '--exclude-module',
+        'tkinter',
+        '--exclude-module',
+        'matplotlib',
+        '--exclude-module',
+        'scipy',
+        '--exclude-module',
+        'numpy',
+        '--exclude-module',
+        'setuptools',
+        '--exclude-module',
+        'pip',
         # 入口
         str(PROJECT_ROOT / 'console_app.py'),
     ]
 
     subprocess.run(args, cwd=PROJECT_ROOT, check=True, env=env)
 
-    dist_app_dir = DIST_DIR / APP_NAME
-    if dist_app_dir.exists():
-        print(f'[build] 构建完成: {dist_app_dir}')
+    exe_path = DIST_DIR / f'{APP_NAME}.exe'
+    if exe_path.exists():
+        print(f'[build] 构建完成: {exe_path} ({exe_path.stat().st_size / 1024 / 1024:.1f} MB)')
         print(f'[build] 版本: {version}')
     else:
-        print(f'[build] 构建失败: dist 目录未生成')
+        print(f'[build] 构建失败: {exe_path} 未生成')
 
 
 def main():
@@ -159,9 +199,7 @@ def main():
         print('[build] 错误: 发布模式需要 git tag (如 v1.0.0) 或 RELEASE_VERSION 环境变量')
         sys.exit(1)
 
-    # --release 模式保留 build/ 目录以利用缓存
-    if not args.release:
-        clean()
+    # 默认保留 build/ 缓存以加速；传递 --clean 可清理
     build(version)
 
 

@@ -1,8 +1,9 @@
 """任务队列 — 入队、取消、状态管理、心跳恢复"""
+
 import queue
 import threading
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from loguru import logger
 
@@ -35,19 +36,36 @@ class JobQueue:
 
     # ── 队列操作 ──
 
-    def add_job(self, filename: str, filepath: str, file_size: int = 0, file_type: str = '',
-                duplex: Optional[int] = None, color: Optional[int] = None,
-                copies: Optional[int] = None, paper_size: Optional[str] = None,
-                printer_name: Optional[str] = None, source: str = 'api') -> str:
-        job_id = self._repo.add_job(filename, filepath, file_size, file_type,
-                                    duplex=duplex, color=color, copies=copies,
-                                    paper_size=paper_size, printer_name=printer_name,
-                                    source=source)
+    def add_job(
+        self,
+        filename: str,
+        filepath: str,
+        file_size: int = 0,
+        file_type: str = '',
+        duplex: int | None = None,
+        color: int | None = None,
+        copies: int | None = None,
+        paper_size: str | None = None,
+        printer_name: str | None = None,
+        source: str = 'api',
+    ) -> str:
+        job_id = self._repo.add_job(
+            filename,
+            filepath,
+            file_size,
+            file_type,
+            duplex=duplex,
+            color=color,
+            copies=copies,
+            paper_size=paper_size,
+            printer_name=printer_name,
+            source=source,
+        )
         self._queue.put(job_id)
         logger.info(f'任务已入队: {job_id} - {filename}')
         return job_id
 
-    def get_for_processing(self, timeout: float = 1.0) -> Optional[str]:
+    def get_for_processing(self, timeout: float = 1.0) -> str | None:
         """阻塞获取下一个待处理任务 ID"""
         try:
             return self._queue.get(timeout=timeout)
@@ -62,7 +80,7 @@ class JobQueue:
 
     # ── 取消业务 ──
 
-    def cancel_job(self, job_id: str, print_engine: Any = None) -> tuple[bool, Optional[str]]:
+    def cancel_job(self, job_id: str, print_engine: Any = None) -> tuple[bool, str | None]:
         job = self._repo.get_job(job_id)
         if not job:
             return False, '任务不存在'
@@ -98,20 +116,22 @@ class JobQueue:
         logger.info(f'批量取消完成: {len(to_cancel)} 个任务')
         return len(to_cancel)
 
-    def retry_job(self, job_id: str) -> tuple[Optional[str], Optional[str]]:
+    def retry_job(self, job_id: str) -> tuple[str | None, str | None]:
         job = self._repo.get_job(job_id)
         if not job:
             return None, '任务不存在'
         if job['status'] != 'failed':
             return None, '只能重试失败的任务'
         new_job_id = self.add_job(
-            job['filename'], job['filepath'],
-            job['file_size'], job['file_type'],
+            job['filename'],
+            job['filepath'],
+            job['file_size'],
+            job['file_type'],
             duplex=job.get('duplex'),
             color=job.get('color'),
             copies=job.get('copies'),
             paper_size=job.get('paper_size'),
-            printer_name=job.get('printer_name')
+            printer_name=job.get('printer_name'),
         )
         logger.info(f'任务重试: {job_id} -> {new_job_id}')
         return new_job_id, None
@@ -135,11 +155,14 @@ class JobQueue:
 
     def _emit_job_status(self, job: dict, status: str, error: str = '') -> None:
         if self._event_bus:
-            self._event_bus.publish('job_status', {
-                'job_id': job['id'],
-                'filename': job['filename'],
-                'status': status,
-                'source': job.get('source', 'api'),
-                'error': error,
-                'ts': datetime.now().isoformat(),
-            })
+            self._event_bus.publish(
+                'job_status',
+                {
+                    'job_id': job['id'],
+                    'filename': job['filename'],
+                    'status': status,
+                    'source': job.get('source', 'api'),
+                    'error': error,
+                    'ts': datetime.now().isoformat(),
+                },
+            )

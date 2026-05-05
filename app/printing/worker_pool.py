@@ -1,7 +1,10 @@
 """工作线程池 — 使用 ThreadPoolExecutor 管理线程生命周期"""
+
+from __future__ import annotations
+
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Optional
+from typing import Any
 
 from loguru import logger
 
@@ -13,8 +16,9 @@ from app.printing.worker import JobWorker
 class WorkerPool:
     """工作线程池：基于 ThreadPoolExecutor 的启动/停止"""
 
-    def __init__(self, config: Any, event_bus: Any = None,
-                 word_lock: Optional[threading.Lock] = None) -> None:
+    def __init__(
+        self, config: Any, event_bus: Any = None, word_lock: threading.Lock | None = None
+    ) -> None:
         self._config = config
         self._event_bus = event_bus
         self._word_lock = word_lock
@@ -29,8 +33,14 @@ class WorkerPool:
         self._futures = []
         for i in range(count):
             worker = JobWorker(
-                i, self._config, job_queue, repo, self._event_bus,
-                self._stop_evt, print_engine, self._word_lock,
+                i,
+                self._config,
+                job_queue,
+                repo,
+                self._event_bus,
+                self._stop_evt,
+                print_engine,
+                self._word_lock,
             )
             self._futures.append(self._executor.submit(worker.run))
         logger.info(f'启动 {count} 个工作线程')

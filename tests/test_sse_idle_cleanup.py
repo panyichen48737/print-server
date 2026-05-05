@@ -1,7 +1,6 @@
 """测试 SSEBroadcaster.cleanup_idle_subscribers — 空闲订阅者清理"""
-import time
 
-import pytest
+import time
 
 from app.services.sse_broadcaster import SSEBroadcaster
 
