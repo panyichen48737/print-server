@@ -33,21 +33,25 @@ from .log_handler import TUILogHandler
 
 
 def _ensure_single_instance() -> None:
-    """Windows 命名互斥体：防止启动多个控制台窗口"""
+    """Windows 命名互斥体：防止启动多个控制台窗口（带重试，避免前后进程切换竞争）"""
     import ctypes
+    import time
 
-    mutex = ctypes.windll.kernel32.CreateMutexW(None, True, 'iOSPrintServerConsole')  # type: ignore
-    err = ctypes.windll.kernel32.GetLastError()  # type: ignore
-    if not mutex:
-        print(f'[WARN] 无法创建互斥体 (error={err})，继续启动')
-        return
-    if err == 183:  # ERROR_ALREADY_EXISTS
+    for attempt in range(10):
+        mutex = ctypes.windll.kernel32.CreateMutexW(None, True, 'iOSPrintServerConsole')  # type: ignore
+        err = ctypes.windll.kernel32.GetLastError()  # type: ignore
+        if not mutex:
+            print(f'[WARN] 无法创建互斥体 (error={err})，继续启动')
+            return
+        if err == 0:  # 新创建，正常持有
+            return
+        # err == 183 (ERROR_ALREADY_EXISTS): 前一个进程尚未完全退出，重试
         ctypes.windll.kernel32.CloseHandle(mutex)  # type: ignore
-        print('控制台已在运行')
-        sys.exit(0)
-    # err == 0: 新创建，正常持有；其他异常值记录日志
-    if err != 0:
-        print(f'[WARN] 互斥体状态异常 (error={err})')
+        if attempt < 9:
+            time.sleep(0.5)
+        else:
+            print('控制台已在运行')
+            sys.exit(0)
 
 
 def main() -> int | None:
@@ -108,12 +112,13 @@ def main() -> int | None:
         return 0 if ok else 1
 
     # 默认：启动控制台 TUI（只允许一个实例）
-    _ensure_single_instance()
     config = Config()
     setup_logging(level=config.log_level)
 
     if not ensure_installed():
         return None
+
+    _ensure_single_instance()
 
     tui_handler = TUILogHandler()
     logger.add(tui_handler, format='{time:HH:mm:ss} {level} {message}', level='ERROR')
