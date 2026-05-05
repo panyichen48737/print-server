@@ -1,0 +1,96 @@
+name: CI
+
+on: [push, pull_request]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Cache Python packages
+        id: cache-pip
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.pythonLocation }}
+          key: pip-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}
+      - name: Install dependencies
+        if: steps.cache-pip.outputs.cache-hit != 'true'
+        run: pip install -e ".[dev]"
+      - name: Run tests with coverage
+        run: pytest tests/ -v --tb=short --cov=app --cov-report=xml --cov-report=term-missing:skip-covered
+        env:
+          PYTHONIOENCODING: utf-8
+          PYTHONUTF8: '1'
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage.xml
+
+  build:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Restore Python packages cache
+        id: cache-pip
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.pythonLocation }}
+          key: pip-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}
+      - name: Install dependencies
+        if: steps.cache-pip.outputs.cache-hit != 'true'
+        run: pip install -e ".[dev]"
+      - name: Cache PyInstaller build
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/
+            %LOCALAPPDATA%\pyinstaller
+          key: pyinstaller-${{ runner.os }}-${{ hashFiles('pyproject.toml', 'scripts/build.py') }}
+          restore-keys: |
+            pyinstaller-${{ runner.os }}-
+      - name: Build with PyInstaller
+        run: python scripts/build.py --release
+        env:
+          RELEASE_VERSION: ${{ github.ref_name }}
+          PYTHONIOENCODING: utf-8
+      - name: Archive build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: iOSPrintServer-${{ github.ref_name }}
+          path: dist/iOSPrintServer.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: iOSPrintServer-${{ github.ref_name }}
+          path: .
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: iOS 云打印服务器 ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            iOSPrintServer.exe
