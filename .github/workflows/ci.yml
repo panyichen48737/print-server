@@ -39,8 +39,8 @@ jobs:
         shell: bash
         run: |
           # Compare ignoring the leading header comment (uv embeds the -o path into it)
-          uv pip compile pyproject.toml -o /tmp/requirements.txt --quiet
-          uv pip compile pyproject.toml --extra dev -o /tmp/requirements-dev.txt --quiet
+          uv pip compile pyproject.toml -o /tmp/requirements.txt --quiet --python-platform windows
+          uv pip compile pyproject.toml --extra dev -o /tmp/requirements-dev.txt --quiet --python-platform windows
           diff <(grep -v '^#' requirements.txt) <(grep -v '^#' /tmp/requirements.txt) || { echo '::error::requirements.txt is stale — run: uv pip compile pyproject.toml -o requirements.txt'; exit 1; }
           diff <(grep -v '^#' requirements-dev.txt) <(grep -v '^#' /tmp/requirements-dev.txt) || { echo '::error::requirements-dev.txt is stale — run: uv pip compile pyproject.toml --extra dev -o requirements-dev.txt'; exit 1; }
 

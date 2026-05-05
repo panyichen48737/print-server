@@ -171,19 +171,19 @@ function getExtension(filename) {
   return idx >= 0 ? filename.substring(idx).toLowerCase() : "";
 }
 
-// ── 持久化任务 ID（UserDefaults），支持从主屏幕取消 ──
+// ── 持久化任务 ID（Keychain），支持从主屏幕取消 ──
 
 function getActiveJobs() {
-  const json = UserDefaults.string(ACTIVE_JOBS_KEY);
+  const json = Keychain.get(ACTIVE_JOBS_KEY);
   return json ? JSON.parse(json) : [];
 }
 
 function saveActiveJobs(jobs) {
-  UserDefaults.setString(JSON.stringify(jobs), ACTIVE_JOBS_KEY);
+  Keychain.set(ACTIVE_JOBS_KEY, JSON.stringify(jobs));
 }
 
 function clearActiveJobs() {
-  UserDefaults.remove(ACTIVE_JOBS_KEY);
+  Keychain.remove(ACTIVE_JOBS_KEY);
 }
 
 async function showCancelMenu(jobs) {
