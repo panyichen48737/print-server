@@ -14,20 +14,6 @@ from textual.worker import get_current_worker
 
 from app.version import __version__
 
-
-def _enable_vt_processing() -> None:
-    """启用 Windows 控制台 VT 处理（Textual 必需）"""
-    if sys.platform != 'win32':
-        return
-    with contextlib.suppress(Exception):
-        kernel32 = ctypes.windll.kernel32
-        STD_OUTPUT_HANDLE = -11
-        ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
-        handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
-        mode = ctypes.c_uint32()
-        if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
-            kernel32.SetConsoleMode(handle, mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
-
 from .autostart import install_autostart, is_autostart_installed, uninstall_autostart
 from .conflicts import get_local_ips
 from .daemon_manager import (
@@ -38,6 +24,20 @@ from .daemon_manager import (
     stop_daemon,
 )
 from .log_handler import LOG_BUFFER, LOG_EVENT
+
+
+def _enable_vt_processing() -> None:
+    """启用 Windows 控制台 VT 处理（Textual 必需）"""
+    if sys.platform != 'win32':
+        return
+    with contextlib.suppress(Exception):
+        kernel32 = ctypes.windll.kernel32
+        std_out = -11
+        enable_vt = 0x0004
+        handle = kernel32.GetStdHandle(std_out)
+        mode = ctypes.c_uint32()
+        if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            kernel32.SetConsoleMode(handle, mode.value | enable_vt)
 
 
 class StatusWidget(Static):

@@ -8,6 +8,7 @@
 """
 
 import argparse
+import contextlib
 import sys
 import threading
 
@@ -33,25 +34,60 @@ from .log_handler import TUILogHandler
 
 
 def _ensure_single_instance() -> None:
-    """Windows 命名互斥体：防止启动多个控制台窗口（带重试，避免前后进程切换竞争）"""
-    import ctypes
+    """PID 文件法：防止启动多个控制台窗口，避免命名互斥体在进程切换时的竞态"""
+    import os
     import time
+    from pathlib import Path
 
-    for attempt in range(10):
-        mutex = ctypes.windll.kernel32.CreateMutexW(None, True, 'iOSPrintServerConsole')  # type: ignore
-        err = ctypes.windll.kernel32.GetLastError()  # type: ignore
-        if not mutex:
-            print(f'[WARN] 无法创建互斥体 (error={err})，继续启动')
+    from app._paths import persistent_dir
+
+    lock_file = Path(persistent_dir()) / 'console.lock'
+
+    for attempt in range(20):
+        try:
+            if lock_file.exists():
+                pid_str = lock_file.read_text().strip()
+                if pid_str:
+                    try:
+                        pid = int(pid_str)
+                        if _win_pid_alive(pid):
+                            if attempt < 19:
+                                time.sleep(0.3)
+                                continue
+                            else:
+                                print(f'控制台已在运行 (PID: {pid})')
+                                sys.exit(0)
+                    except (ValueError, OSError):
+                        pass
+            # 写入当前 PID
+            lock_file.write_text(str(os.getpid()))
+            import atexit
+
+            atexit.register(lambda: _remove_lock(lock_file))
             return
-        if err == 0:  # 新创建，正常持有
-            return
-        # err == 183 (ERROR_ALREADY_EXISTS): 前一个进程尚未完全退出，重试
-        ctypes.windll.kernel32.CloseHandle(mutex)  # type: ignore
-        if attempt < 9:
-            time.sleep(0.5)
-        else:
-            print('控制台已在运行')
-            sys.exit(0)
+        except Exception:
+            if attempt < 19:
+                time.sleep(0.3)
+            else:
+                print('[WARN] 无法创建锁文件，继续启动')
+                return
+
+
+def _win_pid_alive(pid: int) -> bool:
+    import ctypes
+
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.OpenProcess(0x1000, False, pid)
+    if handle:
+        kernel32.CloseHandle(handle)
+        return True
+    return False
+
+
+def _remove_lock(lock_file) -> None:
+    with contextlib.suppress(Exception):
+        if lock_file.exists():
+            lock_file.unlink(missing_ok=True)
 
 
 def _enable_vt_processing() -> None:
@@ -61,11 +97,11 @@ def _enable_vt_processing() -> None:
 
     with contextlib.suppress(Exception):
         kernel32 = ctypes.windll.kernel32
-        ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+        enable_vt = 0x0004
         handle = kernel32.GetStdHandle(-11)
         mode = ctypes.c_uint32()
         if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
-            kernel32.SetConsoleMode(handle, mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+            kernel32.SetConsoleMode(handle, mode.value | enable_vt)
 
 
 def main() -> int | None:

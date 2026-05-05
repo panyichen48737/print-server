@@ -124,8 +124,15 @@ def start_daemon() -> tuple[bool, str]:
 
     try:
         if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
-            cmd = [sys.executable, '--server-daemon']
-            cwd = os.path.dirname(sys.executable)
+            # 优先使用安装目录中的 EXE，避免 daemon 启动时再自安装切换进程
+            installed = os.path.join(
+                os.environ.get('LOCALAPPDATA', ''),
+                'iOSPrintServer',
+                os.path.basename(sys.executable),
+            )
+            exe = installed if os.path.isfile(installed) else sys.executable
+            cmd = [exe, '--server-daemon']
+            cwd = os.path.dirname(exe)
         else:
             cmd = [sys.executable, DAEMON_SCRIPT]
             cwd = os.path.dirname(os.path.dirname(DAEMON_SCRIPT))

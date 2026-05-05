@@ -76,8 +76,10 @@ def _copy_self() -> None:
 def ensure_installed() -> bool:
     """确保程序安装在专属目录
 
-    如果不在安装目录运行，复制自身并启动新实例，然后退出当前进程。
-    返回 True 表示「已安装可继续」，返回 False 表示「已启动新实例应退出」。
+    如果不在安装目录运行，复制自身到安装目录。
+    TUI 模式：复制后继续运行当前进程（不重启，避免控制台切换导致 TUI 黑屏）。
+    守护进程模式：启动安装目录中的新实例后退出。
+    返回 True 表示「已安装可继续」，返回 False 表示「应退出」。
     """
     if not getattr(sys, 'frozen', False) and not getattr(sys, '__compiled__', False):
         return True  # 开发模式不处理
@@ -88,14 +90,17 @@ def ensure_installed() -> bool:
     try:
         _copy_self()
         _ensure_start_menu()
-        # 启动安装目录中的新实例
+        # TUI 模式：不重启，直接继续运行（避免控制台进程切换导致 TUI 黑屏）
+        if '--server-daemon' not in sys.argv:
+            logger.info('程序已复制到安装目录，TUI 继续运行')
+            return True
+
+        # 守护进程模式：启动安装目录中的新实例
         exe = _installed_exe_path()
-        args = '--server-daemon' if '--server-daemon' in sys.argv else ''
-        logger.info(f'启动安装目录中的程序: {exe} {args}')
-        # CREATE_NEW_CONSOLE: 新进程获得独立控制台，避免父进程退出后控制台被销毁导致 TUI 黑屏
-        flags = subprocess.CREATE_NEW_CONSOLE if '--server-daemon' not in sys.argv else 0
+        logger.info(f'启动安装目录中的程序: {exe} --server-daemon')
+        flags = subprocess.CREATE_NEW_CONSOLE
         subprocess.Popen(
-            [exe] + (['--server-daemon'] if '--server-daemon' in sys.argv else []),
+            [exe, '--server-daemon'],
             close_fds=True,
             creationflags=flags,
         )
