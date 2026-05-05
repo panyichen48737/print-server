@@ -35,28 +35,53 @@ def _is_bundled(name: str) -> bool:
 
 
 def ensure_resources() -> None:
-    """释放所有内嵌资源到可写目录（同名文件已存在时跳过）"""
+    """释放所有内嵌资源到可写目录
+
+    策略：写入 VERSION 标记文件，版本不同时覆盖所有资源。
+    这样 exe 升级后资源自动更新，日常启动无需重复复制。
+    """
     src = _bundled_dir()
     if not src:
         return
 
     dst = _target_dir()
+    tag_file = os.path.join(dst, '.resources_version')
+
+    # 读取当前 bundle 的版本标记
+    bundled_tag = ''
+    tag_src = os.path.join(src, 'version.txt')
+    if os.path.isfile(tag_src):
+        bundled_tag = open(tag_src, encoding='utf-8').read().strip()
+
+    # 读取已释放的版本标记
+    released_tag = ''
+    if os.path.isfile(tag_file):
+        released_tag = open(tag_file, encoding='utf-8').read().strip()
+
+    if bundled_tag and bundled_tag == released_tag:
+        return  # 版本一致，无需更新
+
+    # 版本不同或首次释放：覆盖所有资源
     released = 0
     for entry in os.listdir(src):
         s = os.path.join(src, entry)
         d = os.path.join(dst, entry)
-        if os.path.isfile(s) and not os.path.isfile(d):
+        if os.path.isfile(s):
             shutil.copy2(s, d)
             released += 1
         elif os.path.isdir(s):
-            # 子目录（如 certs/）逐文件复制
             os.makedirs(d, exist_ok=True)
             for sub in os.listdir(s):
                 ss = os.path.join(s, sub)
                 sd = os.path.join(d, sub)
-                if os.path.isfile(ss) and not os.path.isfile(sd):
+                if os.path.isfile(ss):
                     shutil.copy2(ss, sd)
                     released += 1
+
+    # 写入版本标记
+    if bundled_tag:
+        with open(tag_file, 'w', encoding='utf-8') as f:
+            f.write(bundled_tag)
 
     if released:
         logger.debug(f'已释放 {released} 个内嵌资源到 {dst}')
