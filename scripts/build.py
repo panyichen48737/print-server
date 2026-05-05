@@ -160,7 +160,9 @@ def main():
         print('[build] 错误: 发布模式需要 git tag (如 v1.0.0) 或 RELEASE_VERSION 环境变量')
         sys.exit(1)
 
-    clean()
+    # --release 模式保留 build/ 目录以利用缓存
+    if not args.release:
+        clean()
     build(version)
 
 

@@ -25,6 +25,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      - name: Cache PyInstaller build
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/
+            %LOCALAPPDATA%\pyinstaller
+          key: pyinstaller-${{ runner.os }}-${{ hashFiles('pyproject.toml', 'scripts/build.py') }}
+          restore-keys: |
+            pyinstaller-${{ runner.os }}-
+
       - name: Build with PyInstaller
         run: |
           python scripts/build.py --release
