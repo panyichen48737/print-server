@@ -33,11 +33,11 @@ jobs:
           RELEASE_VERSION: ${{ github.ref_name }}
           PYTHONIOENCODING: utf-8
 
-      - name: Archive build artifacts
+      - name: Archive build artifact
         uses: actions/upload-artifact@v4
         with:
           name: iOSPrintServer-${{ github.ref_name }}
-          path: dist/iOSPrintServer/
+          path: dist/iOSPrintServer.exe
 
   release:
     needs: build
@@ -52,11 +52,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: iOSPrintServer-${{ github.ref_name }}
-          path: iOSPrintServer-${{ github.ref_name }}
+          path: .
 
       - name: Create ZIP archive
         run: |
-          zip -r "iOSPrintServer-${{ github.ref_name }}.zip" "iOSPrintServer-${{ github.ref_name }}"
+          zip "iOSPrintServer-${{ github.ref_name }}.zip" iOSPrintServer.exe
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
