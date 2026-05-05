@@ -10,8 +10,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - name: Install uv
@@ -29,8 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - name: Install uv
@@ -47,15 +47,15 @@ jobs:
   test:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - name: Install uv
         run: pip install uv
       - name: Cache Python packages
         id: cache-pip
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.pythonLocation }}
           key: uv-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('requirements-dev.txt') }}
@@ -70,7 +70,7 @@ jobs:
           PYTHONIOENCODING: utf-8
           PYTHONUTF8: '1'
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage
@@ -81,17 +81,17 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - name: Install uv
         run: pip install uv
       - name: Restore Python packages cache
         id: cache-pip
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.pythonLocation }}
           key: uv-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('requirements-dev.txt') }}
@@ -101,7 +101,7 @@ jobs:
           uv pip install --system -r requirements-dev.txt
           uv pip install --system -e . --no-deps
       - name: Cache PyInstaller build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             build/
@@ -117,7 +117,7 @@ jobs:
       - name: Generate SHA256 checksum
         run: certutil -hashfile dist\iOSPrintServer.exe SHA256 | findstr /v "SHA256" > dist\iOSPrintServer.exe.sha256
       - name: Archive build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: iOSPrintServer-${{ github.ref_name }}
           path: |
@@ -130,14 +130,14 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Download build artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: iOSPrintServer-${{ github.ref_name }}
           path: .
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: iOS 云打印服务器 ${{ github.ref_name }}
           generate_release_notes: true
