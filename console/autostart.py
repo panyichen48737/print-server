@@ -101,28 +101,35 @@ def _service_running() -> bool:
 
 def _install_service() -> tuple[bool, str]:
     try:
-        if getattr(sys, 'frozen', False):
-            # Frozen EXE: 二进制是 exe 自身，带 --server-daemon --service 参数
-            cmd = f'"{sys.executable}" --server-daemon --service'
+        if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
+            # Frozen EXE: 直接注册 exe 自身，带 --server-daemon --service 参数
+            # pywin32 的 pythonservice.exe 不会打包进 exe，需要用 sc.exe
+            exe = sys.executable
+            bin_path = f'"{exe}" --server-daemon --service'
+            try:
+                win32serviceutil.RemoveService(SERVICE_NAME)
+            except Exception:
+                pass
+            subprocess.run(
+                ['sc', 'create', SERVICE_NAME,
+                 'binPath=', bin_path,
+                 'displayName=', SERVICE_DISPLAY_NAME,
+                 'start=', 'auto',
+                 'type=', 'own',
+                 'error=', 'normal'],
+                capture_output=True, text=True, timeout=10, check=True,
+            )
         else:
             # 开发模式：由 pythonservice.exe 托管 Python 服务类
-            cmd = None
-
-        kwargs = dict(
-            serviceName=SERVICE_NAME,
-            displayName=SERVICE_DISPLAY_NAME,
-            startType=win32service.SERVICE_AUTO_START,
-        )
-        if cmd:
-            kwargs['exeName'] = cmd
-
-        # 移除已存在的服务（如果有旧版本残留）
-        try:
-            win32serviceutil.RemoveService(SERVICE_NAME)
-        except Exception:
-            pass
-
-        win32serviceutil.InstallService('app.win_service.DaemonService', **kwargs)
+            try:
+                win32serviceutil.RemoveService(SERVICE_NAME)
+            except Exception:
+                pass
+            win32serviceutil.InstallService(
+                'app.win_service.DaemonService',
+                SERVICE_NAME, SERVICE_DISPLAY_NAME,
+                startType=win32service.SERVICE_AUTO_START,
+            )
 
         # 崩溃自动重启
         for action in ('restart/5000', 'restart/10000', 'restart/30000'):
