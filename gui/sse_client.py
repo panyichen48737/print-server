@@ -5,17 +5,26 @@ import threading
 from typing import Callable
 from gui.http_client import get_client
 
+
 class SSEClient:
     def __init__(self):
         self._callbacks: dict[str, list[Callable]] = {}
         self._running = False
         self._thread: threading.Thread | None = None
+        self._lock = threading.Lock()
 
     def on(self, event_type: str, callback: Callable):
-        self._callbacks.setdefault(event_type, []).append(callback)
+        with self._lock:
+            self._callbacks.setdefault(event_type, []).append(callback)
 
     def off(self, event_type: str, callback: Callable):
-        self._callbacks.get(event_type, []).remove(callback)
+        with self._lock:
+            cbs = self._callbacks.get(event_type)
+            if cbs:
+                try:
+                    cbs.remove(callback)
+                except ValueError:
+                    pass
 
     def start(self):
         if self._running:
@@ -34,17 +43,23 @@ class SSEClient:
         loop.close()
 
     async def _stream(self):
-        client = get_client()
-        try:
-            async with client.stream("GET", "/api/events") as response:
-                async for line in response.aiter_lines():
-                    if not self._running:
-                        break
-                    if line.startswith("event: "):
-                        event_type = line[7:]
-                    elif line.startswith("data: "):
-                        data = json.loads(line[6:])
-                        for cb in self._callbacks.get(event_type, []):
-                            cb(data)
-        except Exception:
-            pass  # Connection error handled by caller
+        while self._running:
+            try:
+                client = get_client()
+                async with client.stream("GET", "/api/events") as response:
+                    event_type = ""
+                    async for line in response.aiter_lines():
+                        if not self._running:
+                            break
+                        if line.startswith("event: "):
+                            event_type = line[7:]
+                        elif line.startswith("data: "):
+                            data = json.loads(line[6:])
+                            with self._lock:
+                                cbs = list(self._callbacks.get(event_type, []))
+                            for cb in cbs:
+                                cb(data)
+            except Exception:
+                if not self._running:
+                    break
+                await asyncio.sleep(3)

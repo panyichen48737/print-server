@@ -6,6 +6,7 @@ import subprocess
 import sys
 import threading
 import time
+from typing import Callable
 from gui.http_client import get_client
 
 
@@ -34,7 +35,7 @@ class ChildProcess:
     def start(self):
         with self._lock:
             if self._port_listening():
-                return  # Already running
+                return
             exe = sys.executable
             args = [exe, "-m", "console", "--headless"]
             if getattr(sys, "frozen", False):
@@ -61,9 +62,9 @@ class ChildProcess:
         time.sleep(2)
         self.start()
 
-    async def health_loop(self, on_failure: callable):
+    async def health_loop(self, on_failure: Callable[[str], None]):
         """Called periodically from GUI. Restarts on failure up to 3 times."""
-        while True:
+        while self.is_running() or self._process is not None:
             await asyncio.sleep(10)
             if not self.is_running():
                 continue
