@@ -42,6 +42,7 @@ include = [
     "app/**/*.html",
     "app/**/*.css",
     "app/**/*.js",
+    "gui/**/*.py",
     "console/**/*.py",
 ]
 
