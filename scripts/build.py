@@ -157,6 +157,15 @@ def build(version: str):
         'app.printing.engine',
         '--hidden-import',
         'app.printing.backends',
+        # GUI 包
+        '--hidden-import',
+        'gui',
+        '--hidden-import',
+        'gui.pages',
+        '--hidden-import',
+        'gui.components',
+        '--collect-all',
+        'flet',
         # 排除不需要的库（减小体积）
         '--exclude-module',
         'tkinter',

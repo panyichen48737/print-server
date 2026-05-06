@@ -308,6 +308,7 @@ def main() -> int | None:
 
     parser = argparse.ArgumentParser(description='iOS 云打印服务器')
     parser.add_argument('--headless', action='store_true', help='无界面运行服务器')
+    parser.add_argument('--gui', action='store_true', help='启动 Flet 图形界面')
     parser.add_argument('--start', action='store_true', help='启动服务器（--headless 别名）')
     parser.add_argument('--stop', action='store_true', help='停止服务器')
     parser.add_argument('--restart', action='store_true', help='重启服务器')
@@ -317,6 +318,12 @@ def main() -> int | None:
     args = parser.parse_args()
 
     # ── 简单命令（无需启动服务器） ──
+
+    if args.gui:
+        import flet as ft
+        from gui.app import main as gui_main
+        ft.run(gui_main)
+        return 0
 
     if args.stop:
         p = _pid_file()

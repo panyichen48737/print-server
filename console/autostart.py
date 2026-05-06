@@ -33,9 +33,9 @@ def _startup_folder() -> Path:
 def _exe_path() -> tuple[str, str]:
     """返回 (可执行路径, 参数)"""
     if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
-        return sys.executable, '--headless'
+        return sys.executable, '--gui'
     this_dir = Path(__file__).resolve().parent.parent
-    return sys.executable, f'"{this_dir}" -m console --headless'
+    return sys.executable, f'"{this_dir}" -m console --gui'
 
 
 def _startup_link_path() -> Path:
