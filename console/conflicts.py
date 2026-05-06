@@ -18,10 +18,11 @@ def get_local_ips() -> list[str]:
         try:
             import psutil
 
-            for _, addrs in psutil.net_if_addrs().items():
-                for addr in addrs:
-                    if addr.family == socket.AF_INET and not addr.address.startswith('127.'):
-                        ips.append(addr.address)
+            for addrs in psutil.net_if_addrs().values():
+                ips.extend(
+                    addr.address for addr in addrs
+                    if addr.family == socket.AF_INET and not addr.address.startswith('127.')
+                )
         except ImportError:
             pass
     # IPv4 优先排列

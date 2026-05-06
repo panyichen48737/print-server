@@ -152,13 +152,16 @@ async def settings_post(
             'ssl_enabled': ssl_enabled == '1',
         }
 
-        for secret_field, val in [
-            ('quark_api_key_id', quark_api_key_id),
-            ('quark_api_key', quark_api_key),
-            ('dingtalk_webhook', dingtalk_webhook),
-            ('bark_key', bark_key),
-        ]:
-            updates[secret_field] = val
+        updates = {
+            k: v
+            for k, v in [
+                ('quark_api_key_id', quark_api_key_id),
+                ('quark_api_key', quark_api_key),
+                ('dingtalk_webhook', dingtalk_webhook),
+                ('bark_key', bark_key),
+            ]
+            if v is not None
+        }
 
         config.set_many(updates)
         config.save()
