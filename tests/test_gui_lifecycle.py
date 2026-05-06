@@ -4,6 +4,7 @@ import time
 from gui.child_process import ChildProcess
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_child_process_start_stop():
     cp = ChildProcess()
@@ -22,6 +23,7 @@ async def test_child_process_health_check_fails():
     assert not healthy, "Health check should fail with no server"
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_child_process_restart():
     cp = ChildProcess()
