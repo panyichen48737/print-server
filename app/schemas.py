@@ -8,7 +8,10 @@ from pydantic import BaseModel
 class HealthResponse(BaseModel):
     status: str
     version: str
+    uptime: int = 0
     queue_size: int
+    db_size_mb: float = 0.0
+    port: int = 5000
 
 
 class PrintResponse(BaseModel):

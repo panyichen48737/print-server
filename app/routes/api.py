@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from collections import deque
 
 from fastapi import (
@@ -37,6 +38,8 @@ from app.version import __version__
 
 api_router = APIRouter()
 
+_start_time = time.time()
+
 
 async def _handle_upload(request, file, printer, copies, duplex, color, paper_size, source):
     config = request.app.state.app_config
@@ -66,10 +69,23 @@ async def _handle_upload(request, file, printer, copies, duplex, color, paper_si
 
 @api_router.get('/health', response_model=HealthResponse)
 async def health(request: Request):
+    db_path = os.path.join(persistent_dir(), 'jobs.db')
+    db_size = os.path.getsize(db_path) / (1024 * 1024) if os.path.exists(db_path) else 0
     return {
         'status': 'ok',
         'version': __version__,
+        'uptime': int(time.time() - _start_time),
         'queue_size': request.app.state.job_queue.queue_size(),
+        'db_size_mb': round(db_size, 1),
+        'port': getattr(request.app.state, 'port', 5000),
+    }
+
+
+@api_router.get('/version')
+async def api_version():
+    return {
+        'version': __version__,
+        'python_version': __import__('sys').version.split()[0],
     }
 
 
