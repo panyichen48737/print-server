@@ -25,6 +25,9 @@ def create_app(lifespan=_default_lifespan) -> FastAPI:
         contact={'name': 'Developer'},
         license_info={'name': 'MIT', 'identifier': 'MIT'},
         lifespan=lifespan,
+        docs_url='/docs',
+        redoc_url='/redoc',
+        openapi_url='/openapi.json',
     )
 
     @app.exception_handler(FileTypeError)
