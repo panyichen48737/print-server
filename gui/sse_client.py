@@ -63,3 +63,7 @@ class SSEClient:
                 if not self._running:
                     break
                 await asyncio.sleep(3)
+
+
+# Global singleton instance used by pages and app shell
+sse = SSEClient()

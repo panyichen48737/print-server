@@ -1,11 +1,13 @@
 """Snackbar notification wrapper."""
 import flet as ft
 
+
 def show_snackbar(page: ft.Page, message: str, color: str = ft.Colors.GREEN):
-    page.snack_bar = ft.SnackBar(
+    snack = ft.SnackBar(
         content=ft.Text(message),
         bgcolor=color,
         duration=3000,
+        open=True,
     )
-    page.snack_bar.open = True
+    page.overlay.append(snack)
     page.update()
