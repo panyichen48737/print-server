@@ -8,16 +8,17 @@
 
 import os
 import sys
+from pathlib import Path
 
 
-def app_root() -> str:
+def app_root() -> Path:
     """返回 exe 所在目录（frozen）或项目根目录（dev）"""
     if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
-        return os.path.dirname(sys.executable)
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return Path(sys.executable).parent
+    return Path(__file__).resolve().parent.parent
 
 
-def data_root() -> str:
+def data_root() -> Path:
     """返回只读内置文件目录（模板/静态文件等）
 
     frozen 模式：sys._MEIPASS（PyInstaller 临时解压目录，退出自动清理）
@@ -25,26 +26,28 @@ def data_root() -> str:
     """
     if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
         if hasattr(sys, '_MEIPASS'):
-            return sys._MEIPASS
-        return os.path.dirname(sys.executable)
+            return Path(sys._MEIPASS)
+        return Path(sys.executable).parent
     return app_root()
 
 
-def persistent_dir() -> str:
+def persistent_dir() -> Path:
     """持久化数据目录
 
     frozen 模式：%%APPDATA%%/iOSPrintServer（配置/日志/数据库持久保留）
     dev 模式：app_root()（开发时与项目文件放在一起）
     """
     if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
-        return os.path.join(
-            os.environ.get('APPDATA', os.path.expanduser('~')),
-            'iOSPrintServer',
-        )
+        appdata = os.environ.get('APPDATA')
+        if appdata:
+            return Path(appdata) / 'iOSPrintServer'
+        return Path.home() / 'iOSPrintServer'
     return app_root()
 
 
-def ensure_dir(*parts: str) -> str:
-    path = os.path.join(*parts)
-    os.makedirs(path, exist_ok=True)
+def ensure_dir(*parts: str | Path) -> Path:
+    path = Path(parts[0])
+    for p in parts[1:]:
+        path /= p
+    path.mkdir(parents=True, exist_ok=True)
     return path

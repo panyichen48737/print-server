@@ -61,7 +61,7 @@ class DashboardPage(ft.Container):
             labels = ["排队中", "打印中", "今日完成", "今日失败", "成功率", "总计"]
             self.stats_row.controls = [
                 StatusCard(label, str(stats_data.get(label, 0)), icon)
-                for label, icon in zip(labels, icons)
+                for label, icon in zip(labels, icons, strict=False)
             ]
 
             jobs = await client.get("/admin/api/jobs", params={"limit": 10})

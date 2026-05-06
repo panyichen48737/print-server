@@ -1,6 +1,8 @@
 """Test GUI child process lifecycle."""
-import pytest
 import time
+
+import pytest
+
 from gui.child_process import ChildProcess
 
 

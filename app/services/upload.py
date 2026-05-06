@@ -1,8 +1,8 @@
 """文件上传辅助模块：统一处理文件接收、校验、保存和入队"""
 
-import os
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 
 from loguru import logger
 
@@ -47,7 +47,7 @@ def handle_file_upload(
     if not filename:
         return UploadResult(success=False, error='文件名为空')
 
-    ext = os.path.splitext(filename)[1].lower()
+    ext = Path(filename).suffix.lower()
 
     if ext not in config.get('allowed_extensions', ['.pdf']):
         return UploadResult(success=False, error=f'不支持的文件类型: {ext}')
@@ -58,11 +58,11 @@ def handle_file_upload(
             success=False, error=f'文件过大，最大 {config.get("max_file_size_mb", 50)}MB'
         )
 
-    safe_name = os.path.basename(filename)
-    ext = os.path.splitext(safe_name)[1] or '.bin'
+    safe_name = Path(filename).name
+    ext = Path(safe_name).suffix or '.bin'
     job_id = str(uuid.uuid4())
     jobs_dir = ensure_dir(persistent_dir(), 'jobs')
-    save_path = os.path.join(jobs_dir, f'{job_id}{ext}')
+    save_path = Path(jobs_dir) / f'{job_id}{ext}'
 
     with open(save_path, 'wb') as f:
         f.write(file_bytes)

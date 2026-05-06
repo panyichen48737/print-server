@@ -1,7 +1,7 @@
 """FastAPI 应用工厂"""
 
-import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -55,8 +55,8 @@ def create_app(lifespan=_default_lifespan) -> FastAPI:
     </html>
     ''')
 
-    static_dir = os.path.join(data_root(), 'app', 'static')
-    if os.path.isdir(static_dir):
+    static_dir = data_root() / 'app' / 'static'
+    if static_dir.is_dir():
         app.mount('/static', StaticFiles(directory=static_dir), name='static')
 
     from app.routes.admin import admin_router
@@ -72,8 +72,8 @@ def create_app(lifespan=_default_lifespan) -> FastAPI:
 
         return RedirectResponse(url='/admin')
 
-    ensure_dir(persistent_dir(), 'jobs')
-    ensure_dir(persistent_dir(), 'logs')
+    ensure_dir(persistent_dir() / 'jobs')
+    ensure_dir(persistent_dir() / 'logs')
 
     from app.services.sse_broadcaster import init_app
 

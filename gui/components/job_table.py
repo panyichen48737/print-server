@@ -1,6 +1,7 @@
 """Job history table with status badge."""
 import flet as ft
 
+
 def status_badge(status: str) -> ft.Container:
     colors = {
         "pending": ft.Colors.AMBER, "printing": ft.Colors.BLUE,

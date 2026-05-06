@@ -116,7 +116,7 @@ class JobExecutor:
             while True:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    raise FuturesTimeout()
+                    raise FuturesTimeout
                 try:
                     success = fut.result(timeout=min(1.0, remaining))
                     return 'completed' if success else 'failed'

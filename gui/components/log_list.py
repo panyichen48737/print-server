@@ -1,6 +1,7 @@
 """Colored log entry."""
 import flet as ft
 
+
 def log_color(level: str) -> str:
     return {"ERROR": ft.Colors.RED, "WARNING": ft.Colors.AMBER,
             "INFO": ft.Colors.BLUE, "DEBUG": ft.Colors.GREY}.get(level, ft.Colors.ON_SURFACE)

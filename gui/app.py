@@ -5,7 +5,6 @@ import threading
 import flet as ft
 
 from gui.child_process import ChildProcess
-from gui.http_client import close_client
 from gui.sse_client import sse
 from gui.theme import build_theme
 from gui.window_state import load_state, save_state
@@ -17,22 +16,22 @@ def _build_page(index: int, page: ft.Page) -> ft.Control:
     if index == 0:
         from gui.pages.dashboard import DashboardPage
         return DashboardPage(page)
-    elif index == 1:
+    if index == 1:
         from gui.pages.quick_print import QuickPrintPage
         return QuickPrintPage(page)
-    elif index == 2:
+    if index == 2:
         from gui.pages.job_manager import JobManagerPage
         return JobManagerPage(page)
-    elif index == 3:
+    if index == 3:
         from gui.pages.logs import LogsPage
         return LogsPage(page)
-    elif index == 4:
+    if index == 4:
         from gui.pages.settings import SettingsPage
         return SettingsPage(page)
-    elif index == 5:
+    if index == 5:
         from gui.pages.printer_manager import PrinterManagerPage
         return PrinterManagerPage(page)
-    elif index == 6:
+    if index == 6:
         from gui.pages.about import AboutPage
         return AboutPage(page)
     return ft.Text("未知页面")

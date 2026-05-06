@@ -1,6 +1,7 @@
 """Reusable confirmation dialog."""
 import flet as ft
 
+
 def confirm_dialog(title: str, message: str, confirm_text: str = "确认",
                    on_confirm=None, on_cancel=None) -> ft.AlertDialog:
     return ft.AlertDialog(

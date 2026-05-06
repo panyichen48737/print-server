@@ -1,6 +1,7 @@
 """Skeleton loading placeholders."""
 import flet as ft
 
+
 def card_skeleton(width: int = 200, height: int = 120):
     return ft.Container(
         width=width, height=height,

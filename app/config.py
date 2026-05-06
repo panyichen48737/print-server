@@ -4,8 +4,8 @@
 """
 
 import json
-import os
 import threading
+from pathlib import Path
 from typing import Any
 
 from loguru import logger
@@ -75,7 +75,7 @@ class Config(BaseSettings):
     auto_retry_count: int = Field(default=0, ge=0, le=10)
 
     # ── 内部状态（PrivateAttr 不会被 .model_dump() 导出） ──
-    _config_path: str = PrivateAttr()
+    _config_path: Path = PrivateAttr()
     _lock: threading.Lock = PrivateAttr()
     _errors: list[str] = PrivateAttr(default_factory=list)
     _watch_stop: threading.Event = PrivateAttr()
@@ -137,7 +137,7 @@ class Config(BaseSettings):
         super().__init__(**kwargs)
         from app._paths import persistent_dir
 
-        self._config_path = config_path or os.path.join(persistent_dir(), 'config.json')
+        self._config_path = Path(config_path) if config_path else persistent_dir() / 'config.json'
         self._lock = threading.Lock()
         self._errors = []
         self._watch_stop = threading.Event()
@@ -210,8 +210,8 @@ class Config(BaseSettings):
         try:
             from watchfiles import watch
 
-            watch_dir = os.path.dirname(self._config_path)
-            if not os.path.isdir(watch_dir):
+            watch_dir = self._config_path.parent
+            if not watch_dir.is_dir():
                 logger.debug(f'配置文件目录不存在，跳过监听: {watch_dir}')
                 return
 
@@ -220,7 +220,7 @@ class Config(BaseSettings):
                     break
                 # 仅处理 config.json 的变更
                 for _change, path in changes:
-                    if os.path.basename(path) == 'config.json':
+                    if Path(path).name == 'config.json':
                         logger.info('config.json 已变更，自动重载配置')
                         self.reload()
                         break

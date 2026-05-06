@@ -1,8 +1,10 @@
 """SSE event stream client running in background thread."""
 import asyncio
+import contextlib
 import json
 import threading
-from typing import Callable
+from collections.abc import Callable
+
 from gui.http_client import get_client
 
 
@@ -21,10 +23,8 @@ class SSEClient:
         with self._lock:
             cbs = self._callbacks.get(event_type)
             if cbs:
-                try:
+                with contextlib.suppress(ValueError):
                     cbs.remove(callback)
-                except ValueError:
-                    pass
 
     def start(self):
         if self._running:

@@ -1,5 +1,7 @@
-import os
+"""管理后台路由 — HTMX + Jinja2 服务器端渲染"""
+
 from collections import deque
+from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
 from fastapi.responses import HTMLResponse
@@ -16,7 +18,7 @@ from app.utils import safe_int as _safe_int
 from app.version import __version__
 
 admin_router = APIRouter()
-templates = Jinja2Templates(directory=os.path.join(data_root(), 'app', 'templates'))
+templates = Jinja2Templates(directory=str(data_root() / 'app' / 'templates'))
 
 templates.env.globals['version'] = __version__
 
@@ -221,7 +223,7 @@ async def api_stats(request: Request):
 @admin_router.get('/api/logs', response_model=LogsResponse)
 async def admin_api_logs(_request: Request, lines: int = 50):
     """获取最新日志行"""
-    log_file = os.path.join(persistent_dir(), 'logs', 'print_server.log')
+    log_file = Path(persistent_dir()) / 'logs' / 'print_server.log'
     try:
         with open(log_file, encoding='utf-8') as f:
             last_lines = deque(f, maxlen=lines)

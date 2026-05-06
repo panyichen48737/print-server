@@ -1,5 +1,4 @@
 """Quick print page: file picker, print options, submit."""
-import os
 
 import flet as ft
 

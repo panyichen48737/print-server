@@ -1,7 +1,7 @@
 import json
-import os
 import time
 from collections import deque
+from pathlib import Path
 
 from fastapi import (
     APIRouter,
@@ -69,8 +69,8 @@ async def _handle_upload(request, file, printer, copies, duplex, color, paper_si
 
 @api_router.get('/health', response_model=HealthResponse)
 async def health(request: Request):
-    db_path = os.path.join(persistent_dir(), 'jobs.db')
-    db_size = os.path.getsize(db_path) / (1024 * 1024) if os.path.exists(db_path) else 0
+    db_path = Path(persistent_dir()) / 'jobs.db'
+    db_size = db_path.stat().st_size / (1024 * 1024) if db_path.exists() else 0
     return {
         'status': 'ok',
         'version': __version__,
@@ -92,7 +92,7 @@ async def api_version():
 @api_router.get('/logs', response_model=LogsResponse)
 async def api_logs(_request: Request, lines: int = 50):
     """获取最新日志行"""
-    log_file = os.path.join(persistent_dir(), 'logs', 'print_server.log')
+    log_file = Path(persistent_dir()) / 'logs' / 'print_server.log'
     try:
         with open(log_file, encoding='utf-8') as f:
             last_lines = deque(f, maxlen=lines)

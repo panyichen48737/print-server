@@ -38,9 +38,7 @@ class SettingsPage(ft.Container):
             config = resp.json()
             for key, control in self.fields.items():
                 if key in config:
-                    if isinstance(control, ft.TextField):
-                        control.value = str(config[key])
-                    elif isinstance(control, ft.Dropdown):
+                    if isinstance(control, (ft.TextField, ft.Dropdown)):
                         control.value = str(config[key])
                     elif isinstance(control, ft.Switch):
                         control.value = bool(config[key])
@@ -218,11 +216,7 @@ class SettingsPage(ft.Container):
     async def _save(self, e):
         config = {}
         for key, control in self.fields.items():
-            if isinstance(control, ft.TextField):
-                config[key] = control.value
-            elif isinstance(control, ft.Switch):
-                config[key] = control.value
-            elif isinstance(control, ft.Dropdown):
+            if isinstance(control, (ft.TextField, ft.Switch, ft.Dropdown)):
                 config[key] = control.value
         try:
             client = get_client()

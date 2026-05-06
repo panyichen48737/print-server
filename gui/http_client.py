@@ -1,5 +1,6 @@
 """httpx.AsyncClient singleton with keep-alive connection pool."""
 import threading
+
 import httpx
 
 _client: httpx.AsyncClient | None = None

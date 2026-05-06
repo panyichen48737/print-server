@@ -44,5 +44,4 @@ def app_instance():
     """FastAPI 应用实例（无 lifespan，测试专用）"""
     from app import create_app
 
-    app = create_app()
-    return app
+    return create_app()

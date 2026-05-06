@@ -1,6 +1,7 @@
 """Printer status card with color indicator."""
 import flet as ft
 
+
 def status_color(overall: str) -> str:
     return {"ready": ft.Colors.GREEN, "busy": ft.Colors.AMBER,
             "error": ft.Colors.RED, "offline": ft.Colors.GREY}.get(overall, ft.Colors.GREY)

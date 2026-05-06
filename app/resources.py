@@ -7,25 +7,26 @@
 import os
 import shutil
 import sys
+from pathlib import Path
 
 from loguru import logger
 
 
-def _bundled_dir() -> str | None:
+def _bundled_dir() -> Path | None:
     """返回打包时内嵌的资源目录（sys._MEIPASS/resources/），
     开发模式返回 None。"""
     if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-        d = os.path.join(sys._MEIPASS, 'resources')
-        return d if os.path.isdir(d) else None
+        d = Path(sys._MEIPASS) / 'resources'
+        return d if d.is_dir() else None
     return None
 
 
-def _target_dir() -> str:
+def _target_dir() -> Path:
     """资源释放目标目录 — persistent_dir()/resources/"""
     from app._paths import persistent_dir
 
-    d = os.path.join(persistent_dir(), 'resources')
-    os.makedirs(d, exist_ok=True)
+    d = persistent_dir() / 'resources'
+    d.mkdir(parents=True, exist_ok=True)
     return d
 
 
@@ -33,7 +34,7 @@ def _is_bundled(name: str) -> bool:
     src = _bundled_dir()
     if not src:
         return False
-    return os.path.isfile(os.path.join(src, name))
+    return (src / name).is_file()
 
 
 def ensure_resources() -> None:
@@ -47,45 +48,42 @@ def ensure_resources() -> None:
         return
 
     dst = _target_dir()
-    tag_file = os.path.join(dst, '.resources_version')
+    tag_file = dst / '.resources_version'
 
     # 读取当前 bundle 的版本标记
     bundled_tag = ''
-    tag_src = os.path.join(src, 'version.txt')
-    if os.path.isfile(tag_src):
-        with open(tag_src, encoding='utf-8') as f:
-            bundled_tag = f.read().strip()
+    tag_src = src / 'version.txt'
+    if tag_src.is_file():
+        bundled_tag = tag_src.read_text(encoding='utf-8').strip()
 
     # 读取已释放的版本标记
     released_tag = ''
-    if os.path.isfile(tag_file):
-        with open(tag_file, encoding='utf-8') as f:
-            released_tag = f.read().strip()
+    if tag_file.is_file():
+        released_tag = tag_file.read_text(encoding='utf-8').strip()
 
     if bundled_tag and bundled_tag == released_tag:
         return  # 版本一致，无需更新
 
     # 版本不同或首次释放：覆盖所有资源
     released = 0
-    for entry in os.listdir(src):
-        s = os.path.join(src, entry)
-        d = os.path.join(dst, entry)
-        if os.path.isfile(s):
-            shutil.copy2(s, d)
+    for entry in os.listdir(str(src)):
+        s = src / entry
+        d = dst / entry
+        if s.is_file():
+            shutil.copy2(str(s), str(d))
             released += 1
-        elif os.path.isdir(s):
-            os.makedirs(d, exist_ok=True)
-            for sub in os.listdir(s):
-                ss = os.path.join(s, sub)
-                sd = os.path.join(d, sub)
-                if os.path.isfile(ss):
-                    shutil.copy2(ss, sd)
+        elif s.is_dir():
+            d.mkdir(parents=True, exist_ok=True)
+            for sub in os.listdir(str(s)):
+                ss = s / sub
+                sd = d / sub
+                if ss.is_file():
+                    shutil.copy2(str(ss), str(sd))
                     released += 1
 
     # 写入版本标记
     if bundled_tag:
-        with open(tag_file, 'w', encoding='utf-8') as f:
-            f.write(bundled_tag)
+        tag_file.write_text(bundled_tag, encoding='utf-8')
 
     if released:
         logger.debug(f'已释放 {released} 个内嵌资源到 {dst}')

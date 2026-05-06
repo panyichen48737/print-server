@@ -26,7 +26,7 @@ from loguru import logger
 
 from app._paths import app_root
 
-sys.path.insert(0, app_root())
+sys.path.insert(0, str(app_root()))
 
 from app.config import Config
 from app.logging import setup_logging
@@ -43,7 +43,7 @@ def _pid_file() -> Path:
     if _PID_PATH is None:
         from app._paths import persistent_dir
 
-        _PID_PATH = Path(persistent_dir()) / 'console.pid'
+        _PID_PATH = persistent_dir() / 'console.pid'
     return _PID_PATH
 
 
@@ -93,16 +93,16 @@ def _find_cert() -> tuple[str | None, str | None]:
     from app._paths import app_root as _app_root, persistent_dir  # noqa: I001
 
     search_dirs = [
-        os.path.join(persistent_dir(), 'resources', 'certs'),
-        os.path.join(_app_root(), 'certs'),
+        persistent_dir() / 'resources' / 'certs',
+        _app_root() / 'certs',
     ]
     if getattr(sys, 'frozen', False):
-        search_dirs.insert(0, os.path.join(os.path.dirname(sys.executable), 'certs'))
+        search_dirs.insert(0, Path(sys.executable).parent / 'certs')
     for d in search_dirs:
-        cf = os.path.join(d, 'cert.pem')
-        kf = os.path.join(d, 'key.pem')
-        if os.path.isfile(cf) and os.path.isfile(kf):
-            return cf, kf
+        cf = d / 'cert.pem'
+        kf = d / 'key.pem'
+        if cf.is_file() and kf.is_file():
+            return str(cf), str(kf)
     return None, None
 
 

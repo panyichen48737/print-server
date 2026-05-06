@@ -1,9 +1,9 @@
 import contextlib
-import os
 import sqlite3
 import threading
 import uuid
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from loguru import logger
 
@@ -11,14 +11,14 @@ from loguru import logger
 class JobRepository:
     """任务数据库操作层，封装所有 SQLite 直接访问"""
 
-    def __init__(self, db_path: str | None = None) -> None:
+    def __init__(self, db_path: str | Path | None = None) -> None:
         """初始化数据库连接，db_path 默认为 jobs/jobs.db"""
         if db_path is None:
             from app._paths import ensure_dir, persistent_dir
 
             db_dir = ensure_dir(persistent_dir(), 'jobs')
-            db_path = os.path.join(db_dir, 'jobs.db')
-        self.db_path = db_path
+            db_path = db_dir / 'jobs.db'
+        self.db_path = str(db_path)
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(db_path, timeout=5.0, check_same_thread=False)
         self._conn.execute('PRAGMA journal_mode=WAL')

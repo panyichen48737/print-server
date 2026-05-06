@@ -1,6 +1,7 @@
 """Design tokens for light/dark themes."""
-import flet as ft
 from dataclasses import dataclass
+
+import flet as ft
 
 
 @dataclass

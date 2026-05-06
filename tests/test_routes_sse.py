@@ -4,12 +4,10 @@ SSE 事件流不通过 HTTP 测试（生成器阻塞 q.get 无法被 GeneratorEx
 改为直接测试 SSEBroadcaster + FastAPI 应用状态集成。
 """
 
-import os
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-
-from app._paths import app_root
 
 # =============================================================================
 # /admin/api/stats — HTML 统计片段
@@ -148,16 +146,22 @@ class TestAdminLogsEndpoint:
     """GET /admin/api/logs"""
 
     def _log_path(self):
-        return os.path.join(app_root(), 'logs', 'print_server.log')
+        import app._paths as p
+
+        return str(p.data_root() / 'logs' / 'print_server.log')
 
     def _ensure_log(self, lines):
-        os.makedirs(os.path.join(app_root(), 'logs'), exist_ok=True)
+        import app._paths as p
+
+        log_dir = p.data_root() / 'logs'
+        log_dir.mkdir(parents=True, exist_ok=True)
         with open(self._log_path(), 'w', encoding='utf-8') as f:
             f.writelines(lines)
 
     def _remove_log(self):
-        if os.path.exists(self._log_path()):
-            os.unlink(self._log_path())
+        p = Path(self._log_path())
+        if p.exists():
+            p.unlink()
 
     def test_logs_with_lines_param(self, app_instance):
         self._ensure_log(['line1\n', 'line2\n', 'line3\n'])

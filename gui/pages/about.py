@@ -2,7 +2,6 @@
 import flet as ft
 import httpx
 
-from gui.components.notification import show_snackbar
 from gui.http_client import get_client
 
 

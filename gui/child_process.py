@@ -6,7 +6,8 @@ import subprocess
 import sys
 import threading
 import time
-from typing import Callable
+from collections.abc import Callable
+
 from gui.http_client import get_client
 
 

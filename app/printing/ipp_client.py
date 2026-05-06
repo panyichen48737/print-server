@@ -98,8 +98,7 @@ def _parse_ipp_response(data: bytes) -> int | None:
     """
     if len(data) < 8:
         return None
-    status_code = struct.unpack('>H', data[2:4])[0]
-    return status_code
+    return struct.unpack('>H', data[2:4])[0]
 
 
 def get_printer_ip(printer_name: str) -> str | None:

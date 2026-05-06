@@ -1,6 +1,7 @@
 """Stats card with icon, number, and label."""
 import flet as ft
 
+
 class StatusCard(ft.Container):
     def __init__(self, label: str, value: str, icon: str, color: str = ft.Colors.PRIMARY):
         super().__init__()
