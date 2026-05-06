@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
-from app.printing.job_queue import JobQueue
-from app.printing.repository import JobRepository
 from app.printing.worker import JobWorker
+
+if TYPE_CHECKING:
+    from app.printing.job_queue import JobQueue
+    from app.printing.repository import JobRepository
 
 
 class WorkerPool:
@@ -44,6 +47,22 @@ class WorkerPool:
             )
             self._futures.append(self._executor.submit(worker.run))
         logger.info(f'启动 {count} 个工作线程')
+
+    def drain(self, timeout: float = 30.0) -> None:
+        """等待活跃 worker 完成，然后停止"""
+        if not self._executor:
+            return
+        deadline = time.monotonic() + timeout
+        done = False
+        while time.monotonic() < deadline:
+            running = sum(1 for f in self._futures if not f.done())
+            if running == 0:
+                done = True
+                break
+            time.sleep(0.5)
+        if not done:
+            logger.warning('drain 超时，强制停止')
+        self.stop()
 
     def stop(self) -> None:
         self._stop_evt.set()

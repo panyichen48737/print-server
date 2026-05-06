@@ -13,6 +13,7 @@ import argparse
 import contextlib
 import ctypes
 import os
+import signal
 import socket
 import subprocess
 import sys
@@ -321,6 +322,7 @@ def main() -> int | None:
 
     if args.gui:
         import flet as ft
+
         from gui.app import main as gui_main
         ft.run(gui_main)
         return 0
@@ -397,6 +399,14 @@ def main() -> int | None:
     if args.headless or args.start:
         _ensure_single_instance()
         printer_monitor.start()
+
+        def _handle_exit(signum, frame):
+            logger.info('收到信号 {}, 正在关闭...', signum)
+            server_handle.stop()
+
+        signal.signal(signal.SIGINT, _handle_exit)
+        signal.signal(signal.SIGTERM, _handle_exit)
+
         ok = server_handle.start(app, config)
         if not ok:
             print('服务器启动失败')
