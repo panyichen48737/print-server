@@ -1,15 +1,16 @@
 """控制台入口 — 单进程架构（TUI + uvicorn 同一进程）
 
 用法:
-    python -m console             启动 TUI（自动启动后台服务器）
-    python -m console --headless  仅启动服务器（无界面）
-    python -m console --start     --headless 别名
-    python -m console --stop      停止服务器
-    python -m console --restart   重启服务器
-    python -m console --status    查看服务器状态
+    python -m console                      启动 TUI（自动启动后台服务器）
+    python -m console headless             仅启动服务器（无界面）
+    python -m console gui                  启动 Flet 图形界面
+    python -m console stop                 停止服务器
+    python -m console restart              重启服务器
+    python -m console status               查看服务器状态
+    python -m console autostart-install    注册开机自启
+    python -m console autostart-uninstall  卸载开机自启
 """
 
-import argparse
 import contextlib
 import ctypes
 import os
@@ -22,6 +23,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import typer
 from loguru import logger
 
 from app._paths import app_root
@@ -301,81 +303,11 @@ def _enable_vt_processing() -> None:
             kernel32.SetConsoleMode(handle, mode.value | enable_vt)
 
 
-# ── CLI 入口 ──
+# ── 服务器启动辅助 ──
 
 
-def main() -> int | None:
-    _enable_vt_processing()
-
-    parser = argparse.ArgumentParser(description='iOS 云打印服务器')
-    parser.add_argument('--headless', action='store_true', help='无界面运行服务器')
-    parser.add_argument('--gui', action='store_true', help='启动 Flet 图形界面')
-    parser.add_argument('--start', action='store_true', help='启动服务器（--headless 别名）')
-    parser.add_argument('--stop', action='store_true', help='停止服务器')
-    parser.add_argument('--restart', action='store_true', help='重启服务器')
-    parser.add_argument('--status', action='store_true', help='查看服务器状态')
-    parser.add_argument('--autostart-install', action='store_true', help='注册开机自启')
-    parser.add_argument('--autostart-uninstall', action='store_true', help='卸载开机自启')
-    args = parser.parse_args()
-
-    # ── 简单命令（无需启动服务器） ──
-
-    if args.gui:
-        import flet as ft
-
-        from gui.app import main as gui_main
-        ft.run(gui_main)
-        return 0
-
-    if args.stop:
-        p = _pid_file()
-        if p.exists():
-            try:
-                pid = int(p.read_text().strip())
-                if _win_pid_alive(pid):
-                    subprocess.run(
-                        ['taskkill', '/F', '/PID', str(pid)],
-                        capture_output=True,
-                        timeout=5,
-                    )
-                    time.sleep(0.5)
-                    _cleanup_pid()
-                    print('服务器已停止')
-                else:
-                    _cleanup_pid()
-                    print('服务器未运行')
-            except (ValueError, OSError):
-                print('无法读取 PID 文件')
-        else:
-            print('服务器未运行')
-        return 0
-
-    if args.status:
-        cfg = Config()
-        port = cfg.get('port', 5000)
-        try:
-            import urllib.request
-
-            urllib.request.urlopen(f'http://127.0.0.1:{port}/api/health', timeout=3)
-            print('状态: 运行中')
-        except Exception:
-            print('状态: 已停止')
-        print(f'端口: {port}')
-        print(f'自启: {"已注册" if is_autostart_installed() else "未注册"}')
-        return 0
-
-    if args.autostart_install:
-        ok, msg = install_autostart()
-        print(msg)
-        return 0 if ok else 1
-
-    if args.autostart_uninstall:
-        ok, msg = uninstall_autostart()
-        print(msg)
-        return 0 if ok else 1
-
-    # ── 需要完整启动服务器 ──
-
+def _bootstrap_server() -> tuple:
+    """加载配置并 bootstrap 应用，返回 (app, config, worker_pool, printer_monitor, heartbeat)"""
     config = Config()
     setup_logging(level=config.log_level)
 
@@ -392,66 +324,130 @@ def main() -> int | None:
     _lifespan_ref.heartbeat = heartbeat
     _lifespan_ref.worker_pool = worker_pool
 
+    return app, config, worker_pool, printer_monitor, heartbeat
+
+
+def _kill_existing(timeout: float = 0.5) -> None:
+    """根据 PID 文件杀掉已运行实例"""
+    p = _pid_file()
+    if not p.exists():
+        return
+    try:
+        pid = int(p.read_text().strip())
+        if _win_pid_alive(pid):
+            subprocess.run(
+                ['taskkill', '/F', '/PID', str(pid)],
+                capture_output=True,
+                timeout=5,
+            )
+            time.sleep(timeout)
+    except (ValueError, OSError):
+        pass
+
+
+def _run_server_loop(server_handle: ServerHandle) -> None:
+    """阻塞主线程直到服务器关闭"""
+    try:
+        while server_handle.is_running:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        server_handle.stop()
+
+
+# ── 命令实现 ──
+
+
+def _headless_main() -> int:
+    app, config, _, printer_monitor, _ = _bootstrap_server()
     server_handle = ServerHandle()
 
-    # ── 无界面模式（--headless / --start） ──
+    _ensure_single_instance()
+    printer_monitor.start()
 
-    if args.headless or args.start:
-        _ensure_single_instance()
-        printer_monitor.start()
+    def _handle_exit(signum, frame):
+        logger.info('收到信号 {}, 正在关闭...', signum)
+        server_handle.stop()
 
-        def _handle_exit(signum, frame):
-            logger.info('收到信号 {}, 正在关闭...', signum)
-            server_handle.stop()
+    signal.signal(signal.SIGINT, _handle_exit)
+    signal.signal(signal.SIGTERM, _handle_exit)
 
-        signal.signal(signal.SIGINT, _handle_exit)
-        signal.signal(signal.SIGTERM, _handle_exit)
+    ok = server_handle.start(app, config)
+    if not ok:
+        print('服务器启动失败')
+        return 1
+    proto = 'https' if server_handle.ssl_enabled else 'http'
+    print(f'服务器运行在 {proto}://0.0.0.0:{server_handle.port}')
+    _run_server_loop(server_handle)
+    return 0
 
-        ok = server_handle.start(app, config)
-        if not ok:
-            print('服务器启动失败')
-            return 1
-        proto = 'https' if server_handle.ssl_enabled else 'http'
-        print(f'服务器运行在 {proto}://0.0.0.0:{server_handle.port}')
-        try:
-            while server_handle.is_running:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            server_handle.stop()
+
+def _restart_main() -> int:
+    app, config, _, printer_monitor, _ = _bootstrap_server()
+    server_handle = ServerHandle()
+
+    _kill_existing(timeout=1.0)
+    _cleanup_pid()
+    _write_pid()
+    printer_monitor.start()
+    ok = server_handle.start(app, config)
+    if not ok:
+        print('重启失败')
+        return 1
+    print(f'服务器已重启（端口 {server_handle.port}）')
+    _run_server_loop(server_handle)
+    return 0
+
+
+def _stop_main() -> int:
+    p = _pid_file()
+    if not p.exists():
+        print('服务器未运行')
         return 0
+    try:
+        pid = int(p.read_text().strip())
+        if _win_pid_alive(pid):
+            subprocess.run(
+                ['taskkill', '/F', '/PID', str(pid)],
+                capture_output=True,
+                timeout=5,
+            )
+            time.sleep(0.5)
+            _cleanup_pid()
+            print('服务器已停止')
+        else:
+            _cleanup_pid()
+            print('服务器未运行')
+    except (ValueError, OSError):
+        print('无法读取 PID 文件')
+    return 0
 
-    # ── 重启模式 ──
 
-    if args.restart:
-        p = _pid_file()
-        if p.exists():
-            try:
-                pid = int(p.read_text().strip())
-                if _win_pid_alive(pid):
-                    subprocess.run(
-                        ['taskkill', '/F', '/PID', str(pid)],
-                        capture_output=True,
-                        timeout=5,
-                    )
-                    time.sleep(1)
-            except Exception:
-                pass
-        _cleanup_pid()
-        _write_pid()
-        printer_monitor.start()
-        ok = server_handle.start(app, config)
-        if not ok:
-            print('重启失败')
-            return 1
-        print(f'服务器已重启（端口 {server_handle.port}）')
-        try:
-            while server_handle.is_running:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            server_handle.stop()
-        return 0
+def _status_main() -> int:
+    cfg = Config()
+    port = cfg.get('port', 5000)
+    try:
+        import urllib.request
 
-    # ── TUI 模式（默认） ──
+        urllib.request.urlopen(f'http://127.0.0.1:{port}/api/health', timeout=3)
+        print('状态: 运行中')
+    except Exception:
+        print('状态: 已停止')
+    print(f'端口: {port}')
+    print(f'自启: {"已注册" if is_autostart_installed() else "未注册"}')
+    return 0
+
+
+def _gui_main() -> int:
+    import flet as ft
+
+    from gui.app import main as gui_main
+    ft.run(gui_main)
+    return 0
+
+
+def _tui_main() -> int:
+    app, config, _, printer_monitor, _ = _bootstrap_server()
+    server_handle = ServerHandle()
 
     _ensure_single_instance()
 
@@ -499,7 +495,7 @@ def main() -> int | None:
         server_handle.stop()
         _cleanup_pid()
 
-    return None
+    return 0
 
 
 def _start_server_background(server_handle: ServerHandle, app, config, printer_monitor) -> None:
@@ -510,3 +506,78 @@ def _start_server_background(server_handle: ServerHandle, app, config, printer_m
         logger.info(f'服务器已启动（端口 {server_handle.port}）')
     else:
         logger.error('服务器启动超时')
+
+
+# ── Typer CLI ──
+
+app = typer.Typer(
+    help='iOS 云打印服务器',
+    no_args_is_help=False,
+    add_completion=False,
+)
+
+
+@app.callback(invoke_without_command=True)
+def _root(ctx: typer.Context) -> None:
+    """iOS 云打印服务器 — 不带子命令时启动 TUI"""
+    if ctx.invoked_subcommand is not None:
+        return
+    _enable_vt_processing()
+    rc = _tui_main()
+    if rc:
+        raise typer.Exit(code=rc)
+
+
+@app.command()
+def headless() -> None:
+    """无界面运行服务器（后台模式）"""
+    _enable_vt_processing()
+    raise typer.Exit(code=_headless_main())
+
+
+@app.command()
+def gui() -> None:
+    """启动 Flet 图形界面"""
+    _enable_vt_processing()
+    raise typer.Exit(code=_gui_main())
+
+
+@app.command()
+def stop() -> None:
+    """停止服务器"""
+    raise typer.Exit(code=_stop_main())
+
+
+@app.command()
+def status() -> None:
+    """查看服务器状态"""
+    raise typer.Exit(code=_status_main())
+
+
+@app.command()
+def restart() -> None:
+    """重启服务器"""
+    _enable_vt_processing()
+    raise typer.Exit(code=_restart_main())
+
+
+@app.command(name='autostart-install')
+def autostart_install() -> None:
+    """注册开机自启"""
+    ok, msg = install_autostart()
+    print(msg)
+    raise typer.Exit(code=0 if ok else 1)
+
+
+@app.command(name='autostart-uninstall')
+def autostart_uninstall() -> None:
+    """卸载开机自启"""
+    ok, msg = uninstall_autostart()
+    print(msg)
+    raise typer.Exit(code=0 if ok else 1)
+
+
+def main() -> int | None:
+    """CLI 入口（pyproject.toml scripts 指向此函数）"""
+    app()
+    return None

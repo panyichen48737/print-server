@@ -38,10 +38,10 @@ class ChildProcess:
             if self._port_listening():
                 return
             exe = sys.executable
-            args = [exe, "-m", "console", "--headless"]
+            args = [exe, "-m", "console", "headless"]
             if getattr(sys, "frozen", False):
                 exe = os.path.join(sys._MEIPASS, "iOSPrintServer.exe")
-                args = [exe, "--headless"]
+                args = [exe, "headless"]
             self._process = subprocess.Popen(
                 args,
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
