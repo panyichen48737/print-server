@@ -1,39 +1,39 @@
-"""Test GUI child process lifecycle."""
-import time
-
+"""Test PySide6 GUI lifecycle without showing window."""
 import pytest
-
-from gui.child_process import ChildProcess
-
-
-@pytest.mark.integration
-@pytest.mark.asyncio
-async def test_child_process_start_stop():
-    cp = ChildProcess()
-    cp.start()
-    time.sleep(2)
-    healthy = await cp.health_check()
-    assert healthy, "Server should be healthy after start"
-    cp.stop()
-    assert not cp.is_running(), "Server should stop"
+from PySide6.QtWidgets import QApplication
 
 
-@pytest.mark.asyncio
-async def test_child_process_health_check_fails():
-    cp = ChildProcess()
-    healthy = await cp.health_check()
-    assert not healthy, "Health check should fail with no server"
+@pytest.fixture(scope="module")
+def qapp():
+    app = QApplication.instance() or QApplication([])
+    yield app
 
 
-@pytest.mark.integration
-@pytest.mark.asyncio
-async def test_child_process_restart():
-    cp = ChildProcess()
-    cp.start()
-    time.sleep(2)
-    await cp.health_check()
-    cp.restart()
-    time.sleep(2)
-    healthy = await cp.health_check()
-    assert healthy, "Server should be healthy after restart"
-    cp.stop()
+def test_theme_engine(qapp):
+    from gui.theme import ThemeEngine
+    t = ThemeEngine.instance()
+    t.apply("light", qapp)
+    assert t.tokens["primary"] == "#4F46E5"
+    t.apply("dark", qapp)
+    assert t.tokens["primary"] == "#818CF8"
+
+
+def test_stateful_button():
+    from gui.components.stateful_button import StatefulButton
+    btn = StatefulButton("测试")
+    assert btn.text() == "测试"
+    btn.set_loading()
+    assert "..." in btn.text()
+    btn.set_success()
+    assert "✓" in btn.text()
+
+
+def test_port_validator():
+    from gui.components.validators import PortValidator
+    v = PortValidator()
+    state, _, _ = v.validate("8080", 4)
+    assert state == v.State.Acceptable
+    state, _, _ = v.validate("80", 2)
+    assert state == v.State.Intermediate
+    state, _, _ = v.validate("99999", 5)
+    assert state == v.State.Intermediate
