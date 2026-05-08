@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 
 from console._server import ServerHandle
+from gui.event_bridge import EventBridge
 
 
 class MainWindow(QMainWindow):
@@ -23,6 +24,12 @@ class MainWindow(QMainWindow):
         self._config = config
         self._server = server_handle
         self._event_bus = app.state.event_bus
+
+        # EventBridge — thread-safe EventBus to Qt signal bridge
+        self._bridge = EventBridge(self._event_bus, self)
+        self._bridge.job_status.connect(self._on_job_status)
+        self._bridge.printer_status.connect(self._on_printer_status)
+        self._bridge.log.connect(self._on_log)
 
         self.setWindowTitle("iOS 云打印服务器")
         self.setMinimumSize(900, 600)
@@ -80,9 +87,6 @@ class MainWindow(QMainWindow):
 
         # System tray
         self._setup_tray()
-
-        # Connect events
-        self._connect_events()
 
         # Health timer
         self._health_timer = QTimer(self)
@@ -178,11 +182,10 @@ class MainWindow(QMainWindow):
     def _on_nav_changed(self, index: int):
         self.stack.setCurrentIndex(index)
 
-    def _connect_events(self):
-        event_bus = self._event_bus
-        if event_bus:
-            event_bus.on("job_status", self._on_job_status)
-            event_bus.on("printer_status", self._on_printer_status)
+    def _on_log(self, data: dict):
+        current = self.stack.currentWidget()
+        if hasattr(current, "on_log"):
+            current.on_log(data)
 
     def _on_job_status(self, data: dict):
         current = self.stack.currentWidget()
@@ -203,4 +206,5 @@ def run_gui(app, config, server_handle: ServerHandle):
     qapp = QApplication(sys.argv)
     window = MainWindow(app, config, server_handle)
     window.show()
+    qapp.aboutToQuit.connect(window._bridge.stop)
     sys.exit(qapp.exec())
