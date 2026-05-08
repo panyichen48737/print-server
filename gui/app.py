@@ -4,7 +4,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QPropertyAnimation, QTimer
 from PySide6.QtGui import QIcon, QShortcut, QKeySequence
 from PySide6.QtWidgets import (
     QApplication, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
@@ -136,6 +136,12 @@ class MainWindow(QMainWindow):
         menu = QMenu()
         show_action = menu.addAction("显示窗口")
         show_action.triggered.connect(self.show)
+        menu.addSeparator()
+        start_action = menu.addAction("启动服务器")
+        start_action.triggered.connect(self._on_start)
+        stop_action = menu.addAction("停止服务器")
+        stop_action.triggered.connect(self._on_stop)
+        menu.addSeparator()
         quit_action = menu.addAction("退出")
         quit_action.triggered.connect(self._on_quit)
         self.tray.setContextMenu(menu)
@@ -209,6 +215,13 @@ class MainWindow(QMainWindow):
 
     def _on_nav_changed(self, index: int):
         self.stack.setCurrentIndex(index)
+        w = self.stack.currentWidget()
+        if w:
+            anim = QPropertyAnimation(w, b"windowOpacity")
+            anim.setDuration(200)
+            anim.setStartValue(0.7)
+            anim.setEndValue(1.0)
+            anim.start()
 
     def _on_log(self, data: dict):
         current = self.stack.currentWidget()
@@ -219,6 +232,11 @@ class MainWindow(QMainWindow):
         current = self.stack.currentWidget()
         if hasattr(current, "on_job_status"):
             current.on_job_status(data)
+        status = data.get("status", "")
+        if status == "completed":
+            self.tray.showMessage("打印完成", f"任务 #{data['job_id']} 已完成", QSystemTrayIcon.MessageIcon.Information, 3000)
+        elif status == "failed":
+            self.tray.showMessage("打印失败", f"任务 #{data['job_id']} 失败: {data.get('error', '')}", QSystemTrayIcon.MessageIcon.Critical, 5000)
 
     def _on_printer_status(self, data: dict):
         current = self.stack.currentWidget()
