@@ -204,6 +204,9 @@ class MainWindow(QMainWindow):
 
 def run_gui(app, config, server_handle: ServerHandle):
     qapp = QApplication(sys.argv)
+    from gui.theme import ThemeEngine
+    theme = ThemeEngine.instance()
+    theme.apply("light", qapp)
     window = MainWindow(app, config, server_handle)
     window.show()
     qapp.aboutToQuit.connect(window._bridge.stop)

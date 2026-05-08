@@ -1,0 +1,6 @@
+/* Dark theme QSS — UI Design 阶段填充 */
+QMainWindow { background-color: #1E1E2E; }
+QPushButton { border-radius: 6px; padding: 6px 16px; }
+QListWidget { border: none; background-color: #181825; }
+QListWidget::item { padding: 10px 16px; border-radius: 4px; }
+QListWidget::item:selected { background-color: #312E81; color: #818CF8; }
