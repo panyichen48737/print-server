@@ -93,6 +93,11 @@ class MainWindow(QMainWindow):
         self._health_timer.timeout.connect(self._refresh_status)
         self._health_timer.start(3000)
 
+        # Window state persistence
+        from gui.settings_store import WindowStateManager
+        self._state_manager = WindowStateManager(self)
+        self._state_manager.restore()
+
         # Select first page
         self.nav.setCurrentRow(0)
         self._setup_shortcuts()
@@ -221,6 +226,7 @@ class MainWindow(QMainWindow):
             current.on_printer_status(data)
 
     def closeEvent(self, event):
+        self._state_manager.save()
         event.ignore()
         self.hide()
 
