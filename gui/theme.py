@@ -42,6 +42,7 @@ DARK = ThemeTokens(
 def build_theme(mode: ft.ThemeMode) -> ft.Theme:
     tokens = DARK if mode == ft.ThemeMode.DARK else LIGHT
     return ft.Theme(
+        font_family="Microsoft YaHei",
         color_scheme=ft.ColorScheme(
             primary=tokens.primary,
             primary_container=tokens.primary_container,
@@ -52,3 +53,7 @@ def build_theme(mode: ft.ThemeMode) -> ft.Theme:
             outline=tokens.outline,
         ),
     )
+
+
+# Module-level dark mode flag, set by app.py main()
+_IS_DARK: bool = False

@@ -1,10 +1,21 @@
 """Colored log entry."""
 import flet as ft
 
+import gui.theme as _gui_theme
+
+LEVEL_COLORS_LIGHT = {
+    "ERROR": ft.Colors.RED, "WARNING": ft.Colors.AMBER,
+    "INFO": ft.Colors.BLUE, "DEBUG": ft.Colors.GREY,
+}
+LEVEL_COLORS_DARK = {
+    "ERROR": "#F87171", "WARNING": "#FBBF24",
+    "INFO": "#60A5FA", "DEBUG": "#9CA3AF",
+}
+
 
 def log_color(level: str) -> str:
-    return {"ERROR": ft.Colors.RED, "WARNING": ft.Colors.AMBER,
-            "INFO": ft.Colors.BLUE, "DEBUG": ft.Colors.GREY}.get(level, ft.Colors.ON_SURFACE)
+    colors = LEVEL_COLORS_DARK if _gui_theme._IS_DARK else LEVEL_COLORS_LIGHT
+    return colors.get(level, ft.Colors.ON_SURFACE)
 
 def build_log_row(level: str, timestamp: str, message: str) -> ft.Row:
     return ft.Row([

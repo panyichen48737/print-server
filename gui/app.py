@@ -1,152 +1,206 @@
-"""Main Flet application with NavigationRail, routing, and system tray."""
-import asyncio
-import threading
+"""MainWindow: nav sidebar + QStackedWidget + status bar + system tray."""
+from __future__ import annotations
 
-import flet as ft
+import sys
+from pathlib import Path
 
-from gui.child_process import ChildProcess
-from gui.sse_client import sse
-from gui.theme import build_theme
-from gui.window_state import load_state, save_state
+from PySide6.QtCore import QTimer
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import (
+    QApplication, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
+    QMainWindow, QPushButton, QStackedWidget, QSystemTrayIcon, QVBoxLayout, QWidget, QMenu,
+)
 
-child = ChildProcess()
+from console._server import ServerHandle
 
 
-def _build_page(index: int, page: ft.Page) -> ft.Control:
-    if index == 0:
+class MainWindow(QMainWindow):
+    NAV_ITEMS = ["仪表盘", "快速打印", "任务管理", "实时日志", "设置", "打印机管理", "关于"]
+
+    def __init__(self, app, config, server_handle: ServerHandle):
+        super().__init__()
+        self._app = app
+        self._config = config
+        self._server = server_handle
+        self._event_bus = app.state.event_bus
+
+        self.setWindowTitle("iOS 云打印服务器")
+        self.setMinimumSize(900, 600)
+        self.resize(1200, 800)
+
+        # Central widget
+        central = QWidget()
+        self.setCentralWidget(central)
+        main_layout = QHBoxLayout(central)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Status bar (top)
+        self.status_bar = self._build_status_bar()
+
+        # Nav sidebar
+        self.nav = QListWidget()
+        self.nav.setFixedWidth(160)
+        for label in self.NAV_ITEMS:
+            QListWidgetItem(label, self.nav)
+        self.nav.currentRowChanged.connect(self._on_nav_changed)
+
+        # Page container
+        self.stack = QStackedWidget()
         from gui.pages.dashboard import DashboardPage
-        return DashboardPage(page)
-    if index == 1:
         from gui.pages.quick_print import QuickPrintPage
-        return QuickPrintPage(page)
-    if index == 2:
         from gui.pages.job_manager import JobManagerPage
-        return JobManagerPage(page)
-    if index == 3:
         from gui.pages.logs import LogsPage
-        return LogsPage(page)
-    if index == 4:
         from gui.pages.settings import SettingsPage
-        return SettingsPage(page)
-    if index == 5:
         from gui.pages.printer_manager import PrinterManagerPage
-        return PrinterManagerPage(page)
-    if index == 6:
         from gui.pages.about import AboutPage
-        return AboutPage(page)
-    return ft.Text("未知页面")
+
+        self.stack.addWidget(DashboardPage(self))
+        self.stack.addWidget(QuickPrintPage(self))
+        self.stack.addWidget(JobManagerPage(self))
+        self.stack.addWidget(LogsPage(self))
+        self.stack.addWidget(SettingsPage(self))
+        self.stack.addWidget(PrinterManagerPage(self))
+        self.stack.addWidget(AboutPage(self))
+
+        # Layout: status bar top, then nav + content below
+        content_row = QHBoxLayout()
+        content_row.setContentsMargins(0, 0, 0, 0)
+        content_row.setSpacing(0)
+        content_row.addWidget(self.nav)
+        content_row.addWidget(self.stack, 1)
+
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(0)
+        container_layout.addWidget(self.status_bar)
+        container_layout.addLayout(content_row, 1)
+        main_layout.addWidget(container)
+
+        # System tray
+        self._setup_tray()
+
+        # Connect events
+        self._connect_events()
+
+        # Health timer
+        self._health_timer = QTimer(self)
+        self._health_timer.timeout.connect(self._refresh_status)
+        self._health_timer.start(3000)
+
+        # Select first page
+        self.nav.setCurrentRow(0)
+
+    def _build_status_bar(self) -> QWidget:
+        bar = QWidget()
+        bar.setFixedHeight(40)
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(12, 4, 12, 4)
+        self.status_dot = QLabel("●")
+        self.status_text = QLabel("启动中...")
+        self.start_btn = QPushButton("启动")
+        self.stop_btn = QPushButton("停止")
+        self.restart_btn = QPushButton("重启")
+        self.web_btn = QPushButton("管理后台")
+        self.start_btn.clicked.connect(self._on_start)
+        self.stop_btn.clicked.connect(self._on_stop)
+        self.restart_btn.clicked.connect(self._on_restart)
+        self.web_btn.clicked.connect(self._on_open_web)
+        layout.addWidget(self.status_dot)
+        layout.addWidget(self.status_text)
+        layout.addStretch()
+        layout.addWidget(self.start_btn)
+        layout.addWidget(self.stop_btn)
+        layout.addWidget(self.restart_btn)
+        layout.addWidget(self.web_btn)
+        return bar
+
+    def _setup_tray(self):
+        icon_path = str(Path(__file__).parent / "resources" / "icon.png")
+        if Path(icon_path).exists():
+            self.tray = QSystemTrayIcon(QIcon(icon_path), self)
+        else:
+            self.tray = QSystemTrayIcon(self)
+        self.tray.setToolTip("iOS 云打印服务器")
+        menu = QMenu()
+        show_action = menu.addAction("显示窗口")
+        show_action.triggered.connect(self.show)
+        quit_action = menu.addAction("退出")
+        quit_action.triggered.connect(self._on_quit)
+        self.tray.setContextMenu(menu)
+        self.tray.activated.connect(self._on_tray_activated)
+        self.tray.show()
+
+    def _on_tray_activated(self, reason):
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            self.show()
+            self.raise_()
+
+    def _on_quit(self):
+        if self._server:
+            self._server.stop()
+        QApplication.quit()
+
+    def _on_start(self):
+        if self._server:
+            self._server.start(self._app, self._config)
+
+    def _on_stop(self):
+        if self._server:
+            self._server.stop()
+
+    def _on_restart(self):
+        if self._server:
+            self._server.stop()
+            self._server.start(self._app, self._config)
+
+    def _on_open_web(self):
+        import webbrowser
+        port = self._server.port if self._server else 5000
+        webbrowser.open(f"http://127.0.0.1:{port}/admin")
+
+    def _refresh_status(self):
+        if self._server and self._server.is_running:
+            self.status_dot.setStyleSheet("color: green;")
+            self.status_text.setText(f"运行中 · 端口 {self._server.port}")
+            self.start_btn.setVisible(False)
+            self.stop_btn.setVisible(True)
+        elif self._server:
+            self.status_dot.setStyleSheet("color: red;")
+            self.status_text.setText("已停止")
+            self.start_btn.setVisible(True)
+            self.stop_btn.setVisible(False)
+        else:
+            self.status_dot.setStyleSheet("color: gray;")
+            self.status_text.setText("未初始化")
+
+    def _on_nav_changed(self, index: int):
+        self.stack.setCurrentIndex(index)
+
+    def _connect_events(self):
+        event_bus = self._event_bus
+        if event_bus:
+            event_bus.on("job_status", self._on_job_status)
+            event_bus.on("printer_status", self._on_printer_status)
+
+    def _on_job_status(self, data: dict):
+        current = self.stack.currentWidget()
+        if hasattr(current, "on_job_status"):
+            current.on_job_status(data)
+
+    def _on_printer_status(self, data: dict):
+        current = self.stack.currentWidget()
+        if hasattr(current, "on_printer_status"):
+            current.on_printer_status(data)
+
+    def closeEvent(self, event):
+        event.ignore()
+        self.hide()
 
 
-def main(page: ft.Page):
-    page.title = "iOS 云打印服务器"
-    page.theme = build_theme(ft.ThemeMode.SYSTEM)
-    page.theme_mode = ft.ThemeMode.SYSTEM
-
-    # Window config
-    page.window.width = 1200
-    page.window.height = 800
-    page.window.min_width = 900
-    page.window.min_height = 600
-    page.window.center()
-
-    # Load saved window state
-    saved_page = load_state(page)
-
-    # Navigation state
-    nav: ft.NavigationRail | None = None
-
-    # Content area
-    content_area = ft.Column(expand=True)
-
-    def navigate(index: int):
-        page._active_index = index  # type: ignore
-        content_area.controls.clear()
-        content_area.controls.append(_build_page(index, page))
-        content_area.update()
-
-    # Keyboard shortcuts
-    def on_keyboard(e: ft.KeyboardEvent):
-        shortcuts = {"1": 0, "2": 1, "3": 2, "4": 3, "5": 4, "6": 5, "7": 6}
-        if e.ctrl and e.key in shortcuts:
-            nav.selected_index = shortcuts[e.key]
-            navigate(nav.selected_index)
-            page.update()
-        elif e.ctrl and e.key.lower() == "p":
-            nav.selected_index = 1
-            navigate(1)
-            page.update()
-        elif e.key == "F5":
-            navigate(nav.selected_index)
-            page.update()
-
-    page.on_keyboard_event = on_keyboard
-
-    # Window close → minimize to tray (save state first)
-    def on_window_event(e: ft.WindowEvent):
-        if e.type == ft.WindowEventType.CLOSE:
-            save_state(page)
-            page.window.visible = False
-            page.update()
-
-    page.window.on_event = on_window_event
-
-    # Show window from tray helper
-    def _show_window():
-        page.window.visible = True
-        page.update()
-
-    def _quit_app():
-        child.stop()
-        sse.stop()
-        page.window.destroy()
-
-    nav = ft.NavigationRail(
-        selected_index=saved_page,
-        label_type=ft.NavigationRailLabelType.ALL,
-        min_width=100,
-        destinations=[
-            ft.NavigationRailDestination(icon=ft.icons.DASHBOARD, label="仪表盘"),
-            ft.NavigationRailDestination(icon=ft.icons.PRINT, label="快速打印"),
-            ft.NavigationRailDestination(icon=ft.icons.LIST_ALT, label="任务管理"),
-            ft.NavigationRailDestination(icon=ft.icons.TERMINAL, label="实时日志"),
-            ft.NavigationRailDestination(icon=ft.icons.SETTINGS, label="设置"),
-            ft.NavigationRailDestination(icon=ft.icons.PRINTER, label="打印机"),
-            ft.NavigationRailDestination(icon=ft.icons.INFO_OUTLINE, label="关于"),
-        ],
-        on_change=lambda e: navigate(int(e.control.selected_index)),
-    )
-
-    page.add(ft.Row([nav, ft.VerticalDivider(width=1), content_area], expand=True))
-
-    # Start child process (headless server)
-    child.start()
-    sse.start()
-
-    # Health check loop in background thread
-    def health_loop():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(
-            child.health_loop(
-                lambda msg: page.run_thread(
-                    lambda: _show_snackbar(page, msg, ft.Colors.RED)
-                )
-            )
-        )
-        loop.close()
-
-    threading.Thread(target=health_loop, daemon=True).start()
-
-    navigate(saved_page)
-    page.update()
-
-
-def _show_snackbar(page: ft.Page, message: str, color: str = ft.Colors.GREEN):
-    snack = ft.SnackBar(
-        content=ft.Text(message),
-        bgcolor=color,
-        duration=3000,
-        open=True,
-    )
-    page.overlay.append(snack)
-    page.update()
+def run_gui(app, config, server_handle: ServerHandle):
+    qapp = QApplication(sys.argv)
+    window = MainWindow(app, config, server_handle)
+    window.show()
+    sys.exit(qapp.exec())

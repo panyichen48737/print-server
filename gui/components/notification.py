@@ -7,7 +7,6 @@ def show_snackbar(page: ft.Page, message: str, color: str = ft.Colors.GREEN):
         content=ft.Text(message),
         bgcolor=color,
         duration=3000,
-        open=True,
     )
-    page.overlay.append(snack)
+    page.snack_bar = snack
     page.update()

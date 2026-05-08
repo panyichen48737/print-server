@@ -1,7 +1,10 @@
-"""python -m gui entry point."""
-import flet as ft
+"""GUI entry point (python -m gui)."""
+import sys
+from pathlib import Path
 
-from gui.app import main
+# 确保项目根在 sys.path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-if __name__ == "__main__":
-    ft.run(main)
+from console import main  # noqa: E402
+
+main()

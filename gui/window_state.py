@@ -1,9 +1,10 @@
 """Window state persistence for position, size, and active page."""
 import json
 import os
+from pathlib import Path
 
-PERSISTENT_DIR = os.path.join(os.environ.get("APPDATA", "."), "iOSPrintServer")
-STATE_FILE = os.path.join(PERSISTENT_DIR, "window_state.json")
+PERSISTENT_DIR = Path(os.environ.get("APPDATA", ".")) / "iOSPrintServer"
+STATE_FILE = PERSISTENT_DIR / "window_state.json"
 
 
 def save_state(page) -> None:
@@ -14,7 +15,7 @@ def save_state(page) -> None:
         "top": page.window.top,
         "active_page": getattr(page, "_active_index", 0),
     }
-    os.makedirs(PERSISTENT_DIR, exist_ok=True)
+    PERSISTENT_DIR.mkdir(parents=True, exist_ok=True)
     with open(STATE_FILE, "w") as f:
         json.dump(state, f)
 
