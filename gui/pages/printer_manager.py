@@ -63,3 +63,7 @@ class PrinterManagerPage(QWidget):
     def _refresh_complete(self):
         self.loading_label.setVisible(False)
         self.refresh_btn.setEnabled(True)
+
+    def on_printer_status(self, data: dict):
+        # Stub — will update card grid when connected
+        pass

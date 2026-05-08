@@ -81,6 +81,7 @@ class QuickPrintPage(QWidget):
         layout.addStretch()
 
         self._file_path: str | None = None
+        self._tracking_job_id: int | None = None
 
     def _browse(self):
         path, _ = QFileDialog.getOpenFileName(self, "选择文件")
@@ -121,3 +122,15 @@ class QuickPrintPage(QWidget):
         else:
             self.submit_btn.set_error()
             self.progress.setVisible(False)
+
+    def on_job_status(self, data: dict):
+        if data.get("job_id") == self._tracking_job_id:
+            status = data.get("status", "")
+            if status == "completed":
+                self.submit_btn.set_success()
+                self.tracking_label.setText(f"任务 #{self._tracking_job_id} 完成")
+            elif status == "failed":
+                self.submit_btn.set_error()
+                self.tracking_label.setText(f"失败: {data.get('error', '')}")
+            elif status == "printing":
+                self.tracking_label.setText(f"任务 #{self._tracking_job_id} 正在打印...")

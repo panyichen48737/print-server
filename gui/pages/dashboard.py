@@ -126,3 +126,11 @@ class DashboardPage(QWidget):
     def show_error(self, msg: str):
         self.error_banner.setText(f"⚠ {msg}")
         self.error_banner.setVisible(True)
+
+    def on_job_status(self, data: dict):
+        # Update stat cards based on job data
+        pass
+
+    def on_printer_status(self, data: dict):
+        # Add/replace printer cards
+        pass

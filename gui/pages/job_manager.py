@@ -116,3 +116,11 @@ class JobManagerPage(QWidget):
     def _next_page(self):
         self._page += 1
         self.page_label.setText(f"第 {self._page + 1} 页")
+
+    def on_job_status(self, data: dict):
+        # Stub — will refresh table data when connected
+        pass
+
+    def on_log(self, data: dict):
+        # Stub
+        pass
