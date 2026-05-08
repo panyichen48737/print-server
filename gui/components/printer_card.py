@@ -1,42 +1,42 @@
-"""Printer status card with color indicator."""
-import flet as ft
+"""Printer card widget showing name, status, and controls."""
+from __future__ import annotations
 
-import gui.theme as _gui_theme
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
 
-def status_color(overall: str) -> str:
-    light = {"ready": ft.Colors.GREEN, "busy": ft.Colors.AMBER,
-             "error": ft.Colors.RED, "offline": ft.Colors.GREY}
-    dark = {"ready": "#4ADE80", "busy": "#FBBF24",
-            "error": "#F87171", "offline": "#9CA3AF"}
-    return (dark if _gui_theme._IS_DARK else light).get(overall, ft.Colors.GREY)
+class PrinterCardWidget(QFrame):
+    set_default_clicked = Signal(str)
 
-class PrinterCard(ft.Container):
-    def __init__(self, name: str, overall: str, statuses: list[dict] | None = None,
-                 is_default: bool = False, on_set_default=None):
-        color = status_color(overall)
-        status_lines = []
-        for s in (statuses or []):
-            status_lines.append(ft.Text(f"  {s.get('key', '')}: {s.get('label', '')}", size=12))
-        super().__init__()
-        self.content = ft.Column([
-            ft.Row([
-                ft.Container(width=12, height=12, bgcolor=color, border_radius=6),
-                ft.Text(name, weight=ft.FontWeight.BOLD, size=16),
-                ft.Text("默认" if is_default else "", size=12, color=ft.Colors.PRIMARY),
-            ]),
-            ft.Text(f"状态: {overall}", size=13, color=color),
-            *status_lines,
-            ft.ElevatedButton("设为默认", visible=not is_default,
-                              on_click=self._make_set_default_handler(name, on_set_default)),
-        ])
-        self.padding = 16
-        self.border_radius = 12
-        self.bgcolor = ft.Colors.SURFACE
+    def __init__(self, name: str, status: str, is_default: bool = False, parent=None):
+        super().__init__(parent)
+        self._name = name
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setFixedSize(260, 120)
 
-    def _make_set_default_handler(self, name: str, callback):
-        if callback is None:
-            return None
-        async def handler(e):
-            await callback(name)
-        return handler
+        layout = QVBoxLayout(self)
+        # Name + status dot
+        header = QHBoxLayout()
+        dot = QLabel("●")
+        dot.setStyleSheet(f"color: {'green' if status == 'ready' else 'orange'}; font-size: 18px;")
+        name_label = QLabel(name)
+        name_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        header.addWidget(dot)
+        header.addWidget(name_label)
+        header.addStretch()
+        layout.addLayout(header)
+
+        status_label = QLabel(f"状态: {status}")
+        status_label.setStyleSheet("color: gray;")
+        layout.addWidget(status_label)
+
+        if is_default:
+            default_label = QLabel("★ 默认打印机")
+            default_label.setStyleSheet("color: #16A34A; font-weight: bold;")
+            layout.addWidget(default_label)
+        else:
+            btn = QPushButton("设为默认")
+            btn.clicked.connect(lambda: self.set_default_clicked.emit(self._name))
+            layout.addWidget(btn)
+
+        layout.addStretch()

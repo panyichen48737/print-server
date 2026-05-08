@@ -1,21 +1,30 @@
-"""Skeleton loading placeholders."""
-import flet as ft
+"""Skeleton loading placeholder widget."""
+from __future__ import annotations
+
+from PySide6.QtCore import QTimer, Qt
+from PySide6.QtGui import QColor, QPainter
+from PySide6.QtWidgets import QWidget
 
 
-def card_skeleton(width: int = 200, height: int = 120):
-    return ft.Container(
-        width=width, height=height,
-        bgcolor=ft.Colors.GREY_300,
-        border_radius=8,
-        animate_opacity=ft.Animation(800, "ease"),
-        opacity=0.3,
-    )
+class SkeletonWidget(QWidget):
+    def __init__(self, width: int = 100, height: int = 20, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(width, height)
+        self._opacity = 0.3
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._pulse)
+        self._timer.start(800)
+        self._direction = 1
 
-def table_row_skeleton(count: int = 5):
-    rows = []
-    for _ in range(count):
-        rows.append(ft.DataRow(cells=[
-            ft.DataCell(ft.Container(width=80, height=16, bgcolor=ft.Colors.GREY_300, border_radius=4))
-            for _ in range(6)
-        ]))
-    return rows
+    def _pulse(self):
+        self._opacity += 0.05 * self._direction
+        if self._opacity >= 0.5:
+            self._direction = -1
+        elif self._opacity <= 0.15:
+            self._direction = 1
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), QColor(200, 200, 200, int(255 * self._opacity)))
+        painter.end()
