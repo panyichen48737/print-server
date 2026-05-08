@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QTimer
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QShortcut, QKeySequence
 from PySide6.QtWidgets import (
     QApplication, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
     QMainWindow, QPushButton, QStackedWidget, QSystemTrayIcon, QVBoxLayout, QWidget, QMenu,
@@ -95,6 +95,7 @@ class MainWindow(QMainWindow):
 
         # Select first page
         self.nav.setCurrentRow(0)
+        self._setup_shortcuts()
 
     def _build_status_bar(self) -> QWidget:
         bar = QWidget()
@@ -178,6 +179,28 @@ class MainWindow(QMainWindow):
         else:
             self.status_dot.setStyleSheet("color: gray;")
             self.status_text.setText("未初始化")
+
+    def _setup_shortcuts(self):
+        for i in range(7):
+            sc = QShortcut(QKeySequence(f"Ctrl+{i+1}"), self)
+            sc.activated.connect(lambda idx=i: self.nav.setCurrentRow(idx))
+
+        QShortcut(QKeySequence("Ctrl+P"), self).activated.connect(lambda: self.nav.setCurrentRow(1))
+        QShortcut(QKeySequence("Ctrl+F"), self).activated.connect(self._focus_search)
+        QShortcut(QKeySequence("F5"), self).activated.connect(self._refresh_current)
+
+    def _focus_search(self):
+        w = self.stack.currentWidget()
+        for attr in ["search_input", "search", "filter_input"]:
+            field = getattr(w, attr, None)
+            if field and hasattr(field, "setFocus"):
+                field.setFocus()
+                return
+
+    def _refresh_current(self):
+        w = self.stack.currentWidget()
+        if hasattr(w, "_refresh"):
+            w._refresh()
 
     def _on_nav_changed(self, index: int):
         self.stack.setCurrentIndex(index)
