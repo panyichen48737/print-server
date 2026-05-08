@@ -93,6 +93,9 @@ def build(version: str):
         # 内嵌资源（嵌入 exe，运行时由 MEIPASS 访问，通过 app/resources.py 按需释放）
         '--add-data',
         f'{res_dir}{os.pathsep}resources',
+        # PySide6 GUI 资源
+        '--add-data',
+        f'{PROJECT_ROOT / "gui" / "resources"}{os.pathsep}gui/resources',
     ]
 
     args += [
@@ -164,9 +167,19 @@ def build(version: str):
         'gui.pages',
         '--hidden-import',
         'gui.components',
-        '--collect-all',
-        'flet',
+        # 新增依赖
+        '--hidden-import',
+        'aiosqlite',
+        '--hidden-import',
+        'msgspec',
+        # PySide6
+        '--hidden-import',
+        'PySide6.QtCharts',
+        '--hidden-import',
+        'PySide6.QtNetwork',
         # 排除不需要的库（减小体积）
+        '--exclude-module',
+        'flet',
         '--exclude-module',
         'tkinter',
         '--exclude-module',
