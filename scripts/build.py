@@ -10,10 +10,12 @@
 """
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -50,6 +52,55 @@ def clean():
     print('[clean] 已清理构建产物')
 
 
+def _run(cmd, **kwargs):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=5, **kwargs)
+    except Exception:
+        return None
+
+
+def _generate_version_manifest(version: str, res_dir: Path, env: dict):
+    manifest = {
+        'app_version': version,
+        'build_date': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'build_tools': {},
+        'pip_packages': {},
+    }
+
+    r = _run([sys.executable, '--version'])
+    if r and r.returncode == 0:
+        manifest['build_tools']['python'] = r.stdout.strip()
+
+    try:
+        from importlib.metadata import version as pkg_ver
+        manifest['build_tools']['pyinstaller'] = pkg_ver('pyinstaller')
+    except Exception:
+        pass
+
+    r = _run(['uv', '--version'])
+    if r and r.returncode == 0:
+        manifest['build_tools']['uv'] = r.stdout.strip()
+
+    r = _run(['uv', 'pip', 'list', '--format=json'], env=env)
+    if r and r.returncode == 0:
+        try:
+            for pkg in json.loads(r.stdout):
+                manifest['pip_packages'][pkg['name']] = pkg['version']
+        except Exception:
+            pass
+
+    r = _run(['git', 'rev-parse', '--short', 'HEAD'], cwd=PROJECT_ROOT)
+    if r and r.returncode == 0:
+        manifest['commit_sha'] = r.stdout.strip()
+
+    scalar_js = PROJECT_ROOT / 'app' / 'static' / 'scalar.standalone.min.js'
+    if scalar_js.exists():
+        manifest['scalar_js_size_kb'] = round(scalar_js.stat().st_size / 1024)
+
+    (res_dir / 'version_info.json').write_text(json.dumps(manifest, indent=2))
+    print(f'[build] 版本清单已生成 ({len(manifest["pip_packages"])} 个包)')
+
+
 def build(version: str):
     print(f'[build] 版本: {version}')
 
@@ -62,6 +113,8 @@ def build(version: str):
     res_dir.mkdir(parents=True, exist_ok=True)
     # version.txt — 运行时显示版本号
     (res_dir / 'version.txt').write_text(f'{version}\n')
+    # version_info.json — 构建环境版本清单
+    _generate_version_manifest(version, res_dir, env)
     # CHANGELOG.md — 管理后台/用户可查阅更新历史
     changelog = PROJECT_ROOT / 'CHANGELOG.md'
     if changelog.exists():
