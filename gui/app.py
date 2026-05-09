@@ -17,13 +17,14 @@ from gui.event_bridge import EventBridge
 
 
 class MainWindow(QMainWindow):
-    NAV_ITEMS = ["仪表盘", "快速打印", "任务管理", "实时日志", "设置", "关于"]
+    NAV_ITEMS = ["仪表盘", "快速打印", "文档扫描", "任务管理", "实时日志", "设置", "关于"]
 
     def __init__(self, app, config, server_handle: ServerHandle):
         super().__init__()
         self._app = app
         self._config = config
         self._server = server_handle
+        self._theme_mode = "light"
         self._event_bus = app.state.event_bus
 
         # EventBridge — thread-safe EventBus to Qt signal bridge
@@ -57,6 +58,7 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         from gui.pages.dashboard import DashboardPage
         from gui.pages.quick_print import QuickPrintPage
+        from gui.pages.scan import ScanPage
         from gui.pages.job_manager import JobManagerPage
         from gui.pages.logs import LogsPage
         from gui.pages.settings import SettingsPage
@@ -64,6 +66,7 @@ class MainWindow(QMainWindow):
 
         self.stack.addWidget(DashboardPage(self))
         self.stack.addWidget(QuickPrintPage(self))
+        self.stack.addWidget(ScanPage(self))
         self.stack.addWidget(JobManagerPage(self))
         self.stack.addWidget(LogsPage(self))
         self.stack.addWidget(SettingsPage(self))
@@ -130,9 +133,11 @@ class MainWindow(QMainWindow):
         return bar
 
     def _setup_tray(self):
-        icon_path = str(Path(__file__).parent / "resources" / "icon.png")
+        icon_path = str(Path(__file__).parent / "resources" / "icon_256.png")
+        self._app_icon = QIcon(icon_path) if Path(icon_path).exists() else QIcon()
+        self.setWindowIcon(self._app_icon)
         if Path(icon_path).exists():
-            self.tray = QSystemTrayIcon(QIcon(icon_path), self)
+            self.tray = QSystemTrayIcon(self._app_icon, self)
         else:
             self.tray = QSystemTrayIcon(self)
         self.tray.setToolTip("iOS 云打印服务器")
@@ -144,6 +149,9 @@ class MainWindow(QMainWindow):
         start_action.triggered.connect(self._on_start)
         stop_action = menu.addAction("停止服务器")
         stop_action.triggered.connect(self._on_stop)
+        menu.addSeparator()
+        self.theme_action = menu.addAction("深色主题")
+        self.theme_action.triggered.connect(self._toggle_theme)
         menu.addSeparator()
         quit_action = menu.addAction("退出")
         quit_action.triggered.connect(self._on_quit)
@@ -174,6 +182,14 @@ class MainWindow(QMainWindow):
             self._server.stop()
             self._server.start(self._app, self._config)
 
+    def _toggle_theme(self):
+        from gui.theme import ThemeEngine
+        theme = ThemeEngine.instance()
+        new_mode = "dark" if self._theme_mode == "light" else "light"
+        theme.apply(new_mode, QApplication.instance())
+        self._theme_mode = new_mode
+        self.theme_action.setText("浅色主题" if new_mode == "dark" else "深色主题")
+
     def _refresh_status(self):
         if self._server and self._server.is_running:
             self.status_dot.setStyleSheet("background-color: #6B8F6B; border-radius: 4px;")
@@ -196,11 +212,11 @@ class MainWindow(QMainWindow):
             self.status_text.setText("未初始化")
 
     def _setup_shortcuts(self):
-        for i in range(6):
+        for i in range(7):
             sc = QShortcut(QKeySequence(f"Ctrl+{i+1}"), self)
             sc.activated.connect(lambda idx=i: self.sidebar.setCurrentRow(idx))
 
-        QShortcut(QKeySequence("Ctrl+P"), self).activated.connect(lambda: self.sidebar.setCurrentRow(1))
+        QShortcut(QKeySequence("Ctrl+P"), self).activated.connect(lambda: self.sidebar.setCurrentRow(2))
         QShortcut(QKeySequence("Ctrl+F"), self).activated.connect(self._focus_search)
         QShortcut(QKeySequence("Ctrl+R"), self).activated.connect(self._refresh_current)
         QShortcut(QKeySequence("F5"), self).activated.connect(self._refresh_current)
@@ -229,6 +245,24 @@ class MainWindow(QMainWindow):
                 child.deleteLater()
 
     def _on_nav_changed(self, index: int):
+        current = self.stack.currentWidget()
+        if current and getattr(current, "_has_unsaved_content", lambda: False)():
+            from PySide6.QtWidgets import QMessageBox
+            reply = QMessageBox.question(
+                self, "未保存更改",
+                "当前页面有未提交的文件，离开后数据将清空，是否离开？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                # Block navigation — revert sidebar selection
+                self.sidebar.blockSignals(True)
+                self.sidebar.setCurrentRow(self.stack.currentIndex())
+                self.sidebar.blockSignals(False)
+                return
+            # Clear current page
+            if hasattr(current, "_clear_all"):
+                current._clear_all()
+
         self.stack.setCurrentIndex(index)
         w = self.stack.currentWidget()
         if w:
@@ -272,4 +306,4 @@ def run_gui(app, config, server_handle: ServerHandle):
     window = MainWindow(app, config, server_handle)
     window.show()
     qapp.aboutToQuit.connect(window._bridge.stop)
-    sys.exit(qapp.exec())
+    qapp.exec()

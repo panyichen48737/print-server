@@ -10,6 +10,7 @@ class StatefulButton(QPushButton):
 
     def __init__(self, text: str = "", parent=None):
         super().__init__(text, parent)
+        self.setObjectName("primary")
         self._original_text = text
         self._state = "default"
         self._timer = QTimer(self)
@@ -24,17 +25,26 @@ class StatefulButton(QPushButton):
     def set_success(self, duration_ms: int = 1500):
         self._state = "success"
         self.setText("✓ " + self._original_text)
-        self.setStyleSheet("background-color: #16A34A; color: white;")
+        self.setStyleSheet("background-color: #6B8F6B; color: white; border: none;")
         self._timer.start(duration_ms)
 
     def set_error(self, duration_ms: int = 2000):
         self._state = "error"
         self.setText("✗ 失败")
-        self.setStyleSheet("background-color: #DC2626; color: white;")
+        self.setStyleSheet("background-color: #C53A3A; color: white; border: none;")
         self._timer.start(duration_ms)
+
+    def reset(self):
+        """Public reset — return to default state."""
+        self._reset()
 
     def _reset(self):
         self._state = "default"
         self.setText(self._original_text)
         self.setStyleSheet("")
         self.setEnabled(True)
+        # 恢复 QSS 主题样式
+        style = self.style()
+        if style:
+            style.unpolish(self)
+            style.polish(self)
