@@ -74,7 +74,7 @@ librt==0.9.0
     # via mypy
 loguru==0.7.3
     # via ios-print-server (pyproject.toml)
-markdown-it-py==4.0.0
+markdown-it-py==4.2.0
     # via rich
 markupsafe==3.0.3
     # via jinja2
