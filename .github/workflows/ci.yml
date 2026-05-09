@@ -10,8 +10,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install uv
@@ -29,8 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install uv
@@ -40,22 +40,22 @@ jobs:
         run: |
           # Compare ignoring the leading header comment (uv embeds the -o path into it)
           uv pip compile pyproject.toml -o /tmp/requirements.txt --quiet --python-platform windows
-          uv pip compile pyproject.toml --extra dev -o /tmp/requirements-dev.txt --quiet --python-platform windows
+          uv pip compile pyproject.toml --group dev -o /tmp/requirements-dev.txt --quiet --python-platform windows
           diff <(grep -v '^#' requirements.txt) <(grep -v '^#' /tmp/requirements.txt) || { echo '::error::requirements.txt is stale — run: uv pip compile pyproject.toml -o requirements.txt'; exit 1; }
-          diff <(grep -v '^#' requirements-dev.txt) <(grep -v '^#' /tmp/requirements-dev.txt) || { echo '::error::requirements-dev.txt is stale — run: uv pip compile pyproject.toml --extra dev -o requirements-dev.txt'; exit 1; }
+          diff <(grep -v '^#' requirements-dev.txt) <(grep -v '^#' /tmp/requirements-dev.txt) || { echo '::error::requirements-dev.txt is stale — run: uv pip compile pyproject.toml --group dev -o requirements-dev.txt'; exit 1; }
 
   test:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install uv
         run: pip install uv
       - name: Cache Python packages
         id: cache-pip
-        uses: actions/cache@v5
+        uses: actions/cache@v4
         with:
           path: ${{ env.pythonLocation }}
           key: uv-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('requirements-dev.txt') }}
@@ -65,12 +65,12 @@ jobs:
           uv pip install --system -r requirements-dev.txt
           uv pip install --system -e . --no-deps
       - name: Run tests with coverage
-        run: pytest tests/ -v --tb=short -m "not integration" --cov=app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=55
+        run: pytest tests/ -v --tb=short -m "not integration" --cov=app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=70
         env:
           PYTHONIOENCODING: utf-8
           PYTHONUTF8: '1'
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: coverage
@@ -81,17 +81,17 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 1
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install uv
         run: pip install uv
       - name: Restore Python packages cache
         id: cache-pip
-        uses: actions/cache@v5
+        uses: actions/cache@v4
         with:
           path: ${{ env.pythonLocation }}
           key: uv-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('requirements-dev.txt') }}
@@ -101,7 +101,7 @@ jobs:
           uv pip install --system -r requirements-dev.txt
           uv pip install --system -e . --no-deps
       - name: Cache PyInstaller build
-        uses: actions/cache@v5
+        uses: actions/cache@v4
         with:
           path: |
             build/
@@ -117,7 +117,7 @@ jobs:
       - name: Generate SHA256 checksum
         run: certutil -hashfile dist\iOSPrintServer.exe SHA256 | findstr /v "SHA256" > dist\iOSPrintServer.exe.sha256
       - name: Archive build artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: iOSPrintServer-${{ github.ref_name }}
           path: |
@@ -130,14 +130,14 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v5
       - name: Download build artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           name: iOSPrintServer-${{ github.ref_name }}
           path: .
       - name: Create Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2
         with:
           name: iOS 云打印服务器 ${{ github.ref_name }}
           generate_release_notes: true
