@@ -14,10 +14,10 @@ from app._paths import persistent_dir
 
 
 LOG_COLORS = {
-    "ERROR": QColor("#DC2626"),
-    "WARNING": QColor("#F59E0B"),
-    "INFO": QColor("#2563EB"),
-    "DEBUG": QColor("#6B7280"),
+    "ERROR": QColor("#C53A3A"),
+    "WARNING": QColor("#B8956A"),
+    "INFO": QColor("#8B7355"),
+    "DEBUG": QColor("#8A8178"),
 }
 
 
@@ -27,7 +27,9 @@ class LogsPage(QWidget):
         self._mw = main_window
         layout = QVBoxLayout(self)
 
-        layout.addWidget(QLabel("实时日志", styleSheet="font-size: 24px; font-weight: bold;"))
+        title_lbl = QLabel("实时日志")
+        title_lbl.setObjectName("pageTitle")
+        layout.addWidget(title_lbl)
 
         # Controls
         controls = QHBoxLayout()
@@ -50,7 +52,7 @@ class LogsPage(QWidget):
         # Empty state
         self.log_empty_label = QLabel("暂无日志，打印任务时将自动显示")
         self.log_empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.log_empty_label.setStyleSheet("color: #9CA3AF; font-size: 14px; padding: 40px;")
+        self.log_empty_label.setStyleSheet("color: #8A8178; font-size: 14px; padding: 40px;")
         layout.addWidget(self.log_empty_label)
 
         # Log list
@@ -62,7 +64,7 @@ class LogsPage(QWidget):
         self.pause_banner = QLabel("")
         self.pause_banner.setVisible(False)
         self.pause_banner.setStyleSheet(
-            "background-color: #DBEAFE; color: #1E40AF; padding: 4px 12px; border-radius: 4px;"
+            "background-color: #E8DFD4; color: #8B7355; padding: 4px 12px; border-radius: 6px;"
         )
         layout.addWidget(self.pause_banner)
 

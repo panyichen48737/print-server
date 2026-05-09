@@ -20,7 +20,9 @@ class QuickPrintPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
 
-        layout.addWidget(QLabel("快速打印", styleSheet="font-size: 24px; font-weight: bold;"))
+        title_lbl = QLabel("快速打印")
+        title_lbl.setObjectName("pageTitle")
+        layout.addWidget(title_lbl)
 
         # Drop zone
         self.drop_zone = DropZoneWidget(self)

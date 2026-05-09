@@ -41,13 +41,15 @@ class JobManagerPage(QWidget):
         self._mw = main_window
         layout = QVBoxLayout(self)
 
-        layout.addWidget(QLabel("任务管理", styleSheet="font-size: 24px; font-weight: bold;"))
+        title_lbl = QLabel("任务管理")
+        title_lbl.setObjectName("pageTitle")
+        layout.addWidget(title_lbl)
 
         # Queue section
         layout.addWidget(QLabel("打印队列"))
         self.queue_empty_label = QLabel("队列为空，提交打印任务后将在此显示")
         self.queue_empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.queue_empty_label.setStyleSheet("color: #9CA3AF; font-size: 14px; padding: 20px;")
+        self.queue_empty_label.setStyleSheet("color: #8A8178; font-size: 14px; padding: 20px;")
         layout.addWidget(self.queue_empty_label)
         self.queue_table = QTableView()
         self.queue_model = SimpleTableModel(["文件名", "状态", "进度", "操作"])
@@ -149,12 +151,6 @@ class JobManagerPage(QWidget):
         if app is None:
             return None
         return getattr(app.state, "job_queue", None)
-
-    def _print_engine(self):
-        app = getattr(self._mw, "_app", None)
-        if app is None:
-            return None
-        return getattr(app.state, "print_engine", None)
 
     def _batch_cancel(self):
         jq = self._job_queue()
