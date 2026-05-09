@@ -1,4 +1,4 @@
-"""Integration tests — in-process ServerHandle, test HTTP API."""
+"""Integration tests -- in-process ServerHandle, test HTTP API."""
 
 import asyncio
 
@@ -10,7 +10,7 @@ import pytest
 async def test_daemon_health():
     from app.bootstrap import bootstrap
     from app.config import Config
-    from console import ServerHandle, _server_lifespan
+    from launcher import ServerHandle, _server_lifespan
 
     config = Config()
     app, *_ = bootstrap(config, lifespan=_server_lifespan)
@@ -39,10 +39,11 @@ async def test_daemon_health():
 
 
 @pytest.mark.integration
-async def test_web_admin():
+async def test_web_api():
+    """Verify the API root returns health info."""
     from app.bootstrap import bootstrap
     from app.config import Config
-    from console import ServerHandle, _server_lifespan
+    from launcher import ServerHandle, _server_lifespan
 
     config = Config()
     app, *_ = bootstrap(config, lifespan=_server_lifespan)
@@ -54,7 +55,7 @@ async def test_web_admin():
     proto = 'https' if handle.ssl_enabled else 'http'
     try:
         async with httpx.AsyncClient(verify=False) as c:
-            r = await c.get(f'{proto}://127.0.0.1:5000/admin/', follow_redirects=True)
+            r = await c.get(f'{proto}://127.0.0.1:5000/api/health')
             assert r.status_code == 200
     finally:
         handle.stop()

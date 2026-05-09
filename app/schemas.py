@@ -108,8 +108,3 @@ class JobFilter(BaseModel):
     offset: int = Field(default=0, ge=0)
 
 
-# ── 管理后台 ──
-
-
-class AdminActionResponse(BaseModel):
-    success: bool

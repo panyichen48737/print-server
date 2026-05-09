@@ -73,6 +73,7 @@ class Config(BaseSettings):
     )
     job_timeout: int = Field(default=300, ge=30, le=3600)
     auto_retry_count: int = Field(default=0, ge=0, le=10)
+    theme_mode: str = 'system'
 
     # ── 内部状态（PrivateAttr 不会被 .model_dump() 导出） ──
     _config_path: Path = PrivateAttr()
@@ -122,6 +123,14 @@ class Config(BaseSettings):
         if v.upper() not in allowed:
             raise ConfigError(f'log_level 必须为 {allowed} 之一')
         return v
+
+    @field_validator('theme_mode')
+    @classmethod
+    def _check_theme_mode(cls, v: str) -> str:
+        allowed = ('system', 'light', 'dark')
+        if v.lower() not in allowed:
+            return 'system'
+        return v.lower()
 
     @field_validator('allowed_extensions')
     @classmethod

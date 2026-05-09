@@ -2,13 +2,13 @@
 
 import contextlib
 import datetime
-import os
 import shutil
 import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeout
+from pathlib import Path
 from typing import Any
 
 from loguru import logger
@@ -88,7 +88,7 @@ class JobExecutor:
             self._event_bus.publish('job_status', data)
 
     def _make_temp_copy(self, original_path, filename):
-        suffix = os.path.splitext(filename)[1]
+        suffix = Path(filename).suffix
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp_path = tmp.name
         shutil.copy2(original_path, tmp_path)

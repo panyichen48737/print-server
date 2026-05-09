@@ -4,6 +4,7 @@ import contextlib
 import os
 import subprocess
 import threading
+from pathlib import Path
 
 from loguru import logger
 
@@ -70,9 +71,9 @@ class PdfBackend(PrinterBackend):
         duplex = bool(print_params.get('duplex', False))
         try:
             self._track_job(job_id, printer_ip, 'ipp')
-            result = print_via_ipp(printer_ip, os.path.abspath(filepath), copies, duplex)
+            result = print_via_ipp(printer_ip, str(Path(filepath).resolve()), copies, duplex)
             if result:
-                logger.info(f'IPP 打印成功: {os.path.basename(filepath)} → {printer_ip}')
+                logger.info(f'IPP 打印成功: {Path(filepath).name} → {printer_ip}')
                 return True
         except Exception as e:
             logger.warning(f'IPP 失败 ({printer_ip}): {e}')
@@ -87,12 +88,12 @@ class PdfBackend(PrinterBackend):
                 pdf_data = f.read()
             hprinter = win32print.OpenPrinter(printer_name)
             try:
-                win32print.StartDocPrinter(hprinter, 1, (os.path.basename(filepath), None, 'RAW'))
+                win32print.StartDocPrinter(hprinter, 1, (Path(filepath).name, None, 'RAW'))
                 win32print.WritePrinter(hprinter, pdf_data)
                 win32print.EndDocPrinter(hprinter)
             finally:
                 win32print.ClosePrinter(hprinter)
-            logger.info(f'RAW 打印成功: {os.path.basename(filepath)} → {printer_name}')
+            logger.info(f'RAW 打印成功: {Path(filepath).name} → {printer_name}')
             return True
         except Exception as e:
             logger.warning(f'RAW 失败 ({printer_name}): {e}')
@@ -114,7 +115,7 @@ class PdfBackend(PrinterBackend):
                 f'--print-to-printer="{safe_printer}"',
                 '--no-margins',
                 '--no-pdf-header-footer',
-                os.path.abspath(filepath),
+                str(Path(filepath).resolve()),
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -154,7 +155,7 @@ class PdfBackend(PrinterBackend):
                 result = subprocess.run(['where', browser], capture_output=True, text=True)
                 if result.returncode == 0:
                     path = result.stdout.strip().split('\n')[0]
-                    if os.path.exists(path):
+                    if Path(path).exists():
                         self._chrome_path = path
                         return path
             except Exception:
@@ -169,7 +170,7 @@ class PdfBackend(PrinterBackend):
             os.path.expandvars(r'%LocalAppData%\Google\Chrome\Application\chrome.exe'),
         ]
         for path in candidates:
-            if os.path.exists(path):
+            if Path(path).exists():
                 self._chrome_path = path
                 return path
         return None

@@ -10,12 +10,12 @@ from unittest.mock import MagicMock
 import pytest
 
 # =============================================================================
-# /admin/api/stats — HTML 统计片段
+# /api/stats — JSON 统计端点
 # =============================================================================
 
 
 class TestStatsEndpoint:
-    """GET /admin/api/stats 返回 HTML 统计片段"""
+    """GET /api/stats 返回 JSON 统计"""
 
     @pytest.fixture(autouse=True)
     def _setup_repo(self, app_instance):
@@ -34,25 +34,24 @@ class TestStatsEndpoint:
         from fastapi.testclient import TestClient
 
         client = TestClient(app_instance)
-        resp = client.get('/admin/api/stats')
+        resp = client.get('/api/stats')
         assert resp.status_code == 200
 
-    def test_stats_is_html(self, app_instance):
+    def test_stats_is_json(self, app_instance):
         from fastapi.testclient import TestClient
 
         client = TestClient(app_instance)
-        resp = client.get('/admin/api/stats')
-        assert 'text/html' in resp.headers['content-type']
+        resp = client.get('/api/stats')
+        assert 'application/json' in resp.headers['content-type']
 
     def test_stats_contains_values(self, app_instance):
         from fastapi.testclient import TestClient
 
         client = TestClient(app_instance)
-        resp = client.get('/admin/api/stats')
-        html = resp.text
-        assert 'stat-value' in html
-        assert '排队中' in html
-        assert '今日完成' in html
+        resp = client.get('/api/stats')
+        data = resp.json()
+        assert data['queued'] == 2
+        assert data['today_completed'] == 10
 
     def test_stats_zero_values(self, app_instance):
         app_instance.state.job_repo.get_stats.return_value = {
@@ -66,7 +65,7 @@ class TestStatsEndpoint:
         from fastapi.testclient import TestClient
 
         client = TestClient(app_instance)
-        resp = client.get('/admin/api/stats')
+        resp = client.get('/api/stats')
         assert resp.status_code == 200
 
     def test_stats_without_job_repo_returns_500(self, app_instance):
@@ -74,7 +73,7 @@ class TestStatsEndpoint:
         from fastapi.testclient import TestClient
 
         client = TestClient(app_instance, raise_server_exceptions=False)
-        resp = client.get('/admin/api/stats')
+        resp = client.get('/api/stats')
         assert resp.status_code == 500
 
 
@@ -138,30 +137,29 @@ class TestSSEEndpointRegistration:
 
 
 # =============================================================================
-# /admin/api/logs — REST 日志接口
+# /api/logs — REST 日志接口
 # =============================================================================
 
 
-class TestAdminLogsEndpoint:
-    """GET /admin/api/logs"""
+class TestLogsEndpoint:
+    """GET /api/logs — uses temp dir to avoid Windows file locking"""
 
-    def _log_path(self):
-        import app._paths as p
-
-        return str(p.data_root() / 'logs' / 'print_server.log')
+    @pytest.fixture(autouse=True)
+    def _setup_temp_log(self, tmp_path, monkeypatch):
+        """Per-test: isolate log file in temp directory."""
+        log_dir = tmp_path / 'logs'
+        log_dir.mkdir(parents=True, exist_ok=True)
+        self._tmp_log = log_dir / 'print_server.log'
+        monkeypatch.setattr('app._paths.persistent_dir', lambda: tmp_path)
+        monkeypatch.setattr('app.routes.api.persistent_dir', lambda: tmp_path)
 
     def _ensure_log(self, lines):
-        import app._paths as p
-
-        log_dir = p.data_root() / 'logs'
-        log_dir.mkdir(parents=True, exist_ok=True)
-        with open(self._log_path(), 'w', encoding='utf-8') as f:
+        with open(self._tmp_log, 'w', encoding='utf-8') as f:
             f.writelines(lines)
 
     def _remove_log(self):
-        p = Path(self._log_path())
-        if p.exists():
-            p.unlink()
+        if self._tmp_log.exists():
+            self._tmp_log.unlink(missing_ok=True)
 
     def test_logs_with_lines_param(self, app_instance):
         self._ensure_log(['line1\n', 'line2\n', 'line3\n'])
@@ -169,7 +167,7 @@ class TestAdminLogsEndpoint:
             from fastapi.testclient import TestClient
 
             client = TestClient(app_instance)
-            resp = client.get('/admin/api/logs?lines=2')
+            resp = client.get('/api/logs?lines=2')
             assert resp.status_code == 200
             data = resp.json()
             assert len(data['lines']) == 2
@@ -182,7 +180,7 @@ class TestAdminLogsEndpoint:
             from fastapi.testclient import TestClient
 
             client = TestClient(app_instance)
-            resp = client.get('/admin/api/logs')
+            resp = client.get('/api/logs')
             assert resp.status_code == 200
             data = resp.json()
             assert len(data['lines']) == 3
@@ -194,6 +192,6 @@ class TestAdminLogsEndpoint:
         from fastapi.testclient import TestClient
 
         client = TestClient(app_instance)
-        resp = client.get('/admin/api/logs')
+        resp = client.get('/api/logs')
         assert resp.status_code == 200
         assert resp.json() == {'lines': []}

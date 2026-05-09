@@ -1,9 +1,9 @@
 import base64
 import hashlib
 import io
-import os
 import time
 import uuid
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -41,7 +41,7 @@ class QuarkEnhancer:
                 logger.warning('Quark API 未配置，跳过图片增强')
                 return None
 
-            ext = os.path.splitext(filepath)[1].lower()
+            ext = Path(filepath).suffix.lower()
             max_api_size = 10 * 1024 * 1024
 
             img: Image.Image = Image.open(filepath)

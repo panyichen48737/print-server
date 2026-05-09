@@ -1,4 +1,4 @@
-import json
+import msgspec
 import time
 from collections import deque
 from pathlib import Path
@@ -34,7 +34,7 @@ from app.schemas import (
 )
 from app.services.upload import handle_file_upload
 from app.utils import format_time
-from app.version import __version__
+from app.version import __build_date__, __pyinstaller_version__, __version__
 
 api_router = APIRouter()
 
@@ -86,6 +86,8 @@ async def api_version():
     return {
         'version': __version__,
         'python_version': __import__('sys').version.split()[0],
+        'build_date': __build_date__,
+        'pyinstaller': __pyinstaller_version__,
     }
 
 
@@ -255,6 +257,7 @@ async def sse_events(request: Request):
     max_duration = 3600
 
     def generate():
+        _encoder = msgspec.json.Encoder()
         try:
             while True:
                 elapsed = _time.monotonic() - start
@@ -262,7 +265,7 @@ async def sse_events(request: Request):
                     break
                 try:
                     event_type, data = q.get(timeout=30)
-                    yield f'event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n'
+                    yield f'event: {event_type}\ndata: {_encoder.encode(data).decode("utf-8")}\n\n'
                 except _queue.Empty:
                     continue
         except GeneratorExit:
@@ -271,3 +274,28 @@ async def sse_events(request: Request):
             broadcaster.unsubscribe(sub_id)
 
     return StreamingResponse(generate(), media_type='text/event-stream')
+
+
+@api_router.get('/stats')
+async def api_stats_json(request: Request):
+    """获取统计信息（JSON 格式）"""
+    stats = request.app.state.job_repo.get_stats()
+    stats['daily_counts'] = request.app.state.job_repo.get_daily_counts(7)
+    return stats
+
+
+@api_router.get('/jobs')
+async def api_jobs(
+    request: Request,
+    limit: int = 20,
+    offset: int = 0,
+    status: str | None = None,
+    search: str | None = None,
+):
+    """获取任务列表（JSON 格式）"""
+    repo = request.app.state.job_repo
+    status_param = status or None
+    search_param = search or None
+    jobs = repo.get_jobs(status=status_param, search=search_param, limit=limit, offset=offset)
+    total = repo.count_jobs(status=status_param, search=search_param)
+    return {'jobs': jobs, 'total': total}

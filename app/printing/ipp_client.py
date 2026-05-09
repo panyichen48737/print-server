@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import contextlib
 import http.client
-import os
 import re
 import struct
+from pathlib import Path
 
 from loguru import logger
 
@@ -159,7 +159,7 @@ def print_via_ipp(printer_ip: str, pdf_path: str, copies: int = 1, duplex: bool 
     Raises:
         FileNotFoundError: If pdf_path does not exist.
     """
-    if not os.path.isfile(pdf_path):
+    if not Path(pdf_path).is_file():
         raise FileNotFoundError(f'PDF file not found: {pdf_path}')
 
     with open(pdf_path, 'rb') as f:

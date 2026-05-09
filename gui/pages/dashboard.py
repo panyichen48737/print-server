@@ -1,4 +1,4 @@
-"""Dashboard page: stat cards, grouped bar chart, printer cards."""
+"""Dashboard page: stat cards, grouped bar chart."""
 from __future__ import annotations
 
 import datetime
@@ -10,14 +10,12 @@ from PySide6.QtWidgets import (
     QScrollArea, QVBoxLayout, QWidget,
 )
 
-from gui.components.printer_card import PrinterCardWidget
-
 
 class StatCard(QFrame):
     """KPI card: label, large serif value with inline change, trend footer."""
     VALUE_COLORS = {
         "accent": "#8B7355", "success": "#6B8F6B",
-        "error": "#C53A3A", "default": "#1C1917",
+        "error": "#C53A3A", "default": "#1C1917", "active": "#4A7FA5",
     }
     CHANGE_COLORS = {
         "up": "#6B8F6B", "down": "#C53A3A", "default": "#8A8178",
@@ -207,7 +205,7 @@ class DashboardPage(QWidget):
         self._stats: dict[str, StatCard] = {}
         stat_defs = [
             ("排队中", "0", "accent", "", "default", ""),
-            ("打印中", "0", "default", "", "default", ""),
+            ("打印中", "0", "active", "", "default", ""),
             ("今日完成", "0", "success", "", "default", ""),
             ("今日失败", "0", "error", "", "default", ""),
             ("成功率", "0%", "success", "", "default", ""),
@@ -272,16 +270,6 @@ class DashboardPage(QWidget):
         cs_lo.addSpacing(28)
         lo.addWidget(self.chart_section)
 
-        # ===== Printer Section =====
-        printer_heading = QLabel("打印机状态")
-        printer_heading.setObjectName("sectionHeading")
-        lo.addWidget(printer_heading)
-        lo.addSpacing(14)
-
-        self.printer_grid = QGridLayout()
-        self.printer_grid.setSpacing(16)
-        lo.addLayout(self.printer_grid)
-
         lo.addStretch()
         scroll.setWidget(container)
         main_layout.addWidget(scroll, 1)
@@ -333,26 +321,6 @@ class DashboardPage(QWidget):
             label = weekday_names[d.weekday()]
             data.append((label, count, 0))
         self.bar_chart.set_data(data)
-
-        self._populate_printers()
-
-    def _populate_printers(self):
-        monitor = getattr(self._mw._app.state, "printer_monitor", None)
-        if monitor is None:
-            return
-        for i in reversed(range(self.printer_grid.count())):
-            item = self.printer_grid.itemAt(i)
-            w = item.widget()
-            if w is not None:
-                w.deleteLater()
-            self.printer_grid.removeItem(item)
-
-        raw = monitor.get_all_statuses()
-        for idx, (name, info) in enumerate(raw.items()):
-            overall = info.get("overall", "ready")
-            port = info.get("port", "")
-            card = PrinterCardWidget(name, overall, port=port, compact=True)
-            self.printer_grid.addWidget(card, idx // 2, idx % 2)
 
     def show_loading(self):
         self.error_banner.setVisible(False)

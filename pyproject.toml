@@ -30,7 +30,7 @@ dependencies = [
 Homepage = "https://github.com/panyichen48737/print-server"
 
 [project.scripts]
-ios-print-server = "console:main"
+ios-print-server = "launcher:main"
 
 [dependency-groups]
 dev = [
@@ -47,7 +47,7 @@ include = [
     "app/**/*.css",
     "app/**/*.js",
     "gui/**/*.py",
-    "console/**/*.py",
+    "launcher/**/*.py",
 ]
 
 [tool.pytest.ini_options]
@@ -69,7 +69,6 @@ ignore = ["E501", "RUF002", "RUF001", "RUF003", "N818", "B008"]
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ARG", "F841", "RUF059", "F401", "SIM105", "SIM117", "B904", "N803", "PERF203", "PERF401"]
 "gui/*" = ["ARG002", "PERF401"]
-"console/conflicts.py" = ["PERF401"]
 "app/printing/backends/*" = ["PERF203"]
 "app/services/sse_broadcaster.py" = ["PERF203"]
 
@@ -81,4 +80,4 @@ python_version = "3.10"
 warn_unused_ignores = false
 strict_optional = true
 ignore_missing_imports = true
-files = ["app/", "console/"]
+files = ["app/", "launcher/"]

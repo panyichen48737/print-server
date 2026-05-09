@@ -9,7 +9,7 @@ class SidebarWidget(QFrame):
     """Navigation sidebar with section groups and status footer."""
     currentRowChanged = Signal(int)
 
-    NAV_ITEMS = ["仪表盘", "快速打印", "任务管理", "实时日志", "设置", "关于"]
+    NAV_ITEMS = ["仪表盘", "快速打印", "文档扫描", "任务管理", "实时日志", "设置", "关于"]
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -27,12 +27,9 @@ class SidebarWidget(QFrame):
         bl = QVBoxLayout(brand)
         bl.setContentsMargins(16, 20, 16, 20)
         bl.setSpacing(0)
-        title = QLabel("白瓷")
+        title = QLabel("Print Server")
         title.setObjectName("brandTitle")
-        sub = QLabel("Print Server")
-        sub.setObjectName("brandSub")
         bl.addWidget(title)
-        bl.addWidget(sub)
         layout.addWidget(brand)
 
         # Section: 概览
@@ -42,13 +39,14 @@ class SidebarWidget(QFrame):
         # Section: 操作
         self._add_section("操作", layout)
         self._add_nav_item("快速打印", 1, layout)
-        self._add_nav_item("任务管理", 2, layout)
-        self._add_nav_item("实时日志", 3, layout)
+        self._add_nav_item("文档扫描", 2, layout)
+        self._add_nav_item("任务管理", 3, layout)
+        self._add_nav_item("实时日志", 4, layout)
 
         # Section: 管理
         self._add_section("管理", layout)
-        self._add_nav_item("设置", 4, layout)
-        self._add_nav_item("关于", 5, layout)
+        self._add_nav_item("设置", 5, layout)
+        self._add_nav_item("关于", 6, layout)
 
         layout.addStretch(1)
 
@@ -93,7 +91,6 @@ class SidebarWidget(QFrame):
 
     def _on_click(self, index: int):
         self.setCurrentRow(index)
-        self.currentRowChanged.emit(index)
 
     def setCurrentRow(self, index: int):
         self._current_row = index
@@ -101,3 +98,4 @@ class SidebarWidget(QFrame):
             btn.setProperty("active", i == index)
             btn.style().unpolish(btn)
             btn.style().polish(btn)
+        self.currentRowChanged.emit(index)

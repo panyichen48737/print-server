@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8B7355"/>
+      <stop offset="100%" stop-color="#6D5940"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#F0ECE5"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background -->
+  <rect x="32" y="32" width="448" height="448" rx="96" ry="96" fill="url(#bg)"/>
+  <!-- Paper tray (bottom) -->
+  <rect x="104" y="360" width="304" height="48" rx="8" fill="rgba(0,0,0,0.15)"/>
+  <!-- Printer body -->
+  <rect x="96" y="192" width="320" height="168" rx="16" fill="#FFFFFF" opacity="0.95"/>
+  <!-- Paper output slot -->
+  <rect x="136" y="184" width="240" height="16" rx="4" fill="rgba(0,0,0,0.08)"/>
+  <!-- Paper coming out -->
+  <rect x="176" y="144" width="160" height="48" rx="4" fill="url(#paper)" stroke="#D0C8BE" stroke-width="2"/>
+  <!-- Text lines on paper -->
+  <line x1="196" y1="160" x2="316" y2="160" stroke="#D0C8BE" stroke-width="4" stroke-linecap="round"/>
+  <line x1="196" y1="172" x2="280" y2="172" stroke="#D0C8BE" stroke-width="4" stroke-linecap="round"/>
+  <!-- Wi-Fi signal -->
+  <path d="M384 104 Q400 88 416 104" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"/>
+  <path d="M368 120 Q392 96 416 120" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"/>
+  <path d="M352 136 Q392 104 432 136" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"/>
+  <!-- Wi-Fi dot -->
+  <circle cx="416" cy="148" r="6" fill="#FFFFFF"/>
+</svg>

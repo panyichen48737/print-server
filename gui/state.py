@@ -1,4 +1,4 @@
-"""Global state shared between GUI pages and console entry point."""
+"""Global state shared between GUI pages and launcher entry point."""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
 
     from app.config import Config
-    from console._server import ServerHandle
+    from launcher._server import ServerHandle
 
 server: ServerHandle | None = None
 app: FastAPI | None = None

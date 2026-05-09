@@ -1,9 +1,9 @@
 """Office 文档 → PDF 转换（win32com），然后通过 PDF 后端打印"""
 
 import contextlib
-import os
 import threading
 from contextlib import contextmanager
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from app.exceptions import FileTypeError, PrintError
@@ -60,7 +60,7 @@ class OfficeBackend(PrinterBackend):
     def _word_to_pdf(self, filepath, pdf_path, print_params):
         word_lock = print_params.get('_word_lock')
         with self._com_context('Word.Application', word_lock, display_alerts=0) as word:
-            doc = word.Documents.Open(os.path.abspath(filepath))
+            doc = word.Documents.Open(str(Path(filepath).resolve()))
             try:
                 doc.SaveAs2(pdf_path, FileFormat=17)  # wdFormatPDF
             finally:
@@ -68,7 +68,7 @@ class OfficeBackend(PrinterBackend):
 
     def _excel_to_pdf(self, filepath, pdf_path, _print_params):
         with self._com_context('Excel.Application', self.excel_lock, display_alerts=False) as excel:
-            wb = excel.Workbooks.Open(os.path.abspath(filepath))
+            wb = excel.Workbooks.Open(str(Path(filepath).resolve()))
             try:
                 wb.ExportAsFixedFormat(0, pdf_path)  # xlTypePDF
             finally:
@@ -76,7 +76,7 @@ class OfficeBackend(PrinterBackend):
 
     def _ppt_to_pdf(self, filepath, pdf_path, _print_params):
         with self._com_context('PowerPoint.Application', self.ppt_lock) as ppt:
-            pres = ppt.Presentations.Open(os.path.abspath(filepath))
+            pres = ppt.Presentations.Open(str(Path(filepath).resolve()))
             try:
                 pres.SaveAs(pdf_path, 32)  # ppSaveAsPDF
             finally:

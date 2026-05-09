@@ -212,13 +212,10 @@ print_server/
 │   │   └── sse_broadcaster.py # 发布/订阅
 │   └── templates/            # Jinja2 模板
 ├── console/
-│   ├── __init__.py           # CLI 入口
-│   ├── tui.py                # Rich 终端界面
-│   ├── daemon_manager.py     # 进程生命周期管理
+│   ├── __init__.py           # CLI 入口 (Typer)
+│   ├── _server.py            # ServerHandle 单进程 uvicorn
 │   ├── autostart.py          # Windows 开机自启
-│   ├── conflicts.py          # 端口/进程冲突检测
-│   └── log_handler.py        # TUI 日志缓冲区
-├── console_app.py            # PyInstaller 打包入口
+│   └── __main__.py           # python -m console 入口
 ├── build.spec                # PyInstaller 配置
 ├── scripts/
 │   └── ios_scriptable.js     # iOS Scriptable 集成脚本
