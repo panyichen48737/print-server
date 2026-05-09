@@ -65,6 +65,7 @@ def _generate_version_manifest(version: str, res_dir: Path, env: dict):
         'build_date': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         'build_tools': {},
         'pip_packages': {},
+        'github': {},
     }
 
     r = _run([sys.executable, '--version'])
@@ -89,9 +90,19 @@ def _generate_version_manifest(version: str, res_dir: Path, env: dict):
         except Exception:
             pass
 
-    r = _run(['git', 'rev-parse', '--short', 'HEAD'], cwd=PROJECT_ROOT)
+    # GitHub CI metadata
+    manifest['github']['run_id'] = os.environ.get('GITHUB_RUN_ID', '')
+    manifest['github']['repo'] = os.environ.get('GITHUB_REPOSITORY', '')
+    manifest['github']['server_url'] = os.environ.get('GITHUB_SERVER_URL', 'https://github.com')
+
+    # Git commit (full SHA for links)
+    r = _run(['git', 'rev-parse', 'HEAD'], cwd=PROJECT_ROOT)
     if r and r.returncode == 0:
         manifest['commit_sha'] = r.stdout.strip()
+    else:
+        r = _run(['git', 'rev-parse', '--short', 'HEAD'], cwd=PROJECT_ROOT)
+        if r and r.returncode == 0:
+            manifest['commit_sha'] = r.stdout.strip()
 
     scalar_js = PROJECT_ROOT / 'app' / 'static' / 'scalar.standalone.min.js'
     if scalar_js.exists():

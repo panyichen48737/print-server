@@ -127,6 +127,11 @@ jobs:
             app_version       = "${{ github.ref_name }}"
             build_date        = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
             commit_sha        = "${{ github.sha }}"
+            github = @{
+              run_id      = "${{ github.run_id }}"
+              repo        = "${{ github.repository }}"
+              server_url  = "${{ github.server_url }}"
+            }
             runner_os         = "${{ runner.os }}"
             python_version    = (python --version 2>&1).ToString().Trim()
             uv_version        = (uv --version 2>&1).ToString().Trim()

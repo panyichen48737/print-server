@@ -118,21 +118,40 @@ class AboutPage(QWidget):
         grid.setHorizontalSpacing(16)
 
         row = 0
-        for label, value in [
-            ("构建日期", __build_date__),
-            ("Python", tools.get('python', '—')),
-            ("uv", tools.get('uv', '—')),
-            ("PyInstaller", __pyinstaller_version__),
-            ("Commit", manifest.get('commit_sha', '—')),
-        ]:
+
+        def add_row(label, value, link_url=None):
+            nonlocal row
             lbl = QLabel(label)
             lbl.setStyleSheet("font-size: 12px; color: #9A928A; font-weight: 500;")
-            val = QLabel(str(value))
-            val.setStyleSheet("font-size: 12px; color: #E8E5E0; font-family: Consolas, monospace;")
-            val.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            if link_url and value:
+                val = QLabel(f'<a href="{link_url}" style="color: #B8956A; font-family: Consolas, monospace; font-size: 12px; text-decoration: none;">{value}</a>')
+                val.setOpenExternalLinks(True)
+            else:
+                val = QLabel(str(value) if value else '—')
+                val.setStyleSheet("font-size: 12px; color: #E8E5E0; font-family: Consolas, monospace;")
+                val.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             grid.addWidget(lbl, row, 0, Qt.AlignmentFlag.AlignLeft)
             grid.addWidget(val, row, 1, Qt.AlignmentFlag.AlignRight)
             row += 1
+
+        add_row("构建日期", __build_date__)
+        add_row("Python", tools.get('python'))
+        add_row("uv", tools.get('uv'))
+
+        # Commit SHA as link
+        commit = manifest.get('commit_sha')
+        gh = manifest.get('github', {})
+        repo = gh.get('repo', '')
+        server = gh.get('server_url', 'https://github.com')
+        commit_url = f"{server}/{repo}/commit/{commit}" if commit and repo else None
+        add_row("Commit", commit[:10] + "…" if commit and len(commit) > 10 else commit, commit_url)
+
+        # CI Run ID as link
+        run_id = gh.get('run_id', '')
+        run_url = f"{server}/{repo}/actions/runs/{run_id}" if run_id and repo else None
+        add_row("构建编号", f"#{run_id}" if run_id else None, run_url)
+
+        add_row("PyInstaller", __pyinstaller_version__)
 
         info_layout.addLayout(grid)
 
