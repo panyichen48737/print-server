@@ -34,3 +34,4 @@ memory/
 .mcp.json
 .superpowers/
 app/static/scalar.standalone.min.js
+docs/superpowers/
