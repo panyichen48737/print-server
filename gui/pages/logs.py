@@ -1,12 +1,16 @@
 """Real-time log viewer with level filter and pause."""
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QHBoxLayout, QLabel, QLineEdit,
     QListWidget, QListWidgetItem, QPushButton, QVBoxLayout, QWidget,
 )
+
+from app._paths import persistent_dir
 
 
 LOG_COLORS = {
@@ -70,6 +74,28 @@ class LogsPage(QWidget):
         self.clear_btn.clicked.connect(self.log_list.clear)
         self.level_filter.currentTextChanged.connect(self._apply_filters)
         self.search_input.textChanged.connect(self._apply_filters)
+
+        self._load_history()
+
+    def _load_history(self):
+        log_path = Path(persistent_dir()) / "logs" / "print_server.log"
+        if not log_path.exists():
+            return
+        try:
+            with log_path.open("r", encoding="utf-8", errors="replace") as f:
+                lines = f.readlines()[-200:]
+        except OSError:
+            return
+        for line in lines:
+            line = line.rstrip("\n")
+            if not line:
+                continue
+            level = "INFO"
+            for lv in ("ERROR", "WARNING", "INFO", "DEBUG"):
+                if lv in line:
+                    level = lv
+                    break
+            self.on_log({"timestamp": "", "level": level, "message": line})
 
     def _toggle_pause(self):
         self._paused = not self._paused

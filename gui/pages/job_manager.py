@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, QAbstractTableModel
 from PySide6.QtWidgets import (
-    QComboBox, QHBoxLayout, QLabel, QLineEdit, QPushButton,
+    QComboBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
     QTableView, QVBoxLayout, QWidget,
 )
 
@@ -96,13 +96,38 @@ class JobManagerPage(QWidget):
 
         # Batch ops
         batch_row = QHBoxLayout()
-        batch_row.addWidget(QPushButton("批量取消"))
-        batch_row.addWidget(QPushButton("批量重试"))
+        self.batch_cancel_btn = QPushButton("批量取消")
+        self.batch_retry_btn = QPushButton("批量重试")
+        self.batch_cancel_btn.clicked.connect(self._batch_cancel)
+        self.batch_retry_btn.clicked.connect(self._batch_retry)
+        batch_row.addWidget(self.batch_cancel_btn)
+        batch_row.addWidget(self.batch_retry_btn)
         batch_row.addStretch()
         layout.addLayout(batch_row)
 
         self._page = 0
         self._page_size = 20
+
+        self.status_filter.currentTextChanged.connect(self._on_filter_changed)
+        self.search_input.textChanged.connect(self._on_filter_changed)
+
+    _STATUS_MAP = {
+        "全部": None,
+        "完成": "completed",
+        "失败": "failed",
+        "已取消": "cancelled",
+    }
+
+    @property
+    def _current_status_filter(self) -> str | None:
+        return self._STATUS_MAP.get(self.status_filter.currentText())
+
+    def _on_filter_changed(self, *_):
+        self._page = 0
+        self.page_label.setText(f"第 {self._page + 1} 页")
+        has_filter = self._current_status_filter is not None or bool(self.search_input.text().strip())
+        self.clear_filter_btn.setVisible(has_filter)
+        self._refresh()
 
     def _clear_filter(self):
         self.status_filter.setCurrentIndex(0)
@@ -112,14 +137,141 @@ class JobManagerPage(QWidget):
         if self._page > 0:
             self._page -= 1
             self.page_label.setText(f"第 {self._page + 1} 页")
+            self._refresh()
 
     def _next_page(self):
         self._page += 1
         self.page_label.setText(f"第 {self._page + 1} 页")
+        self._refresh()
+
+    def _job_queue(self):
+        app = getattr(self._mw, "_app", None)
+        if app is None:
+            return None
+        return getattr(app.state, "job_queue", None)
+
+    def _print_engine(self):
+        app = getattr(self._mw, "_app", None)
+        if app is None:
+            return None
+        return getattr(app.state, "print_engine", None)
+
+    def _batch_cancel(self):
+        jq = self._job_queue()
+        if jq is None:
+            QMessageBox.warning(self, "批量取消", "服务尚未就绪")
+            return
+        reply = QMessageBox.question(
+            self, "批量取消",
+            "确定要取消所有排队中的任务吗？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self.batch_cancel_btn.setEnabled(False)
+        try:
+            count = jq.cancel_all_queued()
+        except Exception as e:
+            QMessageBox.critical(self, "批量取消", f"操作失败: {e}")
+            return
+        finally:
+            self.batch_cancel_btn.setEnabled(True)
+        QMessageBox.information(self, "批量取消", f"已取消 {count} 个排队任务")
+        self._refresh()
+
+    def _batch_retry(self):
+        jq = self._job_queue()
+        repo = self._job_repo()
+        if jq is None or repo is None:
+            QMessageBox.warning(self, "批量重试", "服务尚未就绪")
+            return
+        search = self.search_input.text().strip() or None
+        failed = repo.get_jobs(
+            status="failed",
+            search=search,
+            limit=self._page_size,
+            offset=self._page * self._page_size,
+        )
+        if not failed:
+            QMessageBox.information(self, "批量重试", "当前页面没有失败的任务")
+            return
+        reply = QMessageBox.question(
+            self, "批量重试",
+            f"将重试当前页面 {len(failed)} 个失败任务，是否继续？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self.batch_retry_btn.setEnabled(False)
+        ok, fail = 0, 0
+        try:
+            for j in failed:
+                new_id, err = jq.retry_job(str(j.get("id", "")))
+                if new_id:
+                    ok += 1
+                else:
+                    fail += 1
+        finally:
+            self.batch_retry_btn.setEnabled(True)
+        QMessageBox.information(
+            self, "批量重试",
+            f"成功 {ok} 个，失败 {fail} 个",
+        )
+        self._refresh()
+
+    def _job_repo(self):
+        app = getattr(self._mw, "_app", None)
+        if app is None:
+            return None
+        return getattr(app.state, "job_repo", None)
+
+    def _refresh(self):
+        repo = self._job_repo()
+        if repo is None:
+            return
+
+        queued = repo.get_jobs_by_status("queued")
+        printing = repo.get_jobs_by_status("printing")
+        active = list(printing) + list(queued)
+        queue_rows = [
+            [
+                str(j.get("filename", "")),
+                str(j.get("status", "")),
+                "-",
+                "取消",
+            ]
+            for j in active
+        ]
+        self.queue_model.set_data(queue_rows)
+        has_active = bool(queue_rows)
+        self.queue_table.setVisible(has_active)
+        self.queue_empty_label.setVisible(not has_active)
+
+        search = self.search_input.text().strip() or None
+        history = repo.get_jobs(
+            status=self._current_status_filter,
+            search=search,
+            limit=self._page_size,
+            offset=self._page * self._page_size,
+        )
+        history_rows = [
+            [
+                str(j.get("id", "")),
+                str(j.get("filename", "")),
+                str(j.get("file_type", "")),
+                str(j.get("status", "")),
+                str(j.get("created_at", "") or ""),
+                str(j.get("completed_at", "") or ""),
+                "重试",
+            ]
+            for j in history
+        ]
+        self.history_model.set_data(history_rows)
 
     def on_job_status(self, data: dict):
-        # Stub — will refresh table data when connected
-        pass
+        self._refresh()
 
     def on_log(self, data: dict):
         # Stub

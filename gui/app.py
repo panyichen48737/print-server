@@ -112,19 +112,15 @@ class MainWindow(QMainWindow):
         self.start_btn = QPushButton("启动")
         self.stop_btn = QPushButton("停止")
         self.restart_btn = QPushButton("重启")
-        self.web_btn = QPushButton("管理后台")
-        # Status bar controls styled via QSS #statusBar
         self.start_btn.clicked.connect(self._on_start)
         self.stop_btn.clicked.connect(self._on_stop)
         self.restart_btn.clicked.connect(self._on_restart)
-        self.web_btn.clicked.connect(self._on_open_web)
         layout.addWidget(self.status_dot)
         layout.addWidget(self.status_text)
         layout.addStretch()
         layout.addWidget(self.start_btn)
         layout.addWidget(self.stop_btn)
         layout.addWidget(self.restart_btn)
-        layout.addWidget(self.web_btn)
         return bar
 
     def _setup_tray(self):
@@ -172,11 +168,6 @@ class MainWindow(QMainWindow):
             self._server.stop()
             self._server.start(self._app, self._config)
 
-    def _on_open_web(self):
-        import webbrowser
-        port = self._server.port if self._server else 5000
-        webbrowser.open(f"http://127.0.0.1:{port}/admin")
-
     def _refresh_status(self):
         if self._server and self._server.is_running:
             self.status_dot.setStyleSheet("color: green;")
@@ -199,7 +190,9 @@ class MainWindow(QMainWindow):
 
         QShortcut(QKeySequence("Ctrl+P"), self).activated.connect(lambda: self.nav.setCurrentRow(1))
         QShortcut(QKeySequence("Ctrl+F"), self).activated.connect(self._focus_search)
+        QShortcut(QKeySequence("Ctrl+R"), self).activated.connect(self._refresh_current)
         QShortcut(QKeySequence("F5"), self).activated.connect(self._refresh_current)
+        QShortcut(QKeySequence("Escape"), self).activated.connect(self._dismiss_popups)
 
     def _focus_search(self):
         w = self.stack.currentWidget()
@@ -207,12 +200,21 @@ class MainWindow(QMainWindow):
             field = getattr(w, attr, None)
             if field and hasattr(field, "setFocus"):
                 field.setFocus()
+                if hasattr(field, "selectAll"):
+                    field.selectAll()
                 return
 
     def _refresh_current(self):
         w = self.stack.currentWidget()
         if hasattr(w, "_refresh"):
             w._refresh()
+
+    def _dismiss_popups(self):
+        from gui.components.notification import NotificationWidget
+        for child in self.findChildren(NotificationWidget):
+            if child.isVisible():
+                child.hide()
+                child.deleteLater()
 
     def _on_nav_changed(self, index: int):
         self.stack.setCurrentIndex(index)

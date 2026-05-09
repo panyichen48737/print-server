@@ -53,16 +53,36 @@ class PrinterManagerPage(QWidget):
 
         layout.addStretch()
 
+        QTimer.singleShot(500, self._refresh_printers)
+
     def _refresh_printers(self):
         self.loading_label.setVisible(True)
         self.error_label.setVisible(False)
+        self.empty_label.setVisible(False)
         self.refresh_btn.setEnabled(False)
-        # Stub — connected in Task 13
-        QTimer.singleShot(500, self._refresh_complete)
+        try:
+            for i in reversed(range(self.card_grid.count())):
+                item = self.card_grid.itemAt(i)
+                w = item.widget()
+                if w is not None:
+                    w.deleteLater()
+                self.card_grid.removeItem(item)
 
-    def _refresh_complete(self):
-        self.loading_label.setVisible(False)
-        self.refresh_btn.setEnabled(True)
+            printers = self._mw._app.state.printer_monitor.get_printers()
+
+            if not printers:
+                self.empty_label.setVisible(True)
+            else:
+                cols = 2
+                for idx, info in enumerate(printers):
+                    card = PrinterCardWidget(info)
+                    self.card_grid.addWidget(card, idx // cols, idx % cols)
+        except Exception as e:
+            self.error_label.setText(f"刷新打印机失败: {e}")
+            self.error_label.setVisible(True)
+        finally:
+            self.loading_label.setVisible(False)
+            self.refresh_btn.setEnabled(True)
 
     def on_printer_status(self, data: dict):
         # Stub — will update card grid when connected

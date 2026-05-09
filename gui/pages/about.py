@@ -33,17 +33,14 @@ class AboutPage(QWidget):
         desc.setStyleSheet("font-size: 13px; color: #9CA3AF;")
         layout.addWidget(desc)
 
-        # Links
+        # GitHub link
         links = QHBoxLayout()
         links.setAlignment(Qt.AlignmentFlag.AlignCenter)
         github_btn = QPushButton("GitHub")
         github_btn.clicked.connect(
             lambda: webbrowser.open("https://github.com/panyichen48737/print-server")
         )
-        doc_btn = QPushButton("管理后台")
-        doc_btn.clicked.connect(lambda: self._open_admin())
         links.addWidget(github_btn)
-        links.addWidget(doc_btn)
         layout.addLayout(links)
 
         # Check for updates
@@ -56,10 +53,6 @@ class AboutPage(QWidget):
         layout.addWidget(self.update_label)
 
         layout.addStretch()
-
-    def _open_admin(self):
-        port = self._mw._server.port if self._mw._server else 5000
-        webbrowser.open(f"http://127.0.0.1:{port}/admin")
 
     def _check_update(self):
         self.update_label.setText("暂无更新")

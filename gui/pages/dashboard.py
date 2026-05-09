@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 from PySide6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis, QDateTimeAxis
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QDateTime
+from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget, QPushButton
 
 
@@ -94,7 +95,7 @@ class DashboardPage(QWidget):
 
         self.chart_view = QChartView(self._chart)
         self.chart_view.setFixedHeight(200)
-        self.chart_view.setRenderHint(QChartView.RenderHint.Antialiasing)
+        self.chart_view.setRenderHint(QPainter.Antialiasing)
         layout.addWidget(self.chart_view)
 
         # Printer cards + Recent jobs row
@@ -113,8 +114,41 @@ class DashboardPage(QWidget):
         self._timer.start(3000)
 
     def _refresh(self):
-        # Connected to EventBus in Task 13
-        pass
+        repo = self._mw._app.state.job_repo
+        stats = repo.get_stats()
+        total = stats.get("total", 0)
+        self._stats["排队中"].value_label.setText(str(stats.get("queued", 0)))
+        self._stats["打印中"].value_label.setText(str(stats.get("printing", 0)))
+        self._stats["今日完成"].value_label.setText(str(stats.get("today_completed", 0)))
+        self._stats["今日失败"].value_label.setText(str(stats.get("today_failed", 0)))
+        self._stats["成功率"].value_label.setText(f"{stats.get('success_rate', 0):.0f}%")
+        self._stats["总计"].value_label.setText(str(total))
+
+        if total == 0:
+            self.empty_state.setVisible(True)
+            self.chart_view.setVisible(False)
+            return
+
+        self.empty_state.setVisible(False)
+        self.chart_view.setVisible(True)
+
+        daily = repo.get_daily_counts(7)
+        self._series.clear()
+        max_y = 0
+        sorted_days = sorted(daily.items())
+        min_ts = max_ts = None
+        for date_str, count in sorted_days:
+            dt = QDateTime.fromString(date_str, "yyyy-MM-dd")
+            secs = dt.toSecsSinceEpoch()
+            self._series.append(QDateTime.fromSecsSinceEpoch(secs).toMSecsSinceEpoch(), count)
+            max_y = max(max_y, count)
+            if min_ts is None or secs < min_ts:
+                min_ts = secs
+            if max_ts is None or secs > max_ts:
+                max_ts = secs
+        if min_ts is not None and max_ts is not None:
+            self._axis_x.setRange(QDateTime.fromSecsSinceEpoch(min_ts), QDateTime.fromSecsSinceEpoch(max_ts))
+        self._axis_y.setMax(max(max_y, 1))
 
     def show_loading(self):
         self.error_banner.setVisible(False)
@@ -128,8 +162,7 @@ class DashboardPage(QWidget):
         self.error_banner.setVisible(True)
 
     def on_job_status(self, data: dict):
-        # Update stat cards based on job data
-        pass
+        self._refresh()
 
     def on_printer_status(self, data: dict):
         # Add/replace printer cards
