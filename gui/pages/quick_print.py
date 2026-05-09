@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QLabel,
-    QLineEdit, QProgressBar, QPushButton, QSpinBox, QVBoxLayout, QWidget,
+    QLineEdit, QProgressBar, QPushButton, QScrollArea, QSpinBox, QVBoxLayout, QWidget,
 )
 
 from gui.components.drop_zone import DropZoneWidget
@@ -17,7 +17,18 @@ class QuickPrintPage(QWidget):
     def __init__(self, main_window, parent=None):
         super().__init__(parent)
         self._mw = main_window
-        layout = QVBoxLayout(self)
+
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setObjectName("dashboardScroll")
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(28, 28, 32, 28)
         layout.setSpacing(12)
 
         title_lbl = QLabel("快速打印")
@@ -81,6 +92,9 @@ class QuickPrintPage(QWidget):
         layout.addWidget(self.tracking_label)
 
         layout.addStretch()
+
+        scroll.setWidget(container)
+        main_layout.addWidget(scroll, 1)
 
         self._file_path: str | None = None
         self._tracking_job_id: int | None = None

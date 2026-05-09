@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QHBoxLayout, QLabel, QLineEdit,
-    QListWidget, QListWidgetItem, QPushButton, QVBoxLayout, QWidget,
+    QListWidget, QListWidgetItem, QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
 
 from app._paths import persistent_dir
@@ -25,7 +25,18 @@ class LogsPage(QWidget):
     def __init__(self, main_window, parent=None):
         super().__init__(parent)
         self._mw = main_window
-        layout = QVBoxLayout(self)
+
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setObjectName("dashboardScroll")
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(28, 28, 32, 28)
 
         title_lbl = QLabel("实时日志")
         title_lbl.setObjectName("pageTitle")
@@ -76,6 +87,9 @@ class LogsPage(QWidget):
         self.clear_btn.clicked.connect(self.log_list.clear)
         self.level_filter.currentTextChanged.connect(self._apply_filters)
         self.search_input.textChanged.connect(self._apply_filters)
+
+        scroll.setWidget(container)
+        main_layout.addWidget(scroll, 1)
 
         self._load_history()
 

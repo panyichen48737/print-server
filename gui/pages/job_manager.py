@@ -4,7 +4,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QAbstractTableModel
 from PySide6.QtWidgets import (
     QComboBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
-    QTableView, QVBoxLayout, QWidget,
+    QScrollArea, QTableView, QVBoxLayout, QWidget,
 )
 
 
@@ -39,7 +39,18 @@ class JobManagerPage(QWidget):
     def __init__(self, main_window, parent=None):
         super().__init__(parent)
         self._mw = main_window
-        layout = QVBoxLayout(self)
+
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setObjectName("dashboardScroll")
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(28, 28, 32, 28)
 
         title_lbl = QLabel("任务管理")
         title_lbl.setObjectName("pageTitle")
@@ -106,6 +117,9 @@ class JobManagerPage(QWidget):
         batch_row.addWidget(self.batch_retry_btn)
         batch_row.addStretch()
         layout.addLayout(batch_row)
+
+        scroll.setWidget(container)
+        main_layout.addWidget(scroll, 1)
 
         self._page = 0
         self._page_size = 20

@@ -146,11 +146,6 @@ QWidget#sidebarFooter {
     margin: 0 12px;
 }
 
-QLabel#footerDot {
-    font-size: 10px;
-    color: #6B8F6B;
-}
-
 QLabel#footerText {
     font-size: 11px;
     color: #8A8178;
@@ -232,6 +227,34 @@ QLabel#chartLabel {
 }
 
 /* ---- Printer Cards ---- */
+QLabel#printName {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1C1917;
+}
+
+QFrame#printerCard[compact="false"] QLabel#printName {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1C1917;
+}
+
+QLabel#printPort {
+    font-size: 10px;
+    color: #8A8178;
+}
+
+QFrame#printerCard[compact="false"] QLabel#printPort {
+    font-size: 11px;
+    color: #8A8178;
+}
+
+QLabel#printDefaultBadge {
+    font-size: 11px;
+    color: #8B7355;
+    font-weight: 600;
+}
+
 QFrame#printerCard {
     background-color: #FFFFFF;
     border: none;

@@ -20,8 +20,10 @@ class SettingsPage(QWidget):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setObjectName("dashboardScroll")
         container = QWidget()
         layout = QVBoxLayout(container)
+        layout.setContentsMargins(28, 28, 32, 28)
 
         title_lbl = QLabel("设置")
         title_lbl.setObjectName("pageTitle")

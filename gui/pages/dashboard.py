@@ -203,7 +203,7 @@ class DashboardPage(QWidget):
 
         # ===== KPI Grid (2 rows × 3 cols) =====
         kpi_grid = QGridLayout()
-        kpi_grid.setSpacing(16)
+        kpi_grid.setSpacing(18)
         self._stats: dict[str, StatCard] = {}
         stat_defs = [
             ("排队中", "0", "accent", "", "default", ""),
@@ -279,7 +279,7 @@ class DashboardPage(QWidget):
         lo.addSpacing(14)
 
         self.printer_grid = QGridLayout()
-        self.printer_grid.setSpacing(14)
+        self.printer_grid.setSpacing(16)
         lo.addLayout(self.printer_grid)
 
         lo.addStretch()

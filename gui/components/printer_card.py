@@ -49,11 +49,11 @@ class PrinterCardWidget(QFrame):
         il.setContentsMargins(0, 0, 0, 0)
         il.setSpacing(1)
         nl = QLabel(name)
-        nl.setStyleSheet("font-size: 13px; font-weight: 600; color: #1C1917;")
+        nl.setObjectName("printName")
         il.addWidget(nl)
         if port:
             pl = QLabel(port)
-            pl.setStyleSheet("font-size: 10px; color: #8A8178;")
+            pl.setObjectName("printPort")
             il.addWidget(pl)
 
         lo.addWidget(icon)
@@ -84,7 +84,7 @@ class PrinterCardWidget(QFrame):
         icon = QLabel("🖨")
         icon.setStyleSheet("font-size: 20px;")
         nl = QLabel(name)
-        nl.setStyleSheet("font-size: 14px; font-weight: 600; color: #1C1917;")
+        nl.setObjectName("printName")
         top.addWidget(icon)
         top.addWidget(nl)
         top.addStretch()
@@ -92,7 +92,7 @@ class PrinterCardWidget(QFrame):
 
         if port:
             pl = QLabel(port)
-            pl.setStyleSheet("font-size: 11px; color: #8A8178;")
+            pl.setObjectName("printPort")
             lo.addWidget(pl)
 
         # Status
@@ -111,7 +111,7 @@ class PrinterCardWidget(QFrame):
         if is_default:
             sl.addStretch()
             dl = QLabel("★ 默认")
-            dl.setStyleSheet("font-size: 11px; color: #8B7355; font-weight: 600;")
+            dl.setObjectName("printDefaultBadge")
             sl.addWidget(dl)
 
         lo.addWidget(sw)

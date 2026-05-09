@@ -4,7 +4,7 @@ from __future__ import annotations
 import webbrowser
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
 from app.version import __build_date__, __pyinstaller_version__, __version__
 
@@ -13,7 +13,18 @@ class AboutPage(QWidget):
     def __init__(self, main_window, parent=None):
         super().__init__(parent)
         self._mw = main_window
-        layout = QVBoxLayout(self)
+
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setObjectName("dashboardScroll")
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(28, 28, 32, 28)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setSpacing(12)
 
@@ -65,6 +76,9 @@ class AboutPage(QWidget):
         layout.addWidget(self.update_label)
 
         layout.addStretch()
+
+        scroll.setWidget(container)
+        main_layout.addWidget(scroll, 1)
 
     def _check_update(self):
         self.update_label.setText("暂无更新")
