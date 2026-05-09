@@ -120,6 +120,28 @@ jobs:
           PYTHONIOENCODING: utf-8
       - name: Generate SHA256 checksum
         run: certutil -hashfile dist\iOSPrintServer.exe SHA256 | findstr /v "SHA256" > dist\iOSPrintServer.exe.sha256
+      - name: Generate build manifest
+        shell: pwsh
+        run: |
+          $info = @{
+            app_version       = "${{ github.ref_name }}"
+            build_date        = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
+            commit_sha        = "${{ github.sha }}"
+            runner_os         = "${{ runner.os }}"
+            python_version    = (python --version 2>&1).ToString().Trim()
+            uv_version        = (uv --version 2>&1).ToString().Trim()
+            pyinstaller_ver   = (python -c "from importlib.metadata import version; print(version('pyinstaller'))" 2>&1).ToString().Trim()
+            pip_packages      = (uv pip list --format=json 2>&1 | ConvertFrom-Json | ForEach-Object { "$($_.name)==$($_.version)" }) -join "; "
+            scalar_js_size_kb = [math]::Round((Get-Item "app/static/scalar.standalone.min.js" -ErrorAction SilentlyContinue).Length / 1024, 0)
+            actions_checkout  = "v6"
+            actions_setup_python = "v6"
+            astral_setup_uv   = "v8"
+            actions_cache     = "v5"
+            actions_upload_artifact = "v7"
+            actions_download_artifact = "v8"
+            softprops_gh_release = "v3"
+          }
+          $info | ConvertTo-Json | Out-File -Encoding utf8 dist/version_info.json
       - name: Archive build artifact
         uses: actions/upload-artifact@v7
         with:
@@ -127,6 +149,7 @@ jobs:
           path: |
             dist/iOSPrintServer.exe
             dist/iOSPrintServer.exe.sha256
+            dist/version_info.json
 
   release:
     needs: build
@@ -148,3 +171,4 @@ jobs:
           files: |
             iOSPrintServer.exe
             iOSPrintServer.exe.sha256
+            version_info.json
