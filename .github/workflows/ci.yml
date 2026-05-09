@@ -1,6 +1,20 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  push:
+    paths-ignore:
+      - 'docs/**'
+      - 'design_demos/**'
+      - 'launcher/**'
+      - '*.md'
+      - '.gitignore'
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - 'design_demos/**'
+      - 'launcher/**'
+      - '*.md'
+      - '.gitignore'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,8 +28,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Install uv
-        run: pip install uv
+      - uses: astral-sh/setup-uv@v5
       - name: Install dependencies
         run: uv pip install --system ruff mypy
       - name: ruff check
@@ -24,21 +37,10 @@ jobs:
         run: ruff format --check .
       - name: mypy
         run: mypy app/ console/
-
-  lockfile:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-      - name: Install uv
-        run: pip install uv
       - name: Verify lock files are up to date
+        continue-on-error: true
         shell: bash
         run: |
-          # Compare ignoring the leading header comment (uv embeds the -o path into it)
           uv pip compile pyproject.toml -o /tmp/requirements.txt --quiet --python-platform windows
           uv pip compile pyproject.toml --group dev -o /tmp/requirements-dev.txt --quiet --python-platform windows
           diff <(grep -v '^#' requirements.txt) <(grep -v '^#' /tmp/requirements.txt) || { echo '::error::requirements.txt is stale — run: uv pip compile pyproject.toml -o requirements.txt'; exit 1; }
@@ -51,8 +53,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Install uv
-        run: pip install uv
+      - uses: astral-sh/setup-uv@v5
       - name: Cache Python packages
         id: cache-pip
         uses: actions/cache@v5
@@ -87,8 +88,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Install uv
-        run: pip install uv
+      - uses: astral-sh/setup-uv@v5
       - name: Restore Python packages cache
         id: cache-pip
         uses: actions/cache@v5
