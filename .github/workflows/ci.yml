@@ -109,6 +109,10 @@ jobs:
           key: pyinstaller-${{ runner.os }}-${{ hashFiles('pyproject.toml', 'scripts/build.py') }}
           restore-keys: |
             pyinstaller-${{ runner.os }}-
+      - name: Download latest Scalar API Reference
+        shell: pwsh
+        run: |
+          curl -sL "https://cdn.jsdelivr.net/npm/@scalar/api-reference@latest/dist/browser/standalone.min.js" -o app/static/scalar.standalone.min.js
       - name: Build with PyInstaller
         run: python scripts/build.py --release
         env:

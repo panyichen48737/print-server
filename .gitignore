@@ -32,3 +32,5 @@ tui*_stderr.log
 tui_crash.log
 memory/
 .mcp.json
+.superpowers/
+app/static/scalar.standalone.min.js

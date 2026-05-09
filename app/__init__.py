@@ -1,15 +1,36 @@
 """FastAPI 应用工厂"""
 
+import urllib.request
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from loguru import logger
 
 from app._paths import ensure_dir, persistent_dir
 from app.exceptions import AuthError, FileTypeError, PrintServerError
 from app.version import __version__
+
+_SCALAR_URL = (
+    "https://cdn.jsdelivr.net/npm/@scalar/api-reference@latest"
+    "/dist/browser/standalone.min.js"
+)
+_SCALAR_FILE = "scalar.standalone.min.js"
+
+
+def _ensure_scalar_js(static_dir: Path) -> None:
+    """Download Scalar API Reference JS if not present."""
+    target = static_dir / _SCALAR_FILE
+    if target.is_file():
+        return
+    try:
+        logger.info("Downloading Scalar API Reference JS …")
+        urllib.request.urlretrieve(_SCALAR_URL, target)
+        logger.info(f"Scalar JS saved ({target.stat().st_size / 1024:.0f} KB)")
+    except Exception as exc:
+        logger.warning(f"Failed to download Scalar JS: {exc}")
 
 
 @asynccontextmanager
@@ -43,8 +64,9 @@ def create_app(lifespan=_default_lifespan) -> FastAPI:
         return JSONResponse(status_code=500, content={'error': str(exc)})
 
     static_dir = Path(__file__).resolve().parent / 'static'
-    if static_dir.is_dir():
-        app.mount('/static', StaticFiles(directory=str(static_dir)), name='static')
+    static_dir.mkdir(parents=True, exist_ok=True)
+    _ensure_scalar_js(static_dir)
+    app.mount('/static', StaticFiles(directory=str(static_dir)), name='static')
 
     @app.get('/scalar', include_in_schema=False)
     async def scalar_html():
@@ -54,7 +76,7 @@ def create_app(lifespan=_default_lifespan) -> FastAPI:
     <head><title>iOSPrintServer API</title><meta charset="utf-8"/></head>
     <body>
     <script id="api-reference" data-url="{app.openapi_url}"></script>
-    <script src="/static/scalar.standalone.min.js"></script>
+    <script src="/static/{_SCALAR_FILE}"></script>
     </body>
     </html>
     ''')
