@@ -176,15 +176,15 @@ QLabel#sectionHeading {
 
 /* ---- KPI Stat Cards ---- */
 QFrame#statCard {
-    background-color: #262522;
-    border: none;
+    background-color: #32312E;
+    border: 1px solid #4A4742;
     border-radius: 12px;
     padding: 0px;
 }
 
 QFrame#statCard:hover {
-    border: 1px solid #4A4742;
-    background-color: #2A2926;
+    border: 1px solid #5A5550;
+    background-color: #353430;
 }
 
 QLabel#statLabel {
@@ -213,8 +213,8 @@ QLabel#statChange {
 
 /* ---- Chart Area ---- */
 QFrame#chartArea {
-    background-color: #262522;
-    border: none;
+    background-color: #32312E;
+    border: 1px solid #4A4742;
     border-radius: 12px;
     min-height: 160px;
 }
@@ -255,14 +255,14 @@ QLabel#printDefaultBadge {
 }
 
 QFrame#printerCard {
-    background-color: #262522;
-    border: none;
+    background-color: #32312E;
+    border: 1px solid #4A4742;
     border-radius: 10px;
     min-height: 56px;
 }
 
 QFrame#printerCard:hover {
-    border: 1px solid #4A4742;
+    border: 1px solid #5A5550;
 }
 
 QFrame#printerCard[compact="true"] {
@@ -305,7 +305,11 @@ QPushButton#primary {
     background-color: #B8956A;
     color: #1C1C1A;
     border: none;
+    border-radius: 6px;
+    padding: 6px 20px;
+    font-size: 13px;
     font-weight: 600;
+    min-height: 20px;
 }
 
 QPushButton#primary:hover { background-color: #C9A67E; }
@@ -331,20 +335,19 @@ QPushButton#ghost {
 
 QPushButton#ghost:hover { background-color: #2E2A24; color: #E8E5E0; border-color: #4A4742; }
 
-/* StatefulButton */
-StatefulButton {
-    background-color: #B8956A;
-    color: #1C1C1A;
-    border: none;
-    border-radius: 6px;
-    padding: 6px 18px;
-    font-size: 13px;
-    min-height: 20px;
-    font-weight: 600;
+/* Ghost Danger */
+QPushButton#ghostDanger {
+    background-color: transparent;
+    color: #E86060;
+    border: 1px solid #353330;
 }
 
-StatefulButton:hover { background-color: #C9A67E; }
-StatefulButton:pressed { background-color: #A08058; }
+QPushButton#ghostDanger:hover { background-color: #E86060; color: #1C1C1A; border-color: #E86060; }
+QPushButton#ghostDanger:pressed { background-color: #D05050; color: #1C1C1A; border-color: #D05050; }
+
+/* Compact Ghost (small buttons in file list etc.) */
+QPushButton#ghost[compact="true"] { font-size: 11px; padding: 2px 8px; min-height: 18px; }
+QPushButton#ghostDanger[compact="true"] { font-size: 11px; padding: 2px 6px; min-height: 18px; }
 
 /* ---- QLineEdit ---- */
 QLineEdit {
