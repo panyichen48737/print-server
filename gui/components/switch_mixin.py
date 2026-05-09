@@ -8,6 +8,6 @@ QCheckBox::indicator:checked {
     background-color: #4F46E5;
 }
 QCheckBox::indicator:disabled {
-    opacity: 0.4;
+    background-color: #E5E7EB;
 }
 """

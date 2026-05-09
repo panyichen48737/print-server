@@ -15,7 +15,7 @@ def test_theme_engine(qapp):
     t.apply("light", qapp)
     assert t.tokens["primary"] == "#4F46E5"
     t.apply("dark", qapp)
-    assert t.tokens["primary"] == "#818CF8"
+    assert t.tokens["primary"] == "#B4BEFE"
 
 
 def test_stateful_button():

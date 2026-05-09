@@ -113,6 +113,7 @@ class MainWindow(QMainWindow):
         self.stop_btn = QPushButton("停止")
         self.restart_btn = QPushButton("重启")
         self.web_btn = QPushButton("管理后台")
+        # Status bar controls styled via QSS #statusBar
         self.start_btn.clicked.connect(self._on_start)
         self.stop_btn.clicked.connect(self._on_stop)
         self.restart_btn.clicked.connect(self._on_restart)

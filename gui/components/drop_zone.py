@@ -11,30 +11,33 @@ from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 class DropZoneWidget(QWidget):
     file_dropped = Signal(str)
 
+    def _update_style(self):
+        from gui.theme import ThemeEngine
+        t = ThemeEngine.instance().tokens
+        self.setStyleSheet(f"""
+            DropZoneWidget {{
+                border: 2px dashed {t['outline']};
+                border-radius: 12px;
+                background-color: transparent;
+            }}
+            DropZoneWidget[drag_over="true"] {{
+                border-color: {t['primary']};
+            }}
+        """)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAcceptDrops(True)
         self.setFixedHeight(200)
-        self.setStyleSheet("""
-            DropZoneWidget {
-                border: 2px dashed #D1D5DB;
-                border-radius: 12px;
-                background-color: transparent;
-            }
-            DropZoneWidget[drag_over="true"] {
-                border-color: #4F46E5;
-                background-color: rgba(79, 70, 229, 0.05);
-            }
-        """)
+        self._update_style()
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._icon_label = QLabel("☁")
-        self._icon_label.setStyleSheet("font-size: 48px; color: #4F46E5;")
-        self._text_label = QLabel("拖拽文件到此处")
-        self._text_label.setStyleSheet("font-size: 16px; color: #6B7280;")
         self._file_label = QLabel("")
-        self._file_label.setStyleSheet("color: #1F2937;")
+        self._text_label = QLabel("拖拽文件到此处")
+        for lb in (self._icon_label, self._text_label, self._file_label):
+            lb.setStyleSheet("background: transparent;")
         layout.addWidget(self._icon_label, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._text_label, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._file_label, alignment=Qt.AlignmentFlag.AlignCenter)

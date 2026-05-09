@@ -20,13 +20,13 @@ TOKENS_LIGHT = {
 
 TOKENS_DARK = {
     "surface": "#1E1E2E",
-    "primary": "#818CF8",
-    "primary_container": "#312E81",
-    "error": "#F87171",
-    "on_surface": "#E2E8F0",
-    "on_surface_variant": "#94A3B8",
-    "outline": "#4B5563",
-    "success": "#4ADE80",
+    "primary": "#B4BEFE",
+    "primary_container": "#45475A",
+    "error": "#F38BA8",
+    "on_surface": "#CDD6F4",
+    "on_surface_variant": "#9399B2",
+    "outline": "#45475A",
+    "success": "#A6E3A1",
 }
 
 
