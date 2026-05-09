@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
-    QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget,
+    QGridLayout, QHBoxLayout, QLabel, QPushButton,
+    QScrollArea, QVBoxLayout, QWidget,
 )
 
 from gui.components.printer_card import PrinterCardWidget
@@ -14,44 +15,59 @@ class PrinterManagerPage(QWidget):
         super().__init__(parent)
         self._mw = main_window
         self._event_bus = getattr(main_window, "_event_bus", None)
-        layout = QVBoxLayout(self)
+
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setObjectName("dashboardScroll")
+
+        container = QWidget()
+        lo = QVBoxLayout(container)
+        lo.setContentsMargins(28, 28, 32, 28)
+        lo.setSpacing(0)
 
         # Title toolbar
         toolbar = QHBoxLayout()
-        toolbar.addWidget(QLabel("打印机管理", styleSheet="font-size: 24px; font-weight: bold;"))
+        title_lbl = QLabel("打印机管理")
+        title_lbl.setObjectName("pageTitle")
+        toolbar.addWidget(title_lbl)
         toolbar.addStretch()
         self.refresh_btn = QPushButton("刷新")
+        self.refresh_btn.setObjectName("ghost")
         self.refresh_btn.clicked.connect(self._refresh_printers)
         toolbar.addWidget(self.refresh_btn)
-        layout.addLayout(toolbar)
+        lo.addLayout(toolbar)
+        lo.addSpacing(28)
 
         # Printer card grid
         self.card_grid = QGridLayout()
-        self.card_grid.setSpacing(12)
-        layout.addLayout(self.card_grid)
+        self.card_grid.setSpacing(16)
+        lo.addLayout(self.card_grid)
 
         # Empty state
         self.empty_label = QLabel("未检测到打印机")
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.empty_label.setStyleSheet("color: #9CA3AF; font-size: 14px; padding: 40px;")
-        layout.addWidget(self.empty_label)
+        self.empty_label.setStyleSheet("color: #8A8178; font-size: 14px; padding: 40px;")
+        lo.addWidget(self.empty_label)
 
         # Loading state
         self.loading_label = QLabel("正在检测打印机...")
         self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.loading_label.setStyleSheet("color: #6B7280; font-size: 14px; padding: 20px;")
+        self.loading_label.setStyleSheet("color: #8A8178; font-size: 14px; padding: 20px;")
         self.loading_label.setVisible(False)
-        layout.addWidget(self.loading_label)
+        lo.addWidget(self.loading_label)
 
         # Error state
         self.error_label = QLabel("")
         self.error_label.setVisible(False)
-        self.error_label.setStyleSheet(
-            "background-color: #FEE2E2; color: #DC2626; padding: 8px 16px; border-radius: 4px;"
-        )
-        layout.addWidget(self.error_label)
+        lo.addWidget(self.error_label)
 
-        layout.addStretch()
+        lo.addStretch()
+        scroll.setWidget(container)
+        main_layout.addWidget(scroll, 1)
 
         QTimer.singleShot(500, self._refresh_printers)
 
@@ -68,14 +84,24 @@ class PrinterManagerPage(QWidget):
                     w.deleteLater()
                 self.card_grid.removeItem(item)
 
-            printers = self._mw._app.state.printer_monitor.get_printers()
-
-            if not printers:
+            monitor = getattr(self._mw._app.state, "printer_monitor", None)
+            if monitor is None:
+                self.error_label.setText("打印机监控未初始化")
+                self.error_label.setVisible(True)
+                return
+            raw = monitor.get_all_statuses()
+            if not raw:
                 self.empty_label.setVisible(True)
             else:
                 cols = 2
-                for idx, info in enumerate(printers):
-                    card = PrinterCardWidget(info)
+                config = getattr(self._mw, "_config", None)
+                default_printer = config.get("default_printer", "") if config else ""
+                for idx, (name, info) in enumerate(raw.items()):
+                    overall = info.get("overall", "ready")
+                    port = info.get("port", "")
+                    card = PrinterCardWidget(name, overall, port=port,
+                                             is_default=(name == default_printer), compact=False)
+                    card.set_default_clicked.connect(self._set_default_printer)
                     self.card_grid.addWidget(card, idx // cols, idx % cols)
         except Exception as e:
             self.error_label.setText(f"刷新打印机失败: {e}")
@@ -84,6 +110,13 @@ class PrinterManagerPage(QWidget):
             self.loading_label.setVisible(False)
             self.refresh_btn.setEnabled(True)
 
+    def _set_default_printer(self, name: str):
+        config = getattr(self._mw, "_config", None)
+        if config is None:
+            return
+        config.set("default_printer", name)
+        config.save()
+        self._refresh_printers()
+
     def on_printer_status(self, data: dict):
-        # Stub — will update card grid when connected
         pass
