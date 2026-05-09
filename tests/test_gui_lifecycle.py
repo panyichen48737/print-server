@@ -13,9 +13,9 @@ def test_theme_engine(qapp):
     from gui.theme import ThemeEngine
     t = ThemeEngine.instance()
     t.apply("light", qapp)
-    assert t.tokens["primary"] == "#4F46E5"
+    assert t.tokens["primary"] == "#8B7355"
     t.apply("dark", qapp)
-    assert t.tokens["primary"] == "#B4BEFE"
+    assert t.tokens["primary"] == "#B8956A"
 
 
 def test_stateful_button():
