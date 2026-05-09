@@ -1,13 +1,16 @@
 """Settings page with 7 config groups."""
 from __future__ import annotations
 
+import secrets
+
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QFormLayout, QGroupBox,
-    QLabel, QLineEdit, QScrollArea, QSpinBox, QVBoxLayout, QWidget,
+    QComboBox, QFormLayout, QGroupBox, QHBoxLayout,
+    QLabel, QLineEdit, QPushButton, QScrollArea, QSpinBox, QVBoxLayout, QWidget,
 )
 
-from app.version import __build_date__, __pyinstaller_version__, __version__
 from gui.components.stateful_button import StatefulButton
+from gui.components.toggle_switch import LabeledToggle
 from gui.components.validators import PortValidator
 
 
@@ -34,8 +37,50 @@ class SettingsPage(QWidget):
         security_form = QFormLayout(security_group)
         self.api_key_input = QLineEdit()
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        security_form.addRow("API Key:", self.api_key_input)
+        # Eye toggle for API key
+        self._key_visible = False
+        self.eye_btn = QPushButton("👁")
+        self.eye_btn.setFixedWidth(32)
+        self.eye_btn.setObjectName("ghost")
+        self.eye_btn.setProperty("compact", True)
+        self.eye_btn.clicked.connect(self._toggle_key_visibility)
+        self.genkey_btn = QPushButton("🎲")
+        self.genkey_btn.setFixedWidth(32)
+        self.genkey_btn.setObjectName("ghost")
+        self.genkey_btn.setProperty("compact", True)
+        self.genkey_btn.setToolTip("随机生成 API Key")
+        self.genkey_btn.clicked.connect(self._generate_key)
+        key_row = QHBoxLayout()
+        key_row.setSpacing(4)
+        key_row.addWidget(self.api_key_input, 1)
+        key_row.addWidget(self.eye_btn)
+        key_row.addWidget(self.genkey_btn)
+        key_widget = QWidget()
+        key_widget.setLayout(key_row)
+        security_form.addRow("API Key:", key_widget)
         layout.addWidget(security_group)
+
+        # Group 1.5: Quark API
+        quark_group = QGroupBox("夸克扫描 API")
+        quark_form = QFormLayout(quark_group)
+        self.quark_key_id_input = QLineEdit()
+        quark_form.addRow("Key ID:", self.quark_key_id_input)
+        self.quark_key_input = QLineEdit()
+        self.quark_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._quark_key_visible = False
+        self.quark_eye_btn = QPushButton("👁")
+        self.quark_eye_btn.setFixedWidth(32)
+        self.quark_eye_btn.setObjectName("ghost")
+        self.quark_eye_btn.setProperty("compact", True)
+        self.quark_eye_btn.clicked.connect(self._toggle_quark_key_visibility)
+        quark_key_row = QHBoxLayout()
+        quark_key_row.setSpacing(4)
+        quark_key_row.addWidget(self.quark_key_input, 1)
+        quark_key_row.addWidget(self.quark_eye_btn)
+        quark_key_widget = QWidget()
+        quark_key_widget.setLayout(quark_key_row)
+        quark_form.addRow("API Key:", quark_key_widget)
+        layout.addWidget(quark_group)
 
         # Group 2: Server
         server_group = QGroupBox("服务器")
@@ -43,7 +88,7 @@ class SettingsPage(QWidget):
         self.port_input = QLineEdit()
         self.port_input.setValidator(PortValidator(self))
         server_form.addRow("端口:", self.port_input)
-        self.ssl_cb = QCheckBox("启用 SSL")
+        self.ssl_cb = LabeledToggle("启用 SSL", checked=True)
         server_form.addRow("", self.ssl_cb)
         layout.addWidget(server_group)
 
@@ -79,9 +124,9 @@ class SettingsPage(QWidget):
         self.default_copies_spin = QSpinBox()
         self.default_copies_spin.setRange(1, 99)
         print_opts_form.addRow("默认份数:", self.default_copies_spin)
-        self.default_duplex_cb = QCheckBox("双面")
+        self.default_duplex_cb = LabeledToggle("双面")
         print_opts_form.addRow("", self.default_duplex_cb)
-        self.default_color_cb = QCheckBox("颜色")
+        self.default_color_cb = LabeledToggle("彩色")
         print_opts_form.addRow("", self.default_color_cb)
         self.paper_size_combo = QComboBox()
         self.paper_size_combo.addItems(["A4", "Letter", "A3"])
@@ -98,17 +143,6 @@ class SettingsPage(QWidget):
         self.log_max_days_spin.setRange(1, 365)
         log_form.addRow("日志保留天数:", self.log_max_days_spin)
         layout.addWidget(log_group)
-
-        # Group 7: About - build info
-        about_group = QGroupBox("版本信息")
-        about_form = QFormLayout(about_group)
-        version_label = QLabel(__version__)
-        about_form.addRow("版本:", version_label)
-        build_label = QLabel(__build_date__)
-        about_form.addRow("构建日期:", build_label)
-        pyinstaller_label = QLabel(__pyinstaller_version__)
-        about_form.addRow("PyInstaller:", pyinstaller_label)
-        layout.addWidget(about_group)
 
         # Save button
         self.save_btn = StatefulButton("保存设置")
@@ -129,12 +163,34 @@ class SettingsPage(QWidget):
         self._populate_printers()
         self._mw._app.state.event_bus.on("printer_list_updated", self._populate_printers)
 
+    def _generate_key(self):
+        self.api_key_input.setText(secrets.token_hex(32))
+        self._key_visible = True
+        self.api_key_input.setEchoMode(QLineEdit.EchoMode.Normal)
+        self.eye_btn.setText("🙈")
+
+    def _toggle_key_visibility(self):
+        self._key_visible = not self._key_visible
+        self.api_key_input.setEchoMode(
+            QLineEdit.EchoMode.Normal if self._key_visible else QLineEdit.EchoMode.Password
+        )
+        self.eye_btn.setText("🙈" if self._key_visible else "👁")
+
+    def _toggle_quark_key_visibility(self):
+        self._quark_key_visible = not self._quark_key_visible
+        self.quark_key_input.setEchoMode(
+            QLineEdit.EchoMode.Normal if self._quark_key_visible else QLineEdit.EchoMode.Password
+        )
+        self.quark_eye_btn.setText("🙈" if self._quark_key_visible else "👁")
+
     def _load_config(self):
         if not self._config:
             return
         c = self._config
         self.api_key_input.setText(c.get("api_key", ""))
         self.port_input.setText(str(c.get("port", 5000)))
+        self.quark_key_id_input.setText(c.get("quark_api_key_id", ""))
+        self.quark_key_input.setText(c.get("quark_api_key", ""))
         self.ssl_cb.setChecked(c.get("ssl_enabled", True))
         self.timeout_spin.setValue(c.get("job_timeout", 300))
         self.retry_spin.setValue(c.get("auto_retry_count", 0))
@@ -179,6 +235,8 @@ class SettingsPage(QWidget):
             updates = {
                 "api_key": self.api_key_input.text(),
                 "port": int(self.port_input.text()),
+                "quark_api_key_id": self.quark_key_id_input.text(),
+                "quark_api_key": self.quark_key_input.text(),
                 "ssl_enabled": self.ssl_cb.isChecked(),
                 "default_printer": self.default_printer_combo.currentText(),
                 "job_timeout": self.timeout_spin.value(),
