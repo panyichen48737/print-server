@@ -45,6 +45,14 @@ Section "Install"
 SectionEnd
 
 Section "Uninstall"
+  # Ask user if they want to remove personal data
+  MessageBox MB_YESNO|MB_ICONQUESTION "是否同时删除用户数据（配置文件、数据库、日志等）？" IDNO skip_data
+
+  # Remove user data directories
+  RMDir /r "$APPDATA\iOSPrintServer"
+  RMDir /r "$LOCALAPPDATA\iOSPrintServer"
+
+  skip_data:
   Delete "$SMPROGRAMS\${PRODUCT_NAME}.lnk"
   Delete "$DESKTOP\${PRODUCT_NAME}.lnk"
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PRODUCT_NAME}"
