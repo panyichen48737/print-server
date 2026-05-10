@@ -2,6 +2,8 @@ package main
 
 import (
 	"log"
+	"os"
+	"path/filepath"
 
 	"golang.org/x/sys/windows/svc"
 )
@@ -12,11 +14,16 @@ func (h *handler) Execute(args []string, requests <-chan svc.ChangeRequest, chan
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	changes <- svc.Status{State: svc.StartPending}
 
+	// Determine app directory from own exe path
+	exe, _ := os.Executable()
+	appDir := filepath.Dir(exe)
+
 	stopCh := make(chan struct{})
 	go servePipe(stopCh)
+	startUpdateChecker(stopCh, appDir)
 
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
-	log.Println("Service is running, pipe listener active")
+	log.Println("Service is running, pipe listener and update checker active")
 
 	for {
 		select {

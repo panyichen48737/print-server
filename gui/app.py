@@ -27,6 +27,9 @@ class MainWindow(QMainWindow):
         self._theme_mode = "light"
         self._event_bus = app.state.event_bus
         self._pending_update = None
+        self._service_pending_update = None
+        self._last_queue_size = 0
+        self._idle_timer = None
 
         # EventBridge — thread-safe EventBus to Qt signal bridge
         self._bridge = EventBridge(self._event_bus, self)
@@ -108,6 +111,9 @@ class MainWindow(QMainWindow):
         auto_enabled = self._config.get("auto_update_check", True) if self._config else True
         if auto_enabled:
             QTimer.singleShot(8000, self._check_auto_update)
+
+        # Check if service already has a pre-downloaded update
+        QTimer.singleShot(10000, self._check_service_pending)
 
     def show_notification(self, text: str, color: str = "#8B7355"):
         self._notifications.show_notification(text, color)
@@ -229,6 +235,56 @@ class MainWindow(QMainWindow):
         )
         self.show_notification("新版本可用 - 前往「关于」页面更新", "#B8956A")
 
+    def _check_service_pending(self):
+        """Check if update service has a pre-downloaded update ready."""
+        from gui.pipe_client import pending_update
+
+        info = pending_update()
+        if info is None:
+            return
+
+        self._pending_update = True
+        self._service_pending_update = info
+        self.show_notification(f"更新 {info.version} 已下载，空闲后将自动重启", "#6B8F6B")
+
+        # Start idle monitor to auto-apply when no active tasks
+        if not hasattr(self, '_idle_timer') or not self._idle_timer:
+            self._idle_timer = QTimer(self)
+            self._idle_timer.timeout.connect(self._check_idle_and_apply)
+            self._idle_timer.start(5000)
+
+    def _check_idle_and_apply(self):
+        """Auto-apply update when server is idle (no active jobs)."""
+        if not self._server or not self._server.is_running:
+            return
+        if not getattr(self, '_service_pending_update', None):
+            return
+        # Check queue_size from health status — 0 means idle
+        if getattr(self, '_last_queue_size', None) != 0:
+            return
+        # Also avoid applying while user is actively using the GUI
+        if self.isVisible() and self.isActiveWindow():
+            return
+
+        self._auto_apply_service_update()
+
+    def _auto_apply_service_update(self):
+        """Tell service to apply update, then exit."""
+        from gui.pipe_client import apply_update
+        import os
+
+        info = getattr(self, '_service_pending_update', None)
+        if not info:
+            return
+
+        if self._server:
+            self._server.stop()
+
+        app_dir = str(Path(sys.executable).parent) if getattr(sys, 'frozen', False) else None
+        apply_update(info.zip_path, app_dir)
+        self.show_notification("正在更新，程序即将重启...", "#6B8F6B")
+        QTimer.singleShot(2000, lambda: os._exit(0))
+
     def _tray_check_update(self):
         about_idx = self.NAV_ITEMS.index("关于")
         self.sidebar.setCurrentRow(about_idx)
@@ -336,6 +392,7 @@ class MainWindow(QMainWindow):
     def _on_health_status(self, data: dict):
         queue_size = data.get("queue_size", 0)
         workers = data.get("workers", 0)
+        self._last_queue_size = queue_size
         if self._server and self._server.is_running:
             self.status_text.setText(
                 f"运行中 · 端口 {self._server.port} · 队列 {queue_size} · 工作进程 {workers}"

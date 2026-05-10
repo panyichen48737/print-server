@@ -21,6 +21,7 @@ type request struct {
 type response struct {
 	Status  string `json:"status"`
 	Message string `json:"message,omitempty"`
+	Data    string `json:"data,omitempty"`
 }
 
 func servePipe(stopCh chan struct{}) {
@@ -71,6 +72,11 @@ func handleConn(conn net.Conn) {
 		writeJSON(conn, response{Status: "ok", Message: "running"})
 	case "APPLY":
 		handleApply(conn, &req)
+	case "PENDING_UPDATE":
+		handlePendingUpdate(conn)
+	case "CHECK":
+		go triggerCheck(req.AppDir)
+		writeJSON(conn, response{Status: "ok", Message: "check triggered"})
 	default:
 		writeJSON(conn, response{Status: "error", Message: "unknown cmd: " + req.Cmd})
 	}
@@ -99,4 +105,14 @@ func handleApply(conn net.Conn, req *request) {
 func writeJSON(conn net.Conn, resp response) {
 	data, _ := json.Marshal(resp)
 	conn.Write(data)
+}
+
+func handlePendingUpdate(conn net.Conn) {
+	p := getPendingUpdate()
+	if p == nil {
+		writeJSON(conn, response{Status: "ok", Message: "none"})
+		return
+	}
+	data, _ := json.Marshal(p)
+	writeJSON(conn, response{Status: "ok", Message: string(data)})
 }
