@@ -2,7 +2,7 @@
 ; 使用 Inno Setup 6.x + VCL Style 皮肤
 
 #define MyAppName "iOSPrintServer"
-#define MyAppVersion "2.5.0"
+#define MyAppVersion "2.5.1"
 #define MyAppExeName "iOSPrintServer.exe"
 #define MyUpdateServiceExe "update_service.exe"
 #define MyAppPublisher "TechFlow Solutions Inc."
@@ -64,26 +64,6 @@ Filename: "taskkill"; Parameters: "/F /IM {#MyUpdateServiceExe}"; Flags: runhidd
 Filename: "{app}\{#MyUpdateServiceExe}"; Parameters: "--uninstall"; Flags: runhidden
 
 [Code]
-var
-  DataPage: TInputOptionWizardPage;
-
-procedure InitializeWizard;
-begin
-  DataPage := CreateInputOptionPage(wpInstalling,
-    '用户数据', '是否保留用户数据？',
-    '配置、数据库、日志等个人数据',
-    False, False);
-  DataPage.Add('删除所有个人数据');
-  DataPage.Add('保留个人数据');
-end;
-
-procedure CurStepChanged(CurStep: TSetupStep);
-begin
-  if CurStep = ssPostInstall then
-  begin
-    // Nothing needed here
-  end;
-end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
