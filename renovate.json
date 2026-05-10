@@ -1,0 +1,35 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "labels": ["dependencies"],
+  "enabledManagers": ["pip_requirements", "github-actions", "custom.regex"],
+  "packageRules": [
+    {
+      "matchManagers": ["pip_requirements"],
+      "commitMessagePrefix": "chore(deps)",
+      "groupName": "Python dependencies"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "commitMessagePrefix": "ci",
+      "addLabels": ["ci"]
+    },
+    {
+      "matchDepNames": ["python-version"],
+      "commitMessagePrefix": "ci",
+      "commitMessageTopic": "Python version",
+      "addLabels": ["ci"]
+    }
+  ],
+  "regexManagers": [
+    {
+      "fileMatch": ["^\\.github/workflows/.*\\.yml$"],
+      "matchStrings": [
+        "python-version:\\s*['\"]?(?<currentValue>\\d+\\.\\d+)['\"]?"
+      ],
+      "depNameTemplate": "python-version",
+      "datasourceTemplate": "python-version",
+      "versioningTemplate": "semver"
+    }
+  ]
+}
