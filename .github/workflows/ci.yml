@@ -141,15 +141,14 @@ jobs:
           $ver = "${{ github.ref_name }}" -replace '^v', ''
           $zip = "dist/update-$ver.zip"
           (certutil -hashfile $zip SHA256 | Select-String -NotMatch "SHA256|CertUtil" | ForEach-Object { $_.Line.Trim() }) | Out-File -Encoding utf8 "dist/update-$ver.zip.sha256"
-      - name: Install NSIS
+      - name: Install Inno Setup
         shell: pwsh
-        run: choco install nsis --no-progress -y
-      - name: Build NSIS installer
+        run: choco install innosetup --no-progress -y
+      - name: Build installer
         shell: pwsh
         run: |
           $ver = "${{ github.ref_name }}" -replace '^v', ''
-          (Get-Content installer.nsi) -replace '!define PRODUCT_VERSION ".*"', "!define PRODUCT_VERSION `"$ver`"" | Set-Content -Encoding utf8 installer.nsi
-          & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
+          & "C:\Program Files (x86)\Inno Setup 6\iscc.exe" installer.iss /DMyAppVersion=$ver
       - name: Generate SHA256 checksum
         shell: pwsh
         run: |
