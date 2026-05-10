@@ -33,6 +33,7 @@ UninstallDisplayName={#MyAppName}
 ; #include "VCLStyles.iss"
 
 [Languages]
+Name: "chinesesimplified"; MessagesFile: "installer_ChineseSimplified.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
