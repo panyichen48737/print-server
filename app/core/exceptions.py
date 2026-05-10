@@ -4,6 +4,11 @@
 class PrintServerError(Exception):
     """所有打印服务器异常的基类"""
 
+    def __init__(self, message: str = '', detail: str | None = None, source: str | None = None) -> None:
+        self.detail = detail
+        self.source = source
+        super().__init__(message)
+
 
 class ConfigError(PrintServerError, ValueError):
     """配置相关错误 — 同时继承 ValueError 以兼容 pydantic field_validator"""

@@ -1,10 +1,18 @@
 """Dashboard page: stat cards, recent jobs table."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer, QAbstractTableModel
+from PySide6.QtCore import QAbstractTableModel, Qt, QTimer
 from PySide6.QtWidgets import (
-    QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton,
-    QScrollArea, QTableView, QHeaderView, QVBoxLayout, QWidget,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
 )
 
 

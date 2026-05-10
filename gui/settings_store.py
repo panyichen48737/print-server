@@ -24,7 +24,6 @@ class WindowStateManager:
 
     def save_table_state(self, table_key: str, table):
         """Save column widths and sort for a table."""
-        from PySide6.QtCore import Qt
         widths = [table.columnWidth(i) for i in range(table.model().columnCount())]
         self._settings.setValue(f"table_{table_key}", widths)
         sort_col = table.horizontalHeader().sortIndicatorSection()

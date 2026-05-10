@@ -6,17 +6,24 @@ from pathlib import Path
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
-    QComboBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-    QProgressBar, QPushButton, QScrollArea, QSpinBox,
-    QVBoxLayout, QWidget,
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QProgressBar,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
 )
 
 from gui.components.drop_zone import DropZoneWidget
-from gui.components.stateful_button import StatefulButton
-from gui.components.toggle_switch import LabeledToggle
 from gui.components.printer_capabilities import query_capabilities
 from gui.components.progress_state import ProgressState
-
+from gui.components.stateful_button import StatefulButton
+from gui.components.toggle_switch import LabeledToggle
 
 IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif", ".heic", ".heif"]
 
@@ -34,8 +41,8 @@ class _FileItemWidget(QWidget):
         lo.setContentsMargins(8, 4, 8, 4)
         lo.setSpacing(10)
 
-        from PySide6.QtGui import QPixmap
         from PySide6.QtCore import Qt
+        from PySide6.QtGui import QPixmap
 
         # Thumbnail
         thumb = QLabel()
@@ -85,7 +92,6 @@ class _FileItemWidget(QWidget):
         lo.addWidget(del_btn)
 
     def _open_file(self):
-        import subprocess
         subprocess.Popen(["explorer", self.file_path], shell=True)
 
     def _delete_self(self):
@@ -309,8 +315,8 @@ class QuickPrintPage(QWidget):
         self._progress.set_indeterminate()
         self._tracking_job_ids.clear()
 
-        from app.services.upload import save_upload
         from app.printing.job_queue import get_queue
+        from app.services.upload import save_upload
 
         queue = get_queue()
         total = len(paths)

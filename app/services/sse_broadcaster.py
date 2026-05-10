@@ -83,11 +83,10 @@ class SSEBroadcaster:
         with self._lock:
             subs = list(self._subscribers.items())
 
+        stale_ids: list[str] = []
         for sub_id, q in subs:
             try:
                 q.put_nowait((event_type, data))
-                with self._lock:
-                    self._stale_count.pop(sub_id, None)
             except queue.Full:
                 try:
                     q.get_nowait()
@@ -98,14 +97,22 @@ class SSEBroadcaster:
                 with self._lock:
                     count = self._stale_count.get(sub_id, 0) + 1
                     if count >= _STALE_LIMIT:
-                        self._subscribers.pop(sub_id, None)
-                        self._stale_count.pop(sub_id, None)
-                        self._subscribe_time.pop(sub_id, None)
-                        logger.warning(
-                            f'SSE 订阅者 {sub_id[:8]} 已连续 {_STALE_LIMIT} 次队列满，已移除'
-                        )
+                        stale_ids.append(sub_id)
                     else:
                         self._stale_count[sub_id] = count
+            else:
+                with self._lock:
+                    self._stale_count.pop(sub_id, None)
+
+        if stale_ids:
+            with self._lock:
+                for sub_id in stale_ids:
+                    self._subscribers.pop(sub_id, None)
+                    self._stale_count.pop(sub_id, None)
+                    self._subscribe_time.pop(sub_id, None)
+                    logger.warning(
+                        f'SSE 订阅者 {sub_id[:8]} 已连续 {_STALE_LIMIT} 次队列满，已移除'
+                    )
 
         self._event_bus.publish(event_type, data)
 
@@ -135,3 +142,21 @@ def init_app(app: Any, maxsize: int = 100) -> SSEBroadcaster:
     app.state.event_bus = event_bus
     app.state.sse = broadcaster
     return broadcaster
+
+
+class LogBroadcaster:
+    """loguru sink — 将日志推送到 SSE"""
+
+    def __init__(self, broadcaster=None):
+        self._broadcaster = broadcaster
+
+    def write(self, message):
+        if message.strip() and self._broadcaster:
+            self._broadcaster.publish(
+                'log',
+                {
+                    'message': message.strip(),
+                    'level': 'INFO',
+                    'name': 'print_server',
+                },
+            )

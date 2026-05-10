@@ -8,10 +8,10 @@ from typing import ClassVar
 from loguru import logger
 from PIL import Image, ImageOps
 
+from app.core.utils import safe_remove
 from app.printing.backends.base import PrinterBackend, register
 from app.printing.backends.pdf import PdfBackend
-from app.printing.enhancer import QuarkEnhancer
-from app.core.utils import safe_remove
+from app.services.image_processing import QuarkEnhancer
 
 
 @register('.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif', '.heic', '.heif')

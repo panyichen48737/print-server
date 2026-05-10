@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, Signal, Slot
+
 from app.services.sse_broadcaster import EventBus
 
 

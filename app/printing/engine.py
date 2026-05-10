@@ -7,6 +7,7 @@ import threading
 from typing import Any
 
 from app.core.exceptions import FileTypeError
+from app.core.utils import safe_remove
 from app.printing.backends import (  # noqa: F401 保留命名空间供测试 mock
     ImageBackend,
     OfficeBackend,
@@ -14,7 +15,6 @@ from app.printing.backends import (  # noqa: F401 保留命名空间供测试 mo
     PrinterBackend,
     discover_backends,
 )
-from app.core.utils import safe_remove
 
 # 以便测试用 @patch('app.printing.engine.OfficeBackend') 替换
 
@@ -45,8 +45,7 @@ class PrintEngine:
         self._active_jobs: dict[str, dict[str, Any]] = {}
         self._active_jobs_lock = threading.Lock()
 
-    def _build_instance(self, cls: type) -> PrinterBackend:
-        # 通过当前模块的全局名查找后端类，便于测试用 @patch('app.printing.engine.XxxBackend') 替换
+    def _build_instance(self, cls: type[PrinterBackend]) -> PrinterBackend:
         mod = sys.modules[__name__]
         target = getattr(mod, cls.__name__, cls)
         name = cls.__name__

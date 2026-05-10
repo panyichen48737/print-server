@@ -1,8 +1,7 @@
 """QValidator subclasses for port and number range."""
 from __future__ import annotations
 
-from PySide6.QtCore import QRegularExpression
-from PySide6.QtGui import QIntValidator, QRegularExpressionValidator, QValidator
+from PySide6.QtGui import QIntValidator, QValidator
 
 
 class PortValidator(QIntValidator):

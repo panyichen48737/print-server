@@ -115,7 +115,7 @@ class TestLogsEndpoint:
     # lines 参数
     # ------------------------------------------------------------------
 
-    @patch('app.routes.api.persistent_dir')
+    @patch('app.routes.system.persistent_dir')
     def test_logs_returns_requested_lines(self, mock_persistent_dir, app_instance, temp_log_dir):
         mock_persistent_dir.return_value = temp_log_dir
         lines = [f'line{i}\n' for i in range(1, 6)]
@@ -135,7 +135,7 @@ class TestLogsEndpoint:
     # 默认 lines=50
     # ------------------------------------------------------------------
 
-    @patch('app.routes.api.persistent_dir')
+    @patch('app.routes.system.persistent_dir')
     def test_logs_default_returns_all_when_less_than_50(
         self, mock_persistent_dir, app_instance, temp_log_dir
     ):
@@ -158,7 +158,7 @@ class TestLogsEndpoint:
     # 文件名中文字符 (UTF-8 编码保证)
     # ------------------------------------------------------------------
 
-    @patch('app.routes.api.persistent_dir')
+    @patch('app.routes.system.persistent_dir')
     def test_logs_chinese_content(self, mock_persistent_dir, app_instance, temp_log_dir):
         mock_persistent_dir.return_value = temp_log_dir
         lines = ['打印成功\n', '任务完成\n']
@@ -180,7 +180,7 @@ class TestLogsEndpoint:
     # 文件不存在
     # ------------------------------------------------------------------
 
-    @patch('app.routes.api.persistent_dir')
+    @patch('app.routes.system.persistent_dir')
     def test_logs_file_not_found_returns_empty_list(
         self, mock_persistent_dir, app_instance, temp_log_dir
     ):
@@ -197,7 +197,7 @@ class TestLogsEndpoint:
     # 大文件 — lines 参数小于文件行数
     # ------------------------------------------------------------------
 
-    @patch('app.routes.api.persistent_dir')
+    @patch('app.routes.system.persistent_dir')
     def test_logs_large_file_truncates(self, mock_persistent_dir, app_instance, temp_log_dir):
         """文件 100 行，请求 5 行，应返回末尾 5 行"""
         mock_persistent_dir.return_value = temp_log_dir
@@ -220,7 +220,7 @@ class TestLogsEndpoint:
     # lines=0 的边界行为
     # ------------------------------------------------------------------
 
-    @patch('app.routes.api.persistent_dir')
+    @patch('app.routes.system.persistent_dir')
     def test_logs_zero_lines_returns_empty(self, mock_persistent_dir, app_instance, temp_log_dir):
         mock_persistent_dir.return_value = temp_log_dir
         lines = ['line1\n', 'line2\n']

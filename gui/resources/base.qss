@@ -1,0 +1,365 @@
+/* Base theme — structural rules (shared by light/dark) */
+QCheckBox {
+    font-size: 13px;
+    spacing: 8px;
+}
+
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+}
+
+QComboBox {
+    padding: 6px 30px 6px 10px;
+    font-size: 13px;
+    min-width: 80px;
+}
+
+QComboBox QAbstractItemView {
+    padding: 5px;
+}
+
+QComboBox QAbstractItemView::item {
+    padding: 7px 10px;
+    min-height: 22px;
+}
+
+QComboBox::down-arrow {
+    width: 8px;
+    height: 8px;
+}
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 26px;
+}
+
+QComboBox:focus {
+    padding: 5px 29px 5px 9px;
+}
+
+QFrame#chartArea {
+    min-height: 160px;
+}
+
+QFrame#printerCard {
+    min-height: 56px;
+}
+
+QFrame#printerCard[compact="false"] {
+    min-height: 180px;
+}
+
+QFrame#printerCard[compact="false"] QLabel#printName {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+QFrame#printerCard[compact="false"] QLabel#printPort {
+    font-size: 11px;
+}
+
+QFrame#printerCard[compact="true"] {
+    min-height: 48px;
+}
+
+QFrame#statCard {
+    padding: 0px;
+}
+
+QGroupBox {
+    font-weight: 500;
+    font-size: 13px;
+    margin-top: 12px;
+    padding: 20px 14px 14px;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 10px;
+}
+
+QHeaderView::section {
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    padding: 9px 10px;
+}
+
+QLabel {
+    background: transparent;
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+QLabel#brandSub {
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.3px;
+}
+
+QLabel#brandTitle {
+    font-family: "Newsreader", "EB Garamond", Georgia, "Times New Roman", serif;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+QLabel#chartLabel {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+QLabel#data {
+    font-family: Consolas, "Cascadia Code", "Courier New", monospace;
+    font-size: 13px;
+}
+
+QLabel#footerText {
+    font-size: 11px;
+    font-weight: 500;
+}
+
+QLabel#muted {
+    font-size: 12px;
+}
+
+QLabel#pageSub {
+    font-size: 13px;
+    font-weight: 400;
+}
+
+QLabel#pageTitle {
+    font-family: "Newsreader", "EB Garamond", Georgia, "Times New Roman", serif;
+    font-size: 28px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+
+QLabel#printDefaultBadge {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+QLabel#printName {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QLabel#printPort {
+    font-size: 10px;
+}
+
+QLabel#sectionHeading {
+    font-family: "Newsreader", "EB Garamond", Georgia, "Times New Roman", serif;
+    font-size: 17px;
+    font-weight: 500;
+}
+
+QLabel#sectionLabel {
+    padding: 14px 14px 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+}
+
+QLabel#statChange {
+    font-size: 11px;
+    font-weight: 500;
+    margin-top: 2px;
+}
+
+QLabel#statLabel {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    margin-bottom: 2px;
+}
+
+QLabel#statValue {
+    font-family: "Newsreader", "EB Garamond", Georgia, "Times New Roman", serif;
+    font-size: 30px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    line-height: 1.1;
+}
+
+QLineEdit {
+    padding: 6px 10px;
+    font-size: 13px;
+}
+
+QLineEdit:focus {
+    padding: 5px 9px;
+}
+
+QListWidget {
+    font-family: Consolas, "Cascadia Code", "Courier New", monospace;
+    font-size: 12px;
+    padding: 4px;
+}
+
+QListWidget::item {
+    padding: 4px 8px;
+}
+
+QMenu {
+    padding: 5px;
+}
+
+QMenu::item {
+    padding: 7px 22px;
+    font-size: 13px;
+}
+
+QMenu::separator {
+    height: 1px;
+    margin: 3px 8px;
+}
+
+QProgressBar {
+    height: 6px;
+    text-align: center;
+    font-size: 11px;
+}
+
+QPushButton {
+    padding: 6px 18px;
+    font-size: 13px;
+    min-height: 20px;
+    font-weight: 500;
+}
+
+QPushButton#ghostDanger[compact="true"] {
+    font-size: 11px;
+    padding: 2px 6px;
+    min-height: 18px;
+}
+
+QPushButton#ghost[compact="true"] {
+    font-size: 11px;
+    padding: 2px 8px;
+    min-height: 18px;
+}
+
+QPushButton#navItem {
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    background: transparent;
+    text-align: left;
+    padding-left: 14px;
+}
+
+QPushButton#navItem[active="true"] {
+    font-weight: 600;
+}
+
+QPushButton#primary {
+    padding: 6px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    min-height: 20px;
+}
+
+QPushButton#statusPill {
+    height: 26px;
+    padding: 0 14px;
+    background: transparent;
+    font-size: 11px;
+    font-weight: 500;
+    min-height: 26px;
+}
+
+QPushButton#statusPillSuccess {
+    height: 26px;
+    padding: 0 14px;
+    font-size: 11px;
+    font-weight: 500;
+    min-height: 26px;
+}
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0;
+}
+
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: none;
+}
+
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
+}
+
+QScrollBar::handle:horizontal {
+    min-width: 28px;
+    margin: 3px;
+}
+
+QScrollBar::handle:vertical {
+    min-height: 28px;
+    margin: 3px;
+}
+
+QScrollBar:horizontal {
+    height: 12px;
+    margin: 0;
+}
+
+QScrollBar:vertical {
+    width: 12px;
+    margin: 0;
+}
+
+QSpinBox {
+    padding: 6px 26px 6px 10px;
+    font-size: 13px;
+}
+
+QSpinBox::down-arrow {
+    width: 7px;
+    height: 7px;
+}
+
+QSpinBox::up-arrow {
+    width: 7px;
+    height: 7px;
+}
+
+QSpinBox::up-button, QSpinBox::down-button {
+    subcontrol-origin: border;
+    width: 20px;
+}
+
+QSpinBox:focus {
+    padding: 5px 25px 5px 9px;
+}
+
+QTableView {
+    font-size: 13px;
+}
+
+QTableView::item {
+    padding: 7px 10px;
+    min-height: 32px;
+}
+
+QToolTip {
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
+QWidget#sidebarFooter {
+    margin: 0 12px;
+}
+
+QWidget#statusBar QLabel#statusText {
+    font-family: Consolas, "Cascadia Code", "Courier New", monospace;
+    font-size: 12px;
+    font-weight: 500;
+}

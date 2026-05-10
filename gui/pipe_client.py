@@ -40,7 +40,7 @@ def _send_request(data: dict) -> ServiceResponse | None:
                 status=resp.get('status', 'error'),
                 message=resp.get('message', ''),
             )
-    except (ConnectionRefusedError, socket.timeout, OSError, json.JSONDecodeError):
+    except (TimeoutError, ConnectionRefusedError, OSError, json.JSONDecodeError):
         return None
 
 

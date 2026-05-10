@@ -82,8 +82,10 @@ def create_app(lifespan=_default_lifespan) -> FastAPI:
     ''')
 
     from app.routes.api import api_router
+    from app.routes.system import system_router
 
     app.include_router(api_router, prefix='/api')
+    app.include_router(system_router, prefix='/api')
 
     ensure_dir(persistent_dir() / 'jobs')
     ensure_dir(persistent_dir() / 'logs')

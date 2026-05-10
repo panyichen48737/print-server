@@ -150,8 +150,8 @@ class TestLogsEndpoint:
         log_dir = tmp_path / 'logs'
         log_dir.mkdir(parents=True, exist_ok=True)
         self._tmp_log = log_dir / 'print_server.log'
-        monkeypatch.setattr('app._paths.persistent_dir', lambda: tmp_path)
-        monkeypatch.setattr('app.routes.api.persistent_dir', lambda: tmp_path)
+        monkeypatch.setattr('app.core._paths.persistent_dir', lambda: tmp_path)
+        monkeypatch.setattr('app.routes.system.persistent_dir', lambda: tmp_path)
 
     def _ensure_log(self, lines):
         with open(self._tmp_log, 'w', encoding='utf-8') as f:

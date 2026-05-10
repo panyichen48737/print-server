@@ -23,7 +23,7 @@ def test_bootstrap_server_exists():
 
 def test_ensure_single_instance_exists():
     """PID 文件管理函数存在"""
-    from launcher import _ensure_single_instance, _pid_file, _write_pid, _cleanup_pid
+    from launcher import _cleanup_pid, _ensure_single_instance, _pid_file, _write_pid
 
     assert callable(_ensure_single_instance)
     assert callable(_pid_file)

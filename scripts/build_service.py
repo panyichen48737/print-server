@@ -22,7 +22,7 @@ def build_service():
         timeout=60,
     )
     if result.returncode != 0:
-        print(f'[build_service] go mod tidy 失败:')
+        print('[build_service] go mod tidy 失败:')
         print(result.stderr)
         sys.exit(1)
 
@@ -34,7 +34,7 @@ def build_service():
         '.',
     ]
 
-    print(f'[build_service] 编译 update_service.exe...')
+    print('[build_service] 编译 update_service.exe...')
     result = subprocess.run(
         args,
         cwd=SERVICE_DIR,
@@ -43,7 +43,7 @@ def build_service():
         timeout=120,
     )
     if result.returncode != 0:
-        print(f'[build_service] 编译失败:')
+        print('[build_service] 编译失败:')
         print(result.stderr)
         sys.exit(1)
 

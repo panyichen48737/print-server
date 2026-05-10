@@ -15,7 +15,6 @@ import os
 import shutil
 import subprocess
 import sys
-import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -348,7 +347,7 @@ def build(version: str):
                     zf.write(entry, arcname)
             print(f'[build] 更新包: {update_zip} ({update_zip.stat().st_size / 1024 / 1024:.1f} MB) | {len([e for e in dist_dir.rglob("*") if e.is_file()])} 个文件')
         else:
-            print(f'[build] 警告: dist_dir 不存在，跳过 update.zip')
+            print('[build] 警告: dist_dir 不存在，跳过 update.zip')
     else:
         print(f'[build] 构建失败: {exe_path} 未生成')
 

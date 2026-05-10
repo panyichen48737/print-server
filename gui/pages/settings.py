@@ -3,13 +3,21 @@ from __future__ import annotations
 
 import secrets
 
-from PySide6.QtCore import QTimer, Qt
-from PySide6.QtWidgets import (
-    QComboBox, QFormLayout, QGroupBox, QHBoxLayout,
-    QLabel, QLineEdit, QPushButton, QScrollArea, QSpinBox, QVBoxLayout, QWidget,
-)
-
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QValidator
+from PySide6.QtWidgets import (
+    QComboBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 from gui.components.skeleton import SkeletonWidget
 from gui.components.stateful_button import StatefulButton
@@ -393,14 +401,23 @@ class SettingsPage(QWidget):
             self.status_label.setStyleSheet("color: #C53A3A;")
 
     def _test_notification(self):
-        from app.services.notifier import Notifier
         from app.core.config import Config
-        notifier = Notifier(Config())
+        from app.services.notifications.bark import BarkNotifier
+        from app.services.notifications.dingtalk import DingTalk
+        cfg = Config()
+        channel = cfg.get('notify_channel', 'disabled')
+        if channel == 'bark':
+            notifier = BarkNotifier(cfg)
+        elif channel == 'dingtalk':
+            notifier = DingTalk(cfg)
+        else:
+            self.test_notify_btn.set_error('未配置通知渠道')
+            return
         self.test_notify_btn.set_loading()
         try:
-            notifier.notify("测试通知", "这是一条测试消息")
+            notifier.notify_job_completed('测试文件.pdf', '2024-01-01 12:00:00')
             self.test_notify_btn.set_success()
-            if hasattr(self._mw, "show_notification"):
-                self._mw.show_notification("测试通知发送成功", "#6B8F6B")
+            if hasattr(self._mw, 'show_notification'):
+                self._mw.show_notification('测试通知发送成功', '#6B8F6B')
         except Exception as e:
             self.test_notify_btn.set_error(str(e))

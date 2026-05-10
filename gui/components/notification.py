@@ -1,7 +1,7 @@
 """Toast notification widget and confirmation dialog."""
 from __future__ import annotations
 
-from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, QTimer, Qt
+from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, QTimer
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 
@@ -66,7 +66,7 @@ class NotificationStack(QWidget):
 
 # 通用确认对话框
 def confirm_dialog(parent, title: str, text: str,
-                   buttons: dict[str, "QMessageBox.ButtonRole"]) -> str | None:
+                   buttons: dict[str, QMessageBox.ButtonRole]) -> str | None:
     """返回用户点击的按钮文本，或 None。"""
     from PySide6.QtWidgets import QMessageBox
     msg = QMessageBox(parent)

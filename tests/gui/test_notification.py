@@ -1,6 +1,6 @@
 """Tests for notification components."""
-from PySide6.QtWidgets import QApplication, QWidget
 import pytest
+from PySide6.QtWidgets import QApplication, QWidget
 
 from gui.components.notification import NotificationStack, NotificationWidget
 

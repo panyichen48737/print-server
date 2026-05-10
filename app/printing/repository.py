@@ -2,12 +2,43 @@ import asyncio
 import contextlib
 import threading
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 import aiosqlite
 from loguru import logger
+
+from app.printing.migrations import migrate_db
+from app.printing.stats import cleanup_old_jobs, get_daily_counts, get_stats
+
+
+class JobRecord(TypedDict, total=False):
+    id: str
+    filename: str
+    filepath: str
+    file_size: int
+    file_type: str
+    status: str
+    error_message: str
+    printer_name: str
+    copies: int
+    duplex: int | None
+    color: int | None
+    paper_size: str
+    source: str
+    retry_count: int
+    created_at: str
+    completed_at: str | None
+
+
+class JobStats(TypedDict):
+    queued: int
+    printing: int
+    today_completed: int
+    today_failed: int
+    total: int
+    success_rate: float
 
 
 class JobRepository:
@@ -45,24 +76,18 @@ class JobRepository:
         return conn
 
     def _sync(self, coro, timeout: float = 30):
-        """在专用事件循环上执行协程，阻塞调用方直到完成。"""
         return asyncio.run_coroutine_threadsafe(coro, self._loop).result(timeout=timeout)
 
     async def _ensure_connection(self) -> None:
-        """Ensure database connection is healthy, reconnect if lost."""
-        # Check if we have a valid connection
         try:
             if self._conn is None:
                 self._conn = await self._connect()
                 return
-            # Try to execute a simple query
             await self._conn.execute('SELECT 1')
         except Exception as e:
-            # Connection is lost, try to reconnect
             logger.warning(f'Database connection lost ({type(e).__name__}), reconnecting...')
             old = self._conn
             self._conn = await self._connect()
-            # Close old connection if it still exists
             if old is not None:
                 with contextlib.suppress(Exception):
                     old.close()
@@ -102,7 +127,7 @@ class JobRepository:
         finally:
             self._conn.row_factory = None
 
-    # ── 同步公共 API（内部委托给 _execute） ──
+    # ── 初始化 + 迁移 ──
 
     def init_db(self) -> None:
         self._sync(self._init_db())
@@ -130,23 +155,9 @@ class JobRepository:
         await self._execute(
             'CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at)', commit=True
         )
-        await self._migrate_db()
+        await migrate_db(self._execute)
 
-    async def _migrate_db(self) -> None:
-        rows = await self._execute(
-            'PRAGMA table_info(jobs)', fetchall=True, row_factory=True
-        )
-        existing = {row['name'] for row in rows} if rows else set()
-        additions = {
-            'duplex': 'INTEGER DEFAULT 0',
-            'color': 'INTEGER DEFAULT 1',
-            'paper_size': "TEXT DEFAULT 'A4'",
-            'source': "TEXT DEFAULT 'api'",
-            'retry_count': 'INTEGER DEFAULT 0',
-        }
-        for col, dtype in additions.items():
-            if col not in existing:
-                await self._execute(f'ALTER TABLE jobs ADD COLUMN {col} {dtype}', commit=True)
+    # ── CRUD ──
 
     def add_job(
         self,
@@ -192,7 +203,7 @@ class JobRepository:
         )
         return job_id
 
-    def get_job(self, job_id: str) -> dict | None:
+    def get_job(self, job_id: str) -> JobRecord | None:
         return self._sync(self._execute(
             'SELECT * FROM jobs WHERE id = ?', (job_id,), fetchone=True, row_factory=True
         ))
@@ -253,65 +264,6 @@ class JobRepository:
             'SELECT * FROM jobs WHERE status = ?', (status,), fetchall=True, row_factory=True
         ))
 
-    def get_stats(self) -> dict:
-        return self._sync(self._get_stats())
-
-    async def _get_stats(self) -> dict:
-        today = datetime.now().strftime('%Y-%m-%d')
-        row = await self._execute(
-            """SELECT
-                COUNT(CASE WHEN status='queued' THEN 1 END) AS queued,
-                COUNT(CASE WHEN status='printing' THEN 1 END) AS printing,
-                COUNT(CASE WHEN status='completed' THEN 1 END) AS completed_total,
-                COUNT(CASE WHEN status='failed' THEN 1 END) AS failed_total,
-                COUNT(*) AS total,
-                SUM(CASE WHEN status='completed' AND created_at >= ? THEN 1 ELSE 0 END) AS today_completed,
-                SUM(CASE WHEN status='failed' AND created_at >= ? THEN 1 ELSE 0 END) AS today_failed
-            FROM jobs""",
-            (today, today),
-            fetchone=True,
-            row_factory=True,
-        )
-        success_total = row['completed_total']
-        failed_total = row['failed_total']
-        success_rate = (
-            (success_total / (success_total + failed_total) * 100)
-            if (success_total + failed_total) > 0 else 100
-        )
-        return {
-            'queued': row['queued'],
-            'printing': row['printing'],
-            'today_completed': row['today_completed'],
-            'today_failed': row['today_failed'],
-            'total': row['total'],
-            'success_rate': success_rate,
-        }
-
-    def get_daily_counts(self, days: int = 7) -> dict[str, int]:
-        return self._sync(self._get_daily_counts(days))
-
-    async def _get_daily_counts(self, days: int = 7) -> dict[str, int]:
-        cursor = await self._execute(
-            "SELECT DATE(created_at) as day, COUNT(*) as cnt FROM jobs "
-            "WHERE created_at >= datetime('now', ? || ' days') "
-            "GROUP BY day ORDER BY day",
-            (-days,),
-            fetchall=True,
-            row_factory=True,
-        )
-        return {row['day']: row['cnt'] for row in cursor} if cursor else {}
-
-    def cleanup_old_jobs(self, retention_days: int = 30) -> int:
-        return self._sync(self._cleanup_old_jobs(retention_days))
-
-    async def _cleanup_old_jobs(self, retention_days: int = 30) -> int:
-        cutoff = (datetime.now() - timedelta(days=retention_days)).isoformat()
-        cur = await self._execute('DELETE FROM jobs WHERE created_at < ?', (cutoff,), commit=True)
-        deleted = cur.rowcount if hasattr(cur, 'rowcount') else 0
-        if deleted > 0:
-            logger.info(f'已清理 {deleted} 条过期任务记录')
-        return deleted
-
     def increment_retry(self, job_id: str) -> None:
         self._sync(self._execute(
             'UPDATE jobs SET retry_count = retry_count + 1 WHERE id = ?', (job_id,), commit=True
@@ -331,6 +283,19 @@ class JobRepository:
             executemany=True,
             commit=True,
         )
+
+    # ── 统计查询（委托至 stats 模块）──
+
+    def get_stats(self) -> dict:
+        return self._sync(get_stats(self._execute))
+
+    def get_daily_counts(self, days: int = 7) -> dict[str, int]:
+        return self._sync(get_daily_counts(self._execute, days))
+
+    def cleanup_old_jobs(self, retention_days: int = 30) -> int:
+        return self._sync(cleanup_old_jobs(self._execute, retention_days))
+
+    # ── 生命周期 ──
 
     def close(self) -> None:
         with contextlib.suppress(Exception):

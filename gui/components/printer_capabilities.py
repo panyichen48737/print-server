@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 
 import win32print
 
-
 DC_COPIES = 17
 DC_PAPERNAMES = 16
 DC_COLORDEVICE = 23

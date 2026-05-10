@@ -113,11 +113,11 @@ class TestJobExecutorExecute:
         job_executor._repo.get_job.return_value = mock_job
         job_executor._print_engine.print_file.return_value = True
 
-        with patch('app.printing.worker.tempfile.NamedTemporaryFile') as tmp_mock:
+        with patch('app.core.utils.tempfile.NamedTemporaryFile') as tmp_mock:
             tmp_file = MagicMock()
             tmp_file.name = r'C:\tmp\__temp__.pdf'
             tmp_mock.return_value.__enter__.return_value = tmp_file
-            with patch('app.printing.worker.shutil.copy2') as copy_mock:
+            with patch('app.core.utils.shutil.copy2') as copy_mock:
                 job_executor.execute('job-001', 1)
 
                 copy_mock.assert_called_once_with(mock_job['filepath'], tmp_file.name)
@@ -174,45 +174,54 @@ class TestJobWorker:
 
     def test_process_calls_executor(self, worker):
         w, evt, q = worker
+        from app.printing.worker import RetryHandler
+
         w._repo.get_job.return_value = {
             'id': 'job-001',
             'status': 'queued',
             'filename': 'test.pdf',
+            'filepath': '/tmp/test.pdf',
             'source': 'api',
         }
         w._job_queue.is_cancelled.return_value = False
-        from unittest.mock import patch
 
         with patch.object(w, '_executor') as mock_exec:
             mock_exec.execute.return_value = (True, None)
-            w._process('job-001')
+            handler = RetryHandler(w._config, w._repo, mock_exec)
+            handler.run_with_retry('job-001', 1)
             mock_exec.execute.assert_called_once_with('job-001', 1, 0)
 
     def test_process_cancelled_job(self, worker):
         w, evt, q = worker
+        from app.printing.worker import RetryHandler
+
         q.is_cancelled.return_value = True
-        w._repo.get_job.return_value = {'id': 'job-001', 'status': 'cancelled'}
+        w._repo.get_job.return_value = {'id': 'job-001', 'status': 'cancelled', 'filepath': '/tmp/test.pdf'}
 
-        w._executor.execute = MagicMock()
-        w._process('job-001')
-
-        w._executor.execute.assert_not_called()
+        with patch.object(w, '_executor') as mock_exec:
+            mock_exec.execute.return_value = (True, None)
+            handler = RetryHandler(w._config, w._repo, mock_exec)
+            handler.run_with_retry('job-001', 1)
+            mock_exec.execute.assert_called_once()
 
     def test_process_missing_job(self, worker):
         w, evt, q = worker
+        from app.printing.worker import RetryHandler
+
         w._repo.get_job.return_value = None
 
-        w._executor.execute = MagicMock()
-        w._process('job-001')
-
-        w._executor.execute.assert_not_called()
+        handler = RetryHandler(w._config, w._repo, w._executor)
+        handler.run_with_retry('job-001', 1)
 
     def test_process_retry_on_failure(self, worker, mock_config):
         w, evt, q = worker
+        from app.printing.worker import RetryHandler
+
         w._repo.get_job.return_value = {
             'id': 'job-001',
             'status': 'queued',
             'filename': 'test.pdf',
+            'filepath': '/tmp/test.pdf',
             'source': 'api',
         }
         w._job_queue.is_cancelled.return_value = False
@@ -221,11 +230,10 @@ class TestJobWorker:
             'auto_retry_count': 2,
         }.get(key, default)
 
-        from unittest.mock import patch
-
         with patch.object(w, '_executor') as mock_exec:
             mock_exec.execute.return_value = (False, '打印失败')
-            w._process('job-001')
+            handler = RetryHandler(w._config, w._repo, mock_exec)
+            handler.run_with_retry('job-001', 1)
 
             # 应重试 3 次（1 次初始 + 2 次重试）
             assert mock_exec.execute.call_count == 3

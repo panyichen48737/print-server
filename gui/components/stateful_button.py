@@ -1,7 +1,7 @@
 """QPushButton with loading/success/error states."""
 from __future__ import annotations
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QPushButton
 
 

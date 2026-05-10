@@ -1,12 +1,25 @@
 """Job manager page: queue + history tables with filter."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QEvent, QSettings, QVariantAnimation
+from PySide6.QtCore import QAbstractTableModel, QEvent, QSettings, Qt, QVariantAnimation
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QComboBox, QDateEdit, QFrame, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QProgressBar,
-    QPushButton, QScrollArea, QStyledItemDelegate, QTableView, QVBoxLayout, QWidget,
+    QComboBox,
+    QDateEdit,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QScrollArea,
+    QStyledItemDelegate,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
 )
+
 from gui.components.skeleton import SkeletonWidget
 
 

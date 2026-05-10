@@ -7,13 +7,21 @@ from pathlib import Path
 from PySide6.QtCore import QPropertyAnimation, QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
-    QApplication, QHBoxLayout, QLabel, QMainWindow, QPushButton,
-    QStackedWidget, QSystemTrayIcon, QVBoxLayout, QWidget, QMenu,
+    QApplication,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QMenu,
+    QPushButton,
+    QStackedWidget,
+    QSystemTrayIcon,
+    QVBoxLayout,
+    QWidget,
 )
 
-from launcher._server import ServerHandle
 from gui.components.sidebar import SidebarWidget
 from gui.event_bridge import EventBridge
+from launcher._server import ServerHandle
 
 
 class MainWindow(QMainWindow):
@@ -65,13 +73,13 @@ class MainWindow(QMainWindow):
 
         # Page container
         self.stack = QStackedWidget()
+        from gui.pages.about import AboutPage
         from gui.pages.dashboard import DashboardPage
-        from gui.pages.quick_print import QuickPrintPage
-        from gui.pages.scan import ScanPage
         from gui.pages.job_manager import JobManagerPage
         from gui.pages.logs import LogsPage
+        from gui.pages.quick_print import QuickPrintPage
+        from gui.pages.scan import ScanPage
         from gui.pages.settings import SettingsPage
-        from gui.pages.about import AboutPage
 
         self.stack.addWidget(DashboardPage(self))
         self.stack.addWidget(QuickPrintPage(self))
@@ -216,6 +224,7 @@ class MainWindow(QMainWindow):
     def _check_auto_update(self):
         """Background check for updates on startup."""
         import threading
+
         from app.updater import check_latest_version
 
         def _worker():
@@ -270,8 +279,9 @@ class MainWindow(QMainWindow):
 
     def _auto_apply_service_update(self):
         """Tell service to apply update, then exit."""
-        from gui.pipe_client import apply_update
         import os
+
+        from gui.pipe_client import apply_update
 
         info = getattr(self, '_service_pending_update', None)
         if not info:

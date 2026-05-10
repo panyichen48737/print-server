@@ -2,13 +2,10 @@
 
 import contextlib
 import datetime
-import shutil
-import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeout
-from pathlib import Path
 from typing import Any
 
 from loguru import logger
@@ -64,11 +61,12 @@ class JobExecutor:
             return True, None
 
         original_path = job['filepath']
-        temp_path = None
         try:
-            temp_path = self._make_temp_copy(original_path, filename)
-            result = self._execute_print(temp_path, job, job_id)
-            return self._finalize(job_id, original_path, temp_path, result, job)
+            from app.core.utils import temp_print_file
+
+            with temp_print_file(original_path, filename) as temp_path:
+                result = self._execute_print(temp_path, job, job_id)
+                return self._finalize(job_id, original_path, temp_path, result, job)
         except Exception as e:
             error_msg = str(e)
             self._update_and_broadcast(
@@ -76,8 +74,6 @@ class JobExecutor:
             )
             logger.error(f'打印异常: {filename} - {error_msg}')
             return False, error_msg
-        finally:
-            safe_remove(temp_path)
 
     def _update_and_broadcast(self, job_id, status, error_message=None, filename='', source='api'):
         self._repo.update_status(job_id, status, error_message)
@@ -92,13 +88,6 @@ class JobExecutor:
             if error_message:
                 data['error'] = error_message
             self._event_bus.publish('job_status', data)
-
-    def _make_temp_copy(self, original_path, filename):
-        suffix = Path(filename).suffix
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp_path = tmp.name
-        shutil.copy2(original_path, tmp_path)
-        return tmp_path
 
     def _execute_print(self, temp_path, job, job_id):
         print_params = {
@@ -181,6 +170,7 @@ class JobWorker:
         pythoncom.CoInitialize()
         try:
             logger.info(f'工作线程 {self.worker_id} 已启动')
+            handler = RetryHandler(self._config, self._repo, self._executor)
             while not self._stop_evt.is_set():
                 try:
                     job_id = self._job_queue.get_for_processing(timeout=1)
@@ -190,7 +180,7 @@ class JobWorker:
                         self._job_queue.clear_cancelled(job_id)
                         self._job_queue.task_done()
                         continue
-                    self._process(job_id)
+                    handler.run_with_retry(job_id, self.worker_id)
                     self._job_queue.task_done()
                 except Exception as e:
                     logger.error(f'工作线程 {self.worker_id} 异常: {e}')
@@ -199,14 +189,22 @@ class JobWorker:
             pythoncom.CoUninitialize()
             logger.info(f'工作线程 {self.worker_id} 已停止')
 
-    def _process(self, job_id):
+
+class RetryHandler:
+    """封装任务重试逻辑"""
+
+    def __init__(self, config, repo, executor: JobExecutor):
+        self._config = config
+        self._repo = repo
+        self._executor = executor
+
+    def run_with_retry(self, job_id: str, worker_id: int) -> None:
         max_retries = self._config.get('auto_retry_count', 0)
-        error_msg = ''
         job = self._repo.get_job(job_id)
-        if not job or self._job_queue.is_cancelled(job_id):
+        if not job:
             return
         for attempt in range(max_retries + 1):
-            success, error_msg = self._executor.execute(job_id, self.worker_id, attempt)
+            success, error_msg = self._executor.execute(job_id, worker_id, attempt)
             if success:
                 return
             if attempt < max_retries and error_msg not in ('用户取消',):

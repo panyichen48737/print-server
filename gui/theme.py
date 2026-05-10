@@ -7,7 +7,6 @@ from pathlib import Path
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 
-
 # Porcelain palette — warm white, bronze accents, shadow-driven depth
 TOKENS_LIGHT = {
     "surface": "#FAFAF8",
@@ -87,14 +86,19 @@ class ThemeEngine:
         self._mode = mode
         self._tokens = dict(TOKENS_LIGHT if mode == "light" else TOKENS_DARK)
         qapp.setPalette(self._palette())
-        # frozen 模式：exe 同级 gui/resources/（安装器放置）；dev 模式：gui/resources/
         if getattr(sys, 'frozen', False):
-            qss_path = Path(sys.executable).parent / 'gui' / 'resources' / f"{mode}.qss"
+            res_dir = Path(sys.executable).parent / 'gui' / 'resources'
         else:
-            qss_path = Path(__file__).parent / 'resources' / f"{mode}.qss"
-        if qss_path.exists():
-            with open(qss_path, encoding="utf-8") as f:
-                qapp.setStyleSheet(f.read())
+            res_dir = Path(__file__).parent / 'resources'
+        # Load base.qss first, then theme-specific color overrides
+        qss_parts = []
+        base_path = res_dir / 'base.qss'
+        if base_path.exists():
+            qss_parts.append(base_path.read_text(encoding='utf-8'))
+        theme_path = res_dir / f"{mode}.qss"
+        if theme_path.exists():
+            qss_parts.append(theme_path.read_text(encoding='utf-8'))
+        qapp.setStyleSheet('\n'.join(qss_parts))
 
     def _palette(self) -> QPalette:
         p = QPalette()

@@ -2,12 +2,18 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
-    QComboBox, QDialog, QHBoxLayout, QLabel, QPushButton,
-    QSpinBox, QVBoxLayout, QWidget,
+    QComboBox,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSpinBox,
+    QVBoxLayout,
 )
 
 from gui.components.printer_capabilities import (
-    PrinterCapabilities, query_capabilities,
+    PrinterCapabilities,
+    query_capabilities,
 )
 from gui.components.toggle_switch import LabeledToggle
 

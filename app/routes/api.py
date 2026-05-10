@@ -1,7 +1,4 @@
-import msgspec
-import time
-from collections import deque
-from pathlib import Path
+"""打印任务 API 路由 — 上传、取消、状态查询、打印机管理"""
 
 from fastapi import (
     APIRouter,
@@ -13,32 +10,14 @@ from fastapi import (
     Request,
     UploadFile,
 )
-from fastapi.responses import StreamingResponse
 from loguru import logger
 
-from app.core._paths import persistent_dir
 from app.core.auth import require_auth
 from app.core.exceptions import FileTypeError, PrintServerError
-from app.core.schemas import (
-    CancelAllResponse,
-    CancelResponse,
-    HealthResponse,
-    LogsResponse,
-    NotificationTestResponse,
-    PrinterListResponse,
-    PrinterStatusResponse,
-    PrintResponse,
-    RetryResponse,
-    SetDefaultPrinterRequest,
-    StatusResponse,
-)
-from app.services.upload import handle_file_upload
 from app.core.utils import format_time
-from app.core.version import __build_date__, __pyinstaller_version__, __version__
+from app.services.upload import handle_file_upload
 
 api_router = APIRouter()
-
-_start_time = time.time()
 
 
 async def _handle_upload(request, file, printer, copies, duplex, color, paper_size, source):
@@ -67,45 +46,7 @@ async def _handle_upload(request, file, printer, copies, duplex, color, paper_si
     return {'success': True, 'job_id': result.job_id}
 
 
-@api_router.get('/health', response_model=HealthResponse)
-async def health(request: Request):
-    db_path = Path(persistent_dir()) / 'jobs.db'
-    db_size = db_path.stat().st_size / (1024 * 1024) if db_path.exists() else 0
-    return {
-        'status': 'ok',
-        'version': __version__,
-        'uptime': int(time.time() - _start_time),
-        'queue_size': request.app.state.job_queue.queue_size(),
-        'db_size_mb': round(db_size, 1),
-        'port': getattr(request.app.state, 'port', 5000),
-    }
-
-
-@api_router.get('/version')
-async def api_version():
-    return {
-        'version': __version__,
-        'python_version': __import__('sys').version.split()[0],
-        'build_date': __build_date__,
-        'pyinstaller': __pyinstaller_version__,
-    }
-
-
-@api_router.get('/logs', response_model=LogsResponse)
-async def api_logs(_request: Request, lines: int = 50):
-    """获取最新日志行"""
-    log_file = Path(persistent_dir()) / 'logs' / 'print_server.log'
-    try:
-        with open(log_file, encoding='utf-8') as f:
-            last_lines = deque(f, maxlen=lines)
-        return {'lines': list(last_lines)}
-    except FileNotFoundError:
-        return {'lines': []}
-    except Exception as e:
-        return {'lines': [f'[ERROR] 读取日志失败: {e}']}
-
-
-@api_router.post('/print', response_model=PrintResponse)
+@api_router.post('/print')
 async def print_file(
     request: Request,
     file: UploadFile = File(...),
@@ -120,7 +61,7 @@ async def print_file(
     return await _handle_upload(request, file, printer, copies, duplex, color, paper_size, 'ios')
 
 
-@api_router.get('/status/{job_id}', response_model=StatusResponse)
+@api_router.get('/status/{job_id}')
 async def get_status(job_id: str, request: Request):
     """查询任务状态"""
     job = request.app.state.job_repo.get_job(job_id)
@@ -132,21 +73,21 @@ async def get_status(job_id: str, request: Request):
     return result
 
 
-@api_router.get('/printers', response_model=PrinterListResponse)
+@api_router.get('/printers')
 async def list_printers(request: Request):
     """获取可用打印机列表"""
     monitor = request.app.state.printer_monitor
     return {'printers': list(monitor.get_all_statuses().keys())}
 
 
-@api_router.get('/printers/status', response_model=PrinterStatusResponse)
+@api_router.get('/printers/status')
 async def printer_status(request: Request):
     """获取全部打印机实时状态"""
     monitor = request.app.state.printer_monitor
     return {'printers': monitor.get_all_statuses()}
 
 
-@api_router.post('/cancel/{job_id}', response_model=CancelResponse)
+@api_router.post('/cancel/{job_id}')
 async def cancel_job_api(
     job_id: str,
     request: Request,
@@ -164,7 +105,7 @@ async def cancel_job_api(
     return {'success': True}
 
 
-@api_router.post('/upload', response_model=PrintResponse)
+@api_router.post('/upload')
 async def upload_file(
     request: Request,
     file: UploadFile = File(...),
@@ -184,17 +125,19 @@ async def upload_file(
 @api_router.post('/set_default_printer')
 async def set_default_printer(
     request: Request,
-    body: SetDefaultPrinterRequest,
+    body: dict,
     _auth=Depends(require_auth),
 ):
+    from app.core.schemas import SetDefaultPrinterRequest
+    validated = SetDefaultPrinterRequest(**body)
     config = request.app.state.app_config
-    config.set('default_printer', body.printer)
+    config.set('default_printer', validated.printer)
     config.save()
-    logger.info(f'默认打印机已设置: {body.printer}')
+    logger.info(f'默认打印机已设置: {validated.printer}')
     return {'success': True}
 
 
-@api_router.post('/retry/{job_id}', response_model=RetryResponse)
+@api_router.post('/retry/{job_id}')
 async def retry_job(
     job_id: str,
     request: Request,
@@ -207,7 +150,7 @@ async def retry_job(
     return {'success': True, 'new_job_id': new_id}
 
 
-@api_router.post('/test_notification', response_model=NotificationTestResponse)
+@api_router.post('/test_notification')
 async def test_notification(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -234,7 +177,7 @@ async def test_notification(
     return {'success': True, 'channel': channel}
 
 
-@api_router.post('/cancel_all_queued', response_model=CancelAllResponse)
+@api_router.post('/cancel_all_queued')
 async def cancel_all_queued(
     request: Request,
     _auth=Depends(require_auth),
@@ -242,46 +185,6 @@ async def cancel_all_queued(
     job_queue = request.app.state.job_queue
     count = job_queue.cancel_all_queued()
     return {'success': True, 'cancelled': count}
-
-
-@api_router.get('/events')
-async def sse_events(request: Request):
-    """Server-Sent Events endpoint"""
-    broadcaster = request.app.state.sse
-    sub_id, q = broadcaster.subscribe()
-
-    import queue as _queue
-    import time as _time
-
-    start = _time.monotonic()
-    max_duration = 3600
-
-    def generate():
-        _encoder = msgspec.json.Encoder()
-        try:
-            while True:
-                elapsed = _time.monotonic() - start
-                if elapsed > max_duration:
-                    break
-                try:
-                    event_type, data = q.get(timeout=30)
-                    yield f'event: {event_type}\ndata: {_encoder.encode(data).decode("utf-8")}\n\n'
-                except _queue.Empty:
-                    continue
-        except GeneratorExit:
-            pass
-        finally:
-            broadcaster.unsubscribe(sub_id)
-
-    return StreamingResponse(generate(), media_type='text/event-stream')
-
-
-@api_router.get('/stats')
-async def api_stats_json(request: Request):
-    """获取统计信息（JSON 格式）"""
-    stats = request.app.state.job_repo.get_stats()
-    stats['daily_counts'] = request.app.state.job_repo.get_daily_counts(7)
-    return stats
 
 
 @api_router.get('/jobs')
@@ -294,8 +197,11 @@ async def api_jobs(
 ):
     """获取任务列表（JSON 格式）"""
     repo = request.app.state.job_repo
-    status_param = status or None
-    search_param = search or None
-    jobs = repo.get_jobs(status=status_param, search=search_param, limit=limit, offset=offset)
-    total = repo.count_jobs(status=status_param, search=search_param)
+    jobs = repo.get_jobs(
+        status=status or None,
+        search=search or None,
+        limit=limit,
+        offset=offset,
+    )
+    total = repo.count_jobs(status=status or None, search=search or None)
     return {'jobs': jobs, 'total': total}

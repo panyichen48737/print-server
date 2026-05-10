@@ -18,8 +18,8 @@ def bootstrap(config: Config, lifespan=None):
     from app.printing.job_queue import JobQueue
     from app.printing.repository import JobRepository
     from app.printing.worker_pool import WorkerPool
-    from app.services.bark import BarkNotifier
-    from app.services.dingtalk import DingTalk
+    from app.services.notifications.bark import BarkNotifier
+    from app.services.notifications.dingtalk import DingTalk
     from app.services.printer_monitor import PrinterMonitor
 
     app = create_app(lifespan=lifespan)
@@ -69,7 +69,7 @@ def bootstrap(config: Config, lifespan=None):
     if notifier:
 
         def _on_job_status(data):
-            from app.services.notifier import is_print_related_error
+            from app.services.notifications import is_print_related_error
 
             status = data.get('status')
             source = data.get('source', 'api')

@@ -30,7 +30,7 @@ class TestBarkNotifierSendNotification:
         config = make_config(notify_channel='disabled')
         notifier = BarkNotifier(config)
 
-        with patch('app.services.bark._client') as mock_client:
+        with patch.object(notifier, '_http') as mock_client:
             notifier.send_notification('title', 'message')
 
         mock_client.post.assert_not_called()
@@ -40,7 +40,7 @@ class TestBarkNotifierSendNotification:
         config = make_config(notify_channel='bark', bark_key='')
         notifier = BarkNotifier(config)
 
-        with patch('app.services.bark._client') as mock_client:
+        with patch.object(notifier, '_http') as mock_client:
             notifier.send_notification('title', 'message')
 
         mock_client.post.assert_not_called()
@@ -53,7 +53,7 @@ class TestBarkNotifierSendNotification:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
 
-        with patch('app.services.bark._client') as mock_client:
+        with patch.object(notifier, '_http') as mock_client:
             mock_client.post.return_value = mock_resp
             notifier.send_notification('Title', 'Body')
 
@@ -71,7 +71,7 @@ class TestBarkNotifierSendNotification:
         mock_resp = MagicMock()
         mock_resp.status_code = 400
 
-        with patch('app.services.bark._client') as mock_client:
+        with patch.object(notifier, '_http') as mock_client:
             mock_client.post.return_value = mock_resp
             notifier.send_notification('Title', 'Body')
 
@@ -82,7 +82,7 @@ class TestBarkNotifierSendNotification:
         config = make_config(notify_channel='bark', bark_key='mykey')
         notifier = BarkNotifier(config)
 
-        with patch('app.services.bark._client') as mock_client:
+        with patch.object(notifier, '_http') as mock_client:
             mock_client.post.side_effect = httpx.ConnectError('connection refused')
             notifier.send_notification('Title', 'Body')
 
@@ -93,7 +93,7 @@ class TestBarkNotifierSendNotification:
         config = make_config(notify_channel='bark', bark_key='mykey')
         notifier = BarkNotifier(config)
 
-        with patch('app.services.bark._client') as mock_client:
+        with patch.object(notifier, '_http') as mock_client:
             mock_client.post.side_effect = httpx.TimeoutException('timed out')
             notifier.send_notification('Title', 'Body')
 
@@ -111,7 +111,7 @@ class TestBarkNotifierSendNotification:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
 
-        with patch('app.services.bark._client') as mock_client:
+        with patch.object(notifier, '_http') as mock_client:
             mock_client.post.return_value = mock_resp
             notifier.send_notification('Title', 'Body')
 
@@ -163,7 +163,7 @@ class TestDingTalkSendNotification:
         config = make_config(dingtalk_webhook='')
         notifier = DingTalk(config)
 
-        with patch('app.services.dingtalk._client') as mock_client:
+        with patch.object(notifier, '_http') as mock_client:
             notifier.send_notification('title', 'message')
 
         mock_client.post.assert_not_called()
@@ -176,7 +176,7 @@ class TestDingTalkSendNotification:
         )
         notifier = DingTalk(config)
 
-        with patch('app.services.dingtalk._client') as mock_client:
+        with patch.object(notifier, '_http') as mock_client:
             notifier.send_notification('title', 'message', level='info')
 
         mock_client.post.assert_not_called()
@@ -192,7 +192,7 @@ class TestDingTalkSendNotification:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
 
-        with patch('app.services.dingtalk._client') as mock_client:
+        with patch.object(notifier, '_http') as mock_client:
             mock_client.post.return_value = mock_resp
             notifier.send_notification('Title', 'Message', level='error')
 
@@ -208,7 +208,7 @@ class TestDingTalkSendNotification:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
 
-        with patch('app.services.dingtalk._client') as mock_client:
+        with patch.object(notifier, '_http') as mock_client:
             mock_client.post.return_value = mock_resp
             notifier.send_notification('Title', 'Message body')
 
@@ -231,7 +231,7 @@ class TestDingTalkSendNotification:
         mock_resp = MagicMock()
         mock_resp.status_code = 403
 
-        with patch('app.services.dingtalk._client') as mock_client:
+        with patch.object(notifier, '_http') as mock_client:
             mock_client.post.return_value = mock_resp
             notifier.send_notification('Title', 'Message')
 
@@ -244,7 +244,7 @@ class TestDingTalkSendNotification:
         )
         notifier = DingTalk(config)
 
-        with patch('app.services.dingtalk._client') as mock_client:
+        with patch.object(notifier, '_http') as mock_client:
             mock_client.post.side_effect = httpx.ConnectError('connection refused')
             notifier.send_notification('Title', 'Message')
 
@@ -257,7 +257,7 @@ class TestDingTalkSendNotification:
         )
         notifier = DingTalk(config)
 
-        with patch('app.services.dingtalk._client') as mock_client:
+        with patch.object(notifier, '_http') as mock_client:
             mock_client.post.side_effect = httpx.TimeoutException('timed out')
             notifier.send_notification('Title', 'Message')
 

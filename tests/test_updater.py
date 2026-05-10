@@ -7,15 +7,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.core.version import __version__
 from app.updater import (
     _version_greater,
     check_latest_version,
     cleanup_cache,
     download_installer,
-    install_update,
     get_installed_version_from_registry,
+    install_update,
 )
-from app.core.version import __version__
 
 
 class TestVersionGreater:

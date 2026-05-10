@@ -5,18 +5,28 @@ import io
 from pathlib import Path
 
 from PIL import Image
-from PySide6.QtCore import Qt, QThread, Signal, QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
-    QComboBox, QFileDialog, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-    QProgressBar, QPushButton, QScrollArea, QSpinBox,
-    QVBoxLayout, QWidget,
+    QComboBox,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QProgressBar,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
 )
 
 from gui.components.drop_zone import DropZoneWidget
+from gui.components.printer_capabilities import query_capabilities
 from gui.components.stateful_button import StatefulButton
 from gui.components.toggle_switch import LabeledToggle
-from gui.components.printer_capabilities import query_capabilities
+from gui.pages.scan_worker import ScanWorker
 
 IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif", ".heic", ".heif"]
 
@@ -39,41 +49,6 @@ class _ScanResultItem(QWidget):
         info = QLabel(label)
         info.setStyleSheet("font-size: 12px; color: #8A8178;")
         lo.addWidget(info, 1)
-
-
-class ScanWorker(QThread):
-    """Background worker for Quark API enhancement."""
-    progress = Signal(int, int)  # current, total
-    finished = Signal(int, list)  # job_id, list of (filepath, enhanced_bytes or None)
-    error = Signal(str)
-
-    def __init__(self, paths: list[str], parent=None):
-        super().__init__(parent)
-        self.paths = paths
-        self._cancelled = False
-
-    def cancel(self):
-        self._cancelled = True
-
-    def run(self):
-        from app.printing.enhancer import QuarkEnhancer
-        from app.core.config import Config
-
-        config = Config()
-        enhancer = QuarkEnhancer(config)
-        results: list[tuple[str, bytes | None]] = []
-
-        for i, path in enumerate(self.paths):
-            if self._cancelled:
-                break
-            self.progress.emit(i + 1, len(self.paths))
-            try:
-                enhanced = enhancer.enhance(path)
-                results.append((path, enhanced))
-            except Exception as e:
-                results.append((path, None))
-
-        self.finished.emit(len(self.paths), results)
 
 
 class ScanPage(QWidget):
@@ -372,7 +347,7 @@ class ScanPage(QWidget):
         # Collect enhanced images
         enhanced_images: list[bytes] = []
         errors = 0
-        for path, data in results:
+        for _path, data in results:
             if data:
                 enhanced_images.append(data)
             else:
@@ -469,15 +444,15 @@ class ScanPage(QWidget):
 
     def _copy_result(self):
         if self._generated_pdf:
-            from PySide6.QtGui import QGuiApplication
             from PySide6.QtCore import QMimeData
+            from PySide6.QtGui import QGuiApplication
             mime = QMimeData()
             mime.setData("application/pdf", self._generated_pdf)
             QGuiApplication.clipboard().setMimeData(mime)
             self._status_label.setText("PDF 已复制到剪贴板")
         elif self._generated_images:
-            from PySide6.QtGui import QGuiApplication
             from PySide6.QtCore import QMimeData
+            from PySide6.QtGui import QGuiApplication
             mime = QMimeData()
             if len(self._generated_images) == 1:
                 pixmap = QPixmap()
@@ -522,8 +497,9 @@ class ScanPage(QWidget):
         self._status_label.setStyleSheet("color: #6B8F6B;")
 
         # Show action buttons
-        from PySide6.QtWidgets import QPushButton
         import subprocess
+
+        from PySide6.QtWidgets import QPushButton
         # Remove old buttons if any
         for btn in self._export_action_widget.findChildren(QPushButton):
             btn.deleteLater()
@@ -559,6 +535,7 @@ class ScanPage(QWidget):
             return
         try:
             import tempfile
+
             from app.printing.job_queue import get_queue
 
             queue = get_queue()

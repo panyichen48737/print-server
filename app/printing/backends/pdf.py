@@ -9,9 +9,8 @@ from pathlib import Path
 from loguru import logger
 
 from app.core.exceptions import PrintError
-from app.printing.backends.base import PrinterBackend, register
+from app.printing.backends.base import PrinterBackend, cancel_all_spooler_jobs, register
 from app.printing.ipp_client import get_printer_ip, print_via_ipp
-from app.printing.utils import cancel_all_spooler_jobs
 
 
 @register('.pdf')

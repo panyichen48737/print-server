@@ -48,7 +48,7 @@ class WorkerPool:
             self._futures.append(self._executor.submit(worker.run))
         logger.info(f'启动 {count} 个工作线程')
 
-    def drain(self, timeout: float = 30.0) -> None:
+    def wait_stop(self, timeout: float = 30.0) -> None:
         """等待活跃 worker 完成，然后停止"""
         if not self._executor:
             return
@@ -61,7 +61,7 @@ class WorkerPool:
                 break
             time.sleep(0.5)
         if not done:
-            logger.warning('drain 超时，强制停止')
+            logger.warning('wait_stop 超时，强制停止')
         self.stop()
 
     def stop(self) -> None:

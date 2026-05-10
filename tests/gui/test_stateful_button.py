@@ -1,6 +1,6 @@
 """Tests for StatefulButton states."""
-from PySide6.QtWidgets import QApplication
 import pytest
+from PySide6.QtWidgets import QApplication
 
 from gui.components.stateful_button import StatefulButton
 

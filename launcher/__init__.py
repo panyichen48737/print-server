@@ -80,12 +80,15 @@ def _ensure_single_instance() -> None:
 # ── FastAPI lifespan 延迟绑定 ──
 
 
+from dataclasses import dataclass
+
+
+@dataclass
 class _LifespanRef:
-    def __init__(self):
-        self.config = None
-        self.printer_monitor = None
-        self.heartbeat = None
-        self.worker_pool = None
+    config: object = None
+    printer_monitor: object = None
+    heartbeat: object = None
+    worker_pool: object = None
 
 
 _lifespan_ref = _LifespanRef()

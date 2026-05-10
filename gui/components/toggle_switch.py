@@ -5,7 +5,6 @@ from PySide6.QtCore import QEvent, QPropertyAnimation, Qt, Signal
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QSlider, QWidget
 
-
 TRACK_QSS = """
 QSlider {{
     min-height: 30px; max-height: 30px;
