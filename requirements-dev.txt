@@ -43,7 +43,7 @@ filelock==3.29.0
     # via
     #   python-discovery
     #   virtualenv
-flet==0.84.0
+flet==0.85.0
     # via ios-print-server (pyproject.toml)
 h11==0.16.0
     # via

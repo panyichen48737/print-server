@@ -28,7 +28,7 @@ colorama==0.4.6
     #   uvicorn
 fastapi==0.136.1
     # via ios-print-server (pyproject.toml)
-flet==0.84.0
+flet==0.85.0
     # via ios-print-server (pyproject.toml)
 h11==0.16.0
     # via
