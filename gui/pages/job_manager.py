@@ -240,14 +240,14 @@ class JobManagerPage(QWidget):
         # Hover delegate
         self._queue_delegate = HoverHighlightDelegate(self)
         self.queue_table.setItemDelegate(self._queue_delegate)
-        self.queue_table.viewport().entered.connect(
+        self.queue_table.entered.connect(
             lambda idx: self._on_entered(self._queue_delegate, self.queue_table, idx)
         )
         self.queue_table.setMouseTracking(True)
 
         self._history_delegate = HoverHighlightDelegate(self)
         self.history_table.setItemDelegate(self._history_delegate)
-        self.history_table.viewport().entered.connect(
+        self.history_table.entered.connect(
             lambda idx: self._on_entered(self._history_delegate, self.history_table, idx)
         )
         self.history_table.setMouseTracking(True)
