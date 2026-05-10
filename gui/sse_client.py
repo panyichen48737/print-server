@@ -1,4 +1,5 @@
 """SSE event stream client running in background thread."""
+
 import asyncio
 import contextlib
 import json
@@ -46,14 +47,14 @@ class SSEClient:
         while self._running:
             try:
                 client = get_client()
-                async with client.stream("GET", "/api/events") as response:
-                    event_type = ""
+                async with client.stream('GET', '/api/events') as response:
+                    event_type = ''
                     async for line in response.aiter_lines():
                         if not self._running:
                             break
-                        if line.startswith("event: "):
+                        if line.startswith('event: '):
                             event_type = line[7:]
-                        elif line.startswith("data: "):
+                        elif line.startswith('data: '):
                             data = json.loads(line[6:])
                             with self._lock:
                                 cbs = list(self._callbacks.get(event_type, []))

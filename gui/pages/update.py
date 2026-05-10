@@ -1,4 +1,5 @@
 """Update section widget: version check, download, and install."""
+
 from __future__ import annotations
 
 import os
@@ -52,8 +53,8 @@ class UpdateSection(QWidget):
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setSpacing(8)
 
-        self.update_btn = QPushButton("检查更新")
-        self.update_btn.setObjectName("primary")
+        self.update_btn = QPushButton('检查更新')
+        self.update_btn.setObjectName('primary')
         self.update_btn.clicked.connect(self._check_update)
         layout.addWidget(self.update_btn, alignment=Qt.AlignmentFlag.AlignCenter)
 
@@ -63,15 +64,15 @@ class UpdateSection(QWidget):
         self.update_progress.setTextVisible(False)
         layout.addWidget(self.update_progress)
 
-        self.update_status = QLabel("")
+        self.update_status = QLabel('')
         self.update_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self._spinner_label = QLabel("")
+        self._spinner_label = QLabel('')
         self._spinner_label.setVisible(False)
-        self._spinner_label.setStyleSheet("font-size: 16px; color: #B8956A;")
+        self._spinner_label.setStyleSheet('font-size: 16px; color: #B8956A;')
         self._spinner_timer = QTimer(self)
         self._spinner_timer.timeout.connect(self._advance_spinner)
-        self._spinner_frames = ["◜", "◝", "◞", "◟"]
+        self._spinner_frames = ['◜', '◝', '◞', '◟']
         self._spinner_idx = 0
 
         status_row = QHBoxLayout()
@@ -91,28 +92,24 @@ class UpdateSection(QWidget):
         self._update_worker = _UpdateCheckWorker()
         self._update_worker.moveToThread(self._update_thread)
 
-        if mode == "check":
+        if mode == 'check':
             self._update_worker.check_finished.connect(self._on_check_finished)
             self._update_thread.started.connect(self._update_worker.run_check)
             self._update_thread.start()
-        elif mode == "download":
+        elif mode == 'download':
             url = self._update_info.download_url if self._update_info else None
-            dest = str(self._installer_path) if self._installer_path else ""
+            dest = str(self._installer_path) if self._installer_path else ''
             if not url or not dest:
                 self._on_download_finished(False)
                 return
             self._update_worker.download_progress.connect(self._on_download_progress)
             self._update_worker.download_finished.connect(self._on_download_finished)
-            self._update_thread.started.connect(
-                lambda: self._update_worker.run_download(url, dest)
-            )
+            self._update_thread.started.connect(lambda: self._update_worker.run_download(url, dest))
             self._update_thread.start()
-        elif mode == "install":
-            dest = str(self._installer_path) if self._installer_path else ""
+        elif mode == 'install':
+            dest = str(self._installer_path) if self._installer_path else ''
             self._update_worker.install_launched.connect(self._on_install_launched)
-            self._update_thread.started.connect(
-                lambda: self._update_worker.run_install(dest)
-            )
+            self._update_thread.started.connect(lambda: self._update_worker.run_install(dest))
             self._update_thread.start()
 
     def _cleanup_thread(self):
@@ -126,25 +123,25 @@ class UpdateSection(QWidget):
 
     def _check_update(self):
         self.update_btn.setEnabled(False)
-        self.update_btn.setText("检查中...")
+        self.update_btn.setText('检查中...')
         self.update_progress.setVisible(False)
-        self.update_status.setStyleSheet("color: #8A8178;")
-        self.update_status.setText("正在检查更新...")
+        self.update_status.setStyleSheet('color: #8A8178;')
+        self.update_status.setText('正在检查更新...')
         self._start_spinner()
         self._update_info = None
         self._installer_path = None
-        self._start_worker("check")
+        self._start_worker('check')
 
     def _on_check_finished(self, info: UpdateInfo | None):
         self._stop_spinner()
         self._cleanup_thread()
         self.update_btn.setEnabled(True)
-        self.update_btn.setText("检查更新")
+        self.update_btn.setText('检查更新')
 
         if info is None:
-            self.update_status.setText("检查更新失败，请稍后重试")
-            self.update_status.setStyleSheet("color: #C53A3A;")
-            self.update_btn.setText("重试")
+            self.update_status.setText('检查更新失败，请稍后重试')
+            self.update_status.setStyleSheet('color: #C53A3A;')
+            self.update_btn.setText('重试')
             self.update_btn.clicked.disconnect()
             self.update_btn.clicked.connect(self._check_update)
             return
@@ -152,44 +149,45 @@ class UpdateSection(QWidget):
         self._update_info = info
 
         if not info.is_newer:
-            self.update_status.setText(f"✅ 已是最新版本 (v{__version__})")
-            self.update_status.setStyleSheet("color: #6B8F6B;")
+            self.update_status.setText(f'✅ 已是最新版本 (v{__version__})')
+            self.update_status.setStyleSheet('color: #6B8F6B;')
             return
 
-        self.update_status.setText(f"新版本 v{info.latest_version} 可用")
-        self.update_status.setStyleSheet("color: #B8956A;")
+        self.update_status.setText(f'新版本 v{info.latest_version} 可用')
+        self.update_status.setStyleSheet('color: #B8956A;')
 
         if info.download_url:
-            self.update_btn.setText("下载更新")
+            self.update_btn.setText('下载更新')
             self.update_btn.clicked.disconnect()
             self.update_btn.clicked.connect(self._start_download)
             self.update_btn.setEnabled(True)
         else:
             import webbrowser
-            self.update_btn.setText("前往下载页")
+
+            self.update_btn.setText('前往下载页')
             self.update_btn.clicked.disconnect()
-            self.update_btn.clicked.connect(
-                lambda: webbrowser.open(info.release_url)
-            )
+            self.update_btn.clicked.connect(lambda: webbrowser.open(info.release_url))
             self.update_btn.setEnabled(True)
 
     # ── Download ──
 
     def _start_download(self):
-        cache_dir = persistent_dir() / "update_cache"
+        cache_dir = persistent_dir() / 'update_cache'
         cache_dir.mkdir(parents=True, exist_ok=True)
 
-        is_incremental = self._update_info and self._update_info.download_type == "incremental"
+        is_incremental = self._update_info and self._update_info.download_type == 'incremental'
         if is_incremental:
-            self._installer_path = cache_dir / f"update-{self._update_info.latest_version}.zip"
+            self._installer_path = cache_dir / f'update-{self._update_info.latest_version}.zip'
         else:
-            self._installer_path = cache_dir / f"iOSPrintServer-Setup-{self._update_info.latest_version}.exe"
+            self._installer_path = (
+                cache_dir / f'iOSPrintServer-Setup-{self._update_info.latest_version}.exe'
+            )
 
         self.update_btn.setEnabled(False)
-        self.update_btn.setText("准备下载...")
+        self.update_btn.setText('准备下载...')
         self.update_progress.setVisible(True)
         self.update_progress.setValue(0)
-        self._start_worker("download")
+        self._start_worker('download')
 
     def _on_download_progress(self, downloaded: int, total: int):
         self.update_progress.setVisible(True)
@@ -198,16 +196,16 @@ class UpdateSection(QWidget):
         mb_d = downloaded / 1024 / 1024
         mb_t = total / 1024 / 1024
         pct = int(downloaded * 100 / total) if total else 0
-        self.update_status.setText(f"下载中... {mb_d:.1f}/{mb_t:.1f} MB ({pct}%)")
+        self.update_status.setText(f'下载中... {mb_d:.1f}/{mb_t:.1f} MB ({pct}%)')
 
     def _on_download_finished(self, success: bool):
         self._cleanup_thread()
         self.update_progress.setVisible(False)
 
         if not success:
-            self.update_status.setText("下载失败，请重试")
-            self.update_status.setStyleSheet("color: #C53A3A;")
-            self.update_btn.setText("重试")
+            self.update_status.setText('下载失败，请重试')
+            self.update_status.setStyleSheet('color: #C53A3A;')
+            self.update_btn.setText('重试')
             self.update_btn.clicked.disconnect()
             self.update_btn.clicked.connect(self._start_download)
             self.update_btn.setEnabled(True)
@@ -215,15 +213,15 @@ class UpdateSection(QWidget):
                 self._installer_path.unlink(missing_ok=True)
             return
 
-        self.update_status.setText("下载完成！正在安装...")
-        self.update_status.setStyleSheet("color: #6B8F6B;")
+        self.update_status.setText('下载完成！正在安装...')
+        self.update_status.setStyleSheet('color: #6B8F6B;')
         self.update_btn.setEnabled(False)
-        self.update_btn.setText("安装中...")
+        self.update_btn.setText('安装中...')
 
-        if self._update_info and self._update_info.download_type == "incremental":
+        if self._update_info and self._update_info.download_type == 'incremental':
             self._apply_incremental_update()
         else:
-            self._start_worker("install")
+            self._start_worker('install')
 
     def _apply_incremental_update(self):
         from gui.pipe_client import apply_update, service_status
@@ -231,47 +229,54 @@ class UpdateSection(QWidget):
         status = service_status()
         if status is None:
             import webbrowser
-            self.update_status.setText("更新服务未运行，请使用安装器手动更新")
-            self.update_status.setStyleSheet("color: #C53A3A;")
-            self.update_btn.setText("前往下载页")
+
+            self.update_status.setText('更新服务未运行，请使用安装器手动更新')
+            self.update_status.setStyleSheet('color: #C53A3A;')
+            self.update_btn.setText('前往下载页')
             self.update_btn.clicked.disconnect()
             self.update_btn.clicked.connect(
-                lambda: webbrowser.open(self._update_info.release_url) if self._update_info else None
+                lambda: (
+                    webbrowser.open(self._update_info.release_url) if self._update_info else None
+                )
             )
             self.update_btn.setEnabled(True)
             return
 
         import sys
+
         app_dir = str(Path(sys.executable).parent) if getattr(sys, 'frozen', False) else None
         if not app_dir:
-            self.update_status.setText("无法确定安装目录")
-            self.update_status.setStyleSheet("color: #C53A3A;")
+            self.update_status.setText('无法确定安装目录')
+            self.update_status.setStyleSheet('color: #C53A3A;')
             return
 
         resp = apply_update(str(self._installer_path), app_dir)
-        if resp is None or resp.status != "ok":
-            self.update_status.setText("更新服务响应失败，请重试")
-            self.update_status.setStyleSheet("color: #C53A3A;")
-            self.update_btn.setText("重试")
+        if resp is None or resp.status != 'ok':
+            self.update_status.setText('更新服务响应失败，请重试')
+            self.update_status.setStyleSheet('color: #C53A3A;')
+            self.update_btn.setText('重试')
             self.update_btn.clicked.disconnect()
             self.update_btn.clicked.connect(self._apply_incremental_update)
             self.update_btn.setEnabled(True)
             return
 
-        self.update_status.setText("更新提交成功，程序即将重启...")
-        self.update_status.setStyleSheet("color: #6B8F6B;")
+        self.update_status.setText('更新提交成功，程序即将重启...')
+        self.update_status.setStyleSheet('color: #6B8F6B;')
         QTimer.singleShot(1000, lambda: os._exit(0))
 
     def _on_install_launched(self, success: bool):
         self._cleanup_thread()
         if not success:
             import webbrowser
-            self.update_status.setText("安装启动失败，请手动下载")
-            self.update_status.setStyleSheet("color: #C53A3A;")
-            self.update_btn.setText("前往下载页")
+
+            self.update_status.setText('安装启动失败，请手动下载')
+            self.update_status.setStyleSheet('color: #C53A3A;')
+            self.update_btn.setText('前往下载页')
             self.update_btn.clicked.disconnect()
             self.update_btn.clicked.connect(
-                lambda: webbrowser.open(self._update_info.release_url) if self._update_info else None
+                lambda: (
+                    webbrowser.open(self._update_info.release_url) if self._update_info else None
+                )
             )
             self.update_btn.setEnabled(True)
 
@@ -290,7 +295,7 @@ class UpdateSection(QWidget):
     def _stop_spinner(self):
         self._spinner_timer.stop()
         self._spinner_label.setVisible(False)
-        self._spinner_label.setText("")
+        self._spinner_label.setText('')
 
     def cleanup(self):
         """Stop pending thread when page is destroyed."""

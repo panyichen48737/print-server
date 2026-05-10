@@ -58,7 +58,7 @@ def _ensure_single_instance() -> None:
     # Windows 命名互斥体（最可靠方式）
     with contextlib.suppress(Exception):
         kernel32 = ctypes.windll.kernel32
-        mutex = kernel32.CreateMutexW(None, False, "PrintServerLauncher")
+        mutex = kernel32.CreateMutexW(None, False, 'PrintServerLauncher')
         if mutex and kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
             print('服务器已在运行')
             sys.exit(0)
@@ -76,8 +76,6 @@ def _ensure_single_instance() -> None:
         except (ValueError, OSError):
             pass
     _write_pid()
-
-
 
 
 @dataclass
@@ -177,9 +175,7 @@ def main() -> int | None:
     """入口 — 直接启动 PySide6 GUI（pyproject.toml scripts 指向此函数）"""
     # 隐藏控制台窗口（Windows GUI 模式）
     with contextlib.suppress(Exception):
-        ctypes.windll.user32.ShowWindow(
-            ctypes.windll.kernel32.GetConsoleWindow(), 0
-        )
+        ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
     _gui_main()
     return None
 

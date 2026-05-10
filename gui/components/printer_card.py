@@ -1,4 +1,5 @@
 """Printer card widget — compact (dashboard) and full (manager) modes."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import Signal
@@ -9,24 +10,31 @@ class PrinterCardWidget(QFrame):
     set_default_clicked = Signal(str)
 
     STATUS_COLORS = {
-        "ready": "#6B8F6B",
-        "busy": "#D4A84B",
-        "error": "#C53A3A",
+        'ready': '#6B8F6B',
+        'busy': '#D4A84B',
+        'error': '#C53A3A',
     }
     STATUS_TEXTS = {
-        "ready": "就绪",
-        "busy": "忙碌",
-        "error": "错误",
+        'ready': '就绪',
+        'busy': '忙碌',
+        'error': '错误',
     }
 
-    def __init__(self, name: str, status: str, port: str = "",
-                 is_default: bool = False, compact: bool = False, parent=None):
+    def __init__(
+        self,
+        name: str,
+        status: str,
+        port: str = '',
+        is_default: bool = False,
+        compact: bool = False,
+        parent=None,
+    ):
         super().__init__(parent)
         self._name = name
-        self.setObjectName("printerCard")
-        self.setProperty("compact", compact)
+        self.setObjectName('printerCard')
+        self.setProperty('compact', compact)
 
-        color = self.STATUS_COLORS.get(status, "#999999")
+        color = self.STATUS_COLORS.get(status, '#999999')
         status_text = self.STATUS_TEXTS.get(status, status)
 
         if compact:
@@ -40,8 +48,8 @@ class PrinterCardWidget(QFrame):
         lo.setSpacing(10)
 
         # Icon
-        icon = QLabel("🖨")
-        icon.setStyleSheet("font-size: 16px;")
+        icon = QLabel('🖨')
+        icon.setStyleSheet('font-size: 16px;')
 
         # Name + port
         info = QWidget()
@@ -49,11 +57,11 @@ class PrinterCardWidget(QFrame):
         il.setContentsMargins(0, 0, 0, 0)
         il.setSpacing(1)
         nl = QLabel(name)
-        nl.setObjectName("printName")
+        nl.setObjectName('printName')
         il.addWidget(nl)
         if port:
             pl = QLabel(port)
-            pl.setObjectName("printPort")
+            pl.setObjectName('printPort')
             il.addWidget(pl)
 
         lo.addWidget(icon)
@@ -67,9 +75,9 @@ class PrinterCardWidget(QFrame):
         sl.setSpacing(5)
         dot = QLabel()
         dot.setFixedSize(7, 7)
-        dot.setStyleSheet(f"background-color: {color}; border-radius: 3px;")
+        dot.setStyleSheet(f'background-color: {color}; border-radius: 3px;')
         st = QLabel(status_text)
-        st.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {color};")
+        st.setStyleSheet(f'font-size: 11px; font-weight: 600; color: {color};')
         sl.addWidget(dot)
         sl.addWidget(st)
         lo.addWidget(sw)
@@ -81,10 +89,10 @@ class PrinterCardWidget(QFrame):
 
         # Icon + name row
         top = QHBoxLayout()
-        icon = QLabel("🖨")
-        icon.setStyleSheet("font-size: 20px;")
+        icon = QLabel('🖨')
+        icon.setStyleSheet('font-size: 20px;')
         nl = QLabel(name)
-        nl.setObjectName("printName")
+        nl.setObjectName('printName')
         top.addWidget(icon)
         top.addWidget(nl)
         top.addStretch()
@@ -92,7 +100,7 @@ class PrinterCardWidget(QFrame):
 
         if port:
             pl = QLabel(port)
-            pl.setObjectName("printPort")
+            pl.setObjectName('printPort')
             lo.addWidget(pl)
 
         # Status
@@ -102,16 +110,16 @@ class PrinterCardWidget(QFrame):
         sl.setSpacing(5)
         dot = QLabel()
         dot.setFixedSize(7, 7)
-        dot.setStyleSheet(f"background-color: {color}; border-radius: 3px;")
+        dot.setStyleSheet(f'background-color: {color}; border-radius: 3px;')
         st = QLabel(status_text)
-        st.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {color};")
+        st.setStyleSheet(f'font-size: 12px; font-weight: 600; color: {color};')
         sl.addWidget(dot)
         sl.addWidget(st)
 
         if is_default:
             sl.addStretch()
-            dl = QLabel("★ 默认")
-            dl.setObjectName("printDefaultBadge")
+            dl = QLabel('★ 默认')
+            dl.setObjectName('printDefaultBadge')
             sl.addWidget(dl)
 
         lo.addWidget(sw)
@@ -119,11 +127,11 @@ class PrinterCardWidget(QFrame):
 
         # Button
         if is_default:
-            btn = QPushButton("已设为默认")
-            btn.setObjectName("ghost")
+            btn = QPushButton('已设为默认')
+            btn.setObjectName('ghost')
             btn.setEnabled(False)
         else:
-            btn = QPushButton("设为默认")
-            btn.setObjectName("primary")
+            btn = QPushButton('设为默认')
+            btn.setObjectName('primary')
             btn.clicked.connect(lambda: self.set_default_clicked.emit(self._name))
         lo.addWidget(btn)

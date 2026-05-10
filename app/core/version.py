@@ -17,7 +17,9 @@ def _version_file() -> Path:
 def _manifest_file() -> Path:
     if getattr(sys, 'frozen', False):
         return Path(sys.executable).parent / 'resources' / 'version_info.json'
-    return Path(__file__).resolve().parent.parent.parent / 'build' / 'resources' / 'version_info.json'
+    return (
+        Path(__file__).resolve().parent.parent.parent / 'build' / 'resources' / 'version_info.json'
+    )
 
 
 def _get_version() -> str:
@@ -59,6 +61,7 @@ def _get_build_date() -> str:
 def _get_pyinstaller_version() -> str:
     try:
         from importlib.metadata import version as pkg_version
+
         return pkg_version('pyinstaller')
     except Exception:
         return 'unknown'

@@ -1,4 +1,5 @@
 """Scan worker: background Quark API enhancement thread."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import QThread, Signal
@@ -6,6 +7,7 @@ from PySide6.QtCore import QThread, Signal
 
 class ScanWorker(QThread):
     """Background worker for Quark API enhancement."""
+
     progress = Signal(int, int)
     finished = Signal(int, list)
     error = Signal(str)

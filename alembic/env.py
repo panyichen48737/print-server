@@ -1,4 +1,5 @@
 """Alembic environment config — dynamic SQLite path resolution."""
+
 import os
 from logging.config import fileConfig
 

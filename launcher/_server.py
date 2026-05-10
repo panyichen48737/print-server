@@ -1,4 +1,5 @@
 """Server lifecycle management — uvicorn in background thread (shared by launcher & GUI)."""
+
 from __future__ import annotations
 
 import contextlib
@@ -32,6 +33,7 @@ def _find_cert(config) -> tuple[str | None, str | None]:
 
 class _RedirectHandler(BaseHTTPRequestHandler):
     """HTTP→HTTPS 301 重定向"""
+
     main_port = 5000
 
     def do_GET(self):

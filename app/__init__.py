@@ -14,10 +14,9 @@ from app.core.exceptions import AuthError, FileTypeError, PrintServerError
 from app.core.version import __version__
 
 _SCALAR_URL = (
-    "https://cdn.jsdelivr.net/npm/@scalar/api-reference@latest"
-    "/dist/browser/standalone.min.js"
+    'https://cdn.jsdelivr.net/npm/@scalar/api-reference@latest/dist/browser/standalone.min.js'
 )
-_SCALAR_FILE = "scalar.standalone.min.js"
+_SCALAR_FILE = 'scalar.standalone.min.js'
 
 
 def _ensure_scalar_js(static_dir: Path) -> None:
@@ -26,11 +25,11 @@ def _ensure_scalar_js(static_dir: Path) -> None:
     if target.is_file():
         return
     try:
-        logger.info("Downloading Scalar API Reference JS …")
+        logger.info('Downloading Scalar API Reference JS …')
         urllib.request.urlretrieve(_SCALAR_URL, target)
-        logger.info(f"Scalar JS saved ({target.stat().st_size / 1024:.0f} KB)")
+        logger.info(f'Scalar JS saved ({target.stat().st_size / 1024:.0f} KB)')
     except Exception as exc:
-        logger.warning(f"Failed to download Scalar JS: {exc}")
+        logger.warning(f'Failed to download Scalar JS: {exc}')
 
 
 @asynccontextmanager

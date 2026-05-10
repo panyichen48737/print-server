@@ -1,4 +1,5 @@
 """QValidator subclasses for port and number range."""
+
 from __future__ import annotations
 
 from PySide6.QtGui import QIntValidator, QValidator

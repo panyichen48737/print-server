@@ -196,7 +196,11 @@ class TestJobWorker:
         from app.printing.worker import RetryHandler
 
         q.is_cancelled.return_value = True
-        w._repo.get_job.return_value = {'id': 'job-001', 'status': 'cancelled', 'filepath': '/tmp/test.pdf'}
+        w._repo.get_job.return_value = {
+            'id': 'job-001',
+            'status': 'cancelled',
+            'filepath': '/tmp/test.pdf',
+        }
 
         with patch.object(w, '_executor') as mock_exec:
             mock_exec.execute.return_value = (True, None)

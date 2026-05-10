@@ -173,7 +173,18 @@ class JobRepository:
         source: str = 'api',
     ) -> str:
         return self._sync(
-            self._add_job(filename, filepath, file_size, file_type, duplex, color, copies, paper_size, printer_name, source)
+            self._add_job(
+                filename,
+                filepath,
+                file_size,
+                file_type,
+                duplex,
+                color,
+                copies,
+                paper_size,
+                printer_name,
+                source,
+            )
         )
 
     async def _add_job(
@@ -196,22 +207,36 @@ class JobRepository:
                 duplex, color, copies, paper_size, printer_name, source)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                job_id, filename, filepath, file_size, file_type, 'queued',
-                duplex, color, copies, paper_size, printer_name, source,
+                job_id,
+                filename,
+                filepath,
+                file_size,
+                file_type,
+                'queued',
+                duplex,
+                color,
+                copies,
+                paper_size,
+                printer_name,
+                source,
             ),
             commit=True,
         )
         return job_id
 
     def get_job(self, job_id: str) -> JobRecord | None:
-        return self._sync(self._execute(
-            'SELECT * FROM jobs WHERE id = ?', (job_id,), fetchone=True, row_factory=True
-        ))
+        return self._sync(
+            self._execute(
+                'SELECT * FROM jobs WHERE id = ?', (job_id,), fetchone=True, row_factory=True
+            )
+        )
 
     def update_status(self, job_id: str, status: str, error_message: str | None = None) -> None:
         self._sync(self._update_status(job_id, status, error_message))
 
-    async def _update_status(self, job_id: str, status: str, error_message: str | None = None) -> None:
+    async def _update_status(
+        self, job_id: str, status: str, error_message: str | None = None
+    ) -> None:
         now = datetime.now().isoformat()
         if status in ('completed', 'failed'):
             await self._execute(
@@ -220,7 +245,9 @@ class JobRepository:
                 commit=True,
             )
         else:
-            await self._execute('UPDATE jobs SET status = ? WHERE id = ?', (status, job_id), commit=True)
+            await self._execute(
+                'UPDATE jobs SET status = ? WHERE id = ?', (status, job_id), commit=True
+            )
 
     def get_jobs(
         self,
@@ -249,7 +276,9 @@ class JobRepository:
         result = await self._execute(query, params, fetchone=True, row_factory=True)
         return result['cnt'] if result else 0
 
-    async def _build_where(self, query: str, status: str | None, search: str | None) -> tuple[str, list]:
+    async def _build_where(
+        self, query: str, status: str | None, search: str | None
+    ) -> tuple[str, list]:
         params = []
         if status:
             query += ' AND status = ?'
@@ -260,21 +289,27 @@ class JobRepository:
         return query, params
 
     def get_jobs_by_status(self, status: str) -> list[JobRecord]:
-        return self._sync(self._execute(
-            'SELECT * FROM jobs WHERE status = ?', (status,), fetchall=True, row_factory=True
-        ))
+        return self._sync(
+            self._execute(
+                'SELECT * FROM jobs WHERE status = ?', (status,), fetchall=True, row_factory=True
+            )
+        )
 
     def increment_retry(self, job_id: str) -> None:
-        self._sync(self._execute(
-            'UPDATE jobs SET retry_count = retry_count + 1 WHERE id = ?', (job_id,), commit=True
-        ))
+        self._sync(
+            self._execute(
+                'UPDATE jobs SET retry_count = retry_count + 1 WHERE id = ?', (job_id,), commit=True
+            )
+        )
 
     def batch_update_status(self, job_ids: list[str], status: str, error_message: str = '') -> None:
         if not job_ids:
             return
         self._sync(self._batch_update_status(job_ids, status, error_message))
 
-    async def _batch_update_status(self, job_ids: list[str], status: str, error_message: str = '') -> None:
+    async def _batch_update_status(
+        self, job_ids: list[str], status: str, error_message: str = ''
+    ) -> None:
         now = datetime.now().isoformat()
         rows = [(status, error_message or '', now, jid) for jid in job_ids]
         await self._execute(

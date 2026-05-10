@@ -1,4 +1,5 @@
 """Query printer capabilities via win32print.DeviceCapabilities."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -16,7 +17,7 @@ class PrinterCapabilities:
     copies_max: int = 99
     supports_color: bool = True
     supports_duplex: bool = True
-    paper_names: list[str] = field(default_factory=lambda: ["A4", "Letter", "A3"])
+    paper_names: list[str] = field(default_factory=lambda: ['A4', 'Letter', 'A3'])
 
 
 def query_capabilities(printer_name: str) -> PrinterCapabilities:

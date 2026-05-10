@@ -1,4 +1,5 @@
 """通知服务 — 向后兼容的 re-export"""
+
 from app.services.notifications import (
     KNOWN_ERROR_PATTERNS,
     LOCAL_ERROR_PATTERNS,

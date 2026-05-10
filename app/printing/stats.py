@@ -1,4 +1,5 @@
 """任务统计查询 — 概览/每日统计/清理过期"""
+
 from datetime import datetime, timedelta
 
 
@@ -23,7 +24,8 @@ async def get_stats(execute_fn) -> dict:
     failed_total = row['failed_total']
     success_rate = (
         (success_total / (success_total + failed_total) * 100)
-        if (success_total + failed_total) > 0 else 100
+        if (success_total + failed_total) > 0
+        else 100
     )
     return {
         'queued': row['queued'],
@@ -38,9 +40,9 @@ async def get_stats(execute_fn) -> dict:
 async def get_daily_counts(execute_fn, days: int = 7) -> dict[str, int]:
     """返回过去 N 天的每日任务量"""
     cursor = await execute_fn(
-        "SELECT DATE(created_at) as day, COUNT(*) as cnt FROM jobs "
+        'SELECT DATE(created_at) as day, COUNT(*) as cnt FROM jobs '
         "WHERE created_at >= datetime('now', ? || ' days') "
-        "GROUP BY day ORDER BY day",
+        'GROUP BY day ORDER BY day',
         (-days,),
         fetchall=True,
         row_factory=True,

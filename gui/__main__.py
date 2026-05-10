@@ -1,4 +1,5 @@
 """GUI entry point (python -m gui)."""
+
 import sys
 from pathlib import Path
 

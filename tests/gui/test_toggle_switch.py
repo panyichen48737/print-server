@@ -1,11 +1,12 @@
 """Tests for ToggleSwitch states."""
+
 import pytest
 from PySide6.QtWidgets import QApplication
 
 from gui.components.toggle_switch import ToggleSwitch
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope='module')
 def qapp():
     app = QApplication.instance() or QApplication([])
     yield app

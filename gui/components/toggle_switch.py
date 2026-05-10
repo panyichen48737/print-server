@@ -1,4 +1,5 @@
 """Toggle switch using QSlider + QSS for iOS-style sliding knob with capsule track."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QPropertyAnimation, Qt, Signal
@@ -43,7 +44,7 @@ class ToggleSwitch(QSlider):
 
     def _animate_toggle(self, target: int):
         self._animating = True
-        anim = QPropertyAnimation(self, b"value")
+        anim = QPropertyAnimation(self, b'value')
         anim.setDuration(150)
         anim.setStartValue(self.value())
         anim.setEndValue(target)
@@ -52,18 +53,21 @@ class ToggleSwitch(QSlider):
 
     def _track_color(self) -> str:
         if self._checked:
-            return "#8B7355"  # light on
-        return "#D0C8BE"  # light off
+            return '#8B7355'  # light on
+        return '#D0C8BE'  # light off
 
     def _knob_color(self) -> str:
-        return "#FFFFFF"
+        return '#FFFFFF'
 
     def _refresh_qss(self):
-        opacity = "0.4" if not self.isEnabled() else "1.0"
-        self.setStyleSheet(TRACK_QSS.format(
-            color=self._track_color(),
-            knob=self._knob_color(),
-        ) + f"QSlider {{ opacity: {opacity}; }}")
+        opacity = '0.4' if not self.isEnabled() else '1.0'
+        self.setStyleSheet(
+            TRACK_QSS.format(
+                color=self._track_color(),
+                knob=self._knob_color(),
+            )
+            + f'QSlider {{ opacity: {opacity}; }}'
+        )
 
     def changeEvent(self, event):
         if event.type() == QEvent.Type.EnabledChange:
@@ -102,7 +106,7 @@ class LabeledToggle(QWidget):
 
     toggled = Signal(bool)
 
-    def __init__(self, text: str = "", checked: bool = False, parent=None):
+    def __init__(self, text: str = '', checked: bool = False, parent=None):
         super().__init__(parent)
         lo = QHBoxLayout(self)
         lo.setContentsMargins(0, 0, 0, 0)

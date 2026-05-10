@@ -129,6 +129,7 @@ async def set_default_printer(
     _auth=Depends(require_auth),
 ):
     from app.core.schemas import SetDefaultPrinterRequest
+
     validated = SetDefaultPrinterRequest(**body)
     config = request.app.state.app_config
     config.set('default_printer', validated.printer)

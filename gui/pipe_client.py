@@ -1,4 +1,5 @@
 """TCP client for update_service.exe (SYSTEM service)."""
+
 from __future__ import annotations
 
 import json
@@ -27,9 +28,7 @@ class PendingUpdate:
 def _send_request(data: dict) -> ServiceResponse | None:
     """Send a JSON request to the update service. Returns None on connection failure."""
     try:
-        sock = socket.create_connection(
-            (_SERVICE_HOST, _SERVICE_PORT), timeout=_TIMEOUT
-        )
+        sock = socket.create_connection((_SERVICE_HOST, _SERVICE_PORT), timeout=_TIMEOUT)
         with sock:
             sock.sendall(json.dumps(data).encode('utf-8'))
             resp_data = sock.recv(4096)

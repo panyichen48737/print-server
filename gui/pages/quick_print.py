@@ -1,4 +1,5 @@
 """Quick print page: file picker (drag/drop + click), multi-file, batch submit."""
+
 from __future__ import annotations
 
 import subprocess
@@ -25,7 +26,7 @@ from gui.components.progress_state import ProgressState
 from gui.components.stateful_button import StatefulButton
 from gui.components.toggle_switch import LabeledToggle
 
-IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif", ".heic", ".heif"]
+IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif', '.heic', '.heif']
 
 
 class _FileItemWidget(QWidget):
@@ -53,23 +54,23 @@ class _FileItemWidget(QWidget):
             if not pixmap.isNull():
                 thumb.setPixmap(pixmap.scaled(40, 40, Qt.KeepAspectRatio, Qt.SmoothTransformation))
             else:
-                thumb.setText("\U0001f5bc")
+                thumb.setText('\U0001f5bc')
         else:
-            thumb.setText("\U0001f4c4")
+            thumb.setText('\U0001f4c4')
         lo.addWidget(thumb)
 
         # File name + truncated path
         parent_dir = p.parent.name if p.parent.name else p.parent.drive
-        display_path = f"{parent_dir}\\{p.name}"
+        display_path = f'{parent_dir}\\{p.name}'
         if len(display_path) > 55:
-            display_path = f"{parent_dir[0]}...\\{p.name}"
+            display_path = f'{parent_dir[0]}...\\{p.name}'
         info = QLabel(p.name)
         info.setToolTip(str(p))
-        info.setStyleSheet("font-size: 12px; color: #8A8178;")
+        info.setStyleSheet('font-size: 12px; color: #8A8178;')
 
         path_lbl = QLabel(display_path)
         path_lbl.setToolTip(str(p))
-        path_lbl.setStyleSheet("font-size: 11px; color: #6B7280;")
+        path_lbl.setStyleSheet('font-size: 11px; color: #6B7280;')
 
         text_col = QVBoxLayout()
         text_col.setSpacing(2)
@@ -77,22 +78,22 @@ class _FileItemWidget(QWidget):
         text_col.addWidget(path_lbl)
         lo.addLayout(text_col, 1)
 
-        open_btn = QPushButton("打开")
+        open_btn = QPushButton('打开')
         open_btn.setFixedWidth(50)
-        open_btn.setObjectName("ghost")
-        open_btn.setProperty("compact", True)
+        open_btn.setObjectName('ghost')
+        open_btn.setProperty('compact', True)
         open_btn.clicked.connect(self._open_file)
 
-        del_btn = QPushButton("✕")
+        del_btn = QPushButton('✕')
         del_btn.setFixedWidth(28)
-        del_btn.setObjectName("ghostDanger")
-        del_btn.setProperty("compact", True)
+        del_btn.setObjectName('ghostDanger')
+        del_btn.setProperty('compact', True)
         del_btn.clicked.connect(self._delete_self)
         lo.addWidget(open_btn)
         lo.addWidget(del_btn)
 
     def _open_file(self):
-        subprocess.Popen(["explorer", self.file_path], shell=True)
+        subprocess.Popen(['explorer', self.file_path], shell=True)
 
     def _delete_self(self):
         for i in range(self._list_widget.count()):
@@ -114,22 +115,22 @@ class QuickPrintPage(QWidget):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setObjectName("dashboardScroll")
+        scroll.setObjectName('dashboardScroll')
 
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(28, 28, 32, 28)
         layout.setSpacing(12)
 
-        title_lbl = QLabel("快速打印")
-        title_lbl.setObjectName("pageTitle")
+        title_lbl = QLabel('快速打印')
+        title_lbl.setObjectName('pageTitle')
 
         title_row = QHBoxLayout()
         title_row.addWidget(title_lbl)
         title_row.addStretch()
-        self.clear_btn = QPushButton("✕ 清除")
-        self.clear_btn.setObjectName("ghost")
-        self.clear_btn.setToolTip("清除所有已选文件和结果，重新开始")
+        self.clear_btn = QPushButton('✕ 清除')
+        self.clear_btn.setObjectName('ghost')
+        self.clear_btn.setToolTip('清除所有已选文件和结果，重新开始')
         self.clear_btn.clicked.connect(self._confirm_clear)
         title_row.addWidget(self.clear_btn)
         layout.addLayout(title_row)
@@ -149,28 +150,28 @@ class QuickPrintPage(QWidget):
         # Print options
         options_row = QHBoxLayout()
         self.printer_combo = QComboBox()
-        self.printer_combo.setPlaceholderText("选择打印机")
+        self.printer_combo.setPlaceholderText('选择打印机')
         self.copies_spin = QSpinBox()
         self.copies_spin.setRange(1, 99)
         self.copies_spin.setValue(1)
-        self.duplex_cb = LabeledToggle("双面", checked=True)
+        self.duplex_cb = LabeledToggle('双面', checked=True)
         self.color_combo = QComboBox()
-        self.color_combo.addItems(["彩色", "黑白"])
+        self.color_combo.addItems(['彩色', '黑白'])
         self.paper_combo = QComboBox()
-        self.paper_combo.addItems(["A4", "Letter", "A3"])
-        options_row.addWidget(QLabel("打印机:"))
+        self.paper_combo.addItems(['A4', 'Letter', 'A3'])
+        options_row.addWidget(QLabel('打印机:'))
         options_row.addWidget(self.printer_combo)
-        options_row.addWidget(QLabel("份数:"))
+        options_row.addWidget(QLabel('份数:'))
         options_row.addWidget(self.copies_spin)
         options_row.addWidget(self.duplex_cb)
         options_row.addWidget(self.color_combo)
-        options_row.addWidget(QLabel("纸张:"))
+        options_row.addWidget(QLabel('纸张:'))
         options_row.addWidget(self.paper_combo)
         layout.addLayout(options_row)
 
-        self.drop_zone.setToolTip("支持 PDF、Office 文档、图片文件，可拖拽或多选")
-        self.copies_spin.setToolTip("设置打印份数，最大不超过打印机支持上限")
-        self.duplex_cb.setToolTip("开启后打印机将双面打印（需打印机支持）")
+        self.drop_zone.setToolTip('支持 PDF、Office 文档、图片文件，可拖拽或多选')
+        self.copies_spin.setToolTip('设置打印份数，最大不超过打印机支持上限')
+        self.duplex_cb.setToolTip('开启后打印机将双面打印（需打印机支持）')
 
         # Progress bar + cancel
         progress_row = QHBoxLayout()
@@ -178,9 +179,9 @@ class QuickPrintPage(QWidget):
         self._progress = ProgressState(self.progress)
         self.progress.setVisible(False)
         self.progress.setRange(0, 100)
-        self.cancel_btn = QPushButton("取消")
-        self.cancel_btn.setObjectName("ghostDanger")
-        self.cancel_btn.setProperty("compact", True)
+        self.cancel_btn = QPushButton('取消')
+        self.cancel_btn.setObjectName('ghostDanger')
+        self.cancel_btn.setProperty('compact', True)
         self.cancel_btn.setVisible(False)
         self.cancel_btn.clicked.connect(self._cancel_print)
         progress_row.addWidget(self.progress, 1)
@@ -188,21 +189,21 @@ class QuickPrintPage(QWidget):
         layout.addLayout(progress_row)
 
         # Submit button
-        self.submit_btn = StatefulButton("开始打印")
+        self.submit_btn = StatefulButton('开始打印')
         self.submit_btn.clicked.connect(self._submit)
         layout.addWidget(self.submit_btn)
 
         # Tracking label
-        self.tracking_label = QLabel("")
+        self.tracking_label = QLabel('')
         self.tracking_label.setVisible(False)
         self.tracking_label.setWordWrap(True)
         layout.addWidget(self.tracking_label)
 
         # Error label
-        self.error_label = QLabel("")
+        self.error_label = QLabel('')
         self.error_label.setVisible(False)
         self.error_label.setWordWrap(True)
-        self.error_label.setStyleSheet("color: #C53A3A; font-size: 12px; padding: 8px 0;")
+        self.error_label.setStyleSheet('color: #C53A3A; font-size: 12px; padding: 8px 0;')
         layout.addWidget(self.error_label)
 
         layout.addStretch()
@@ -218,7 +219,7 @@ class QuickPrintPage(QWidget):
         self.printer_combo.currentTextChanged.connect(self._on_printer_changed)
 
     def _refresh_printers(self):
-        monitor = getattr(self._mw._app.state, "printer_monitor", None)
+        monitor = getattr(self._mw._app.state, 'printer_monitor', None)
         if monitor is None:
             return
         self.printer_combo.clear()
@@ -229,6 +230,7 @@ class QuickPrintPage(QWidget):
         # Auto-select default
         try:
             import win32print
+
             default = win32print.GetDefaultPrinter()
             idx = self.printer_combo.findText(default)
             if idx >= 0:
@@ -241,14 +243,14 @@ class QuickPrintPage(QWidget):
             return
         caps = query_capabilities(name)
         self.copies_spin.setRange(1, caps.copies_max)
-        self.copies_spin.setToolTip(f"最大复印数: {caps.copies_max}")
+        self.copies_spin.setToolTip(f'最大复印数: {caps.copies_max}')
 
         self.color_combo.clear()
         if caps.supports_color:
-            self.color_combo.addItems(["彩色", "黑白"])
-            self.color_combo.setCurrentText("彩色")
+            self.color_combo.addItems(['彩色', '黑白'])
+            self.color_combo.setCurrentText('彩色')
         else:
-            self.color_combo.addItems(["黑白"])
+            self.color_combo.addItems(['黑白'])
 
         self.duplex_cb.setVisible(caps.supports_duplex)
         if not caps.supports_duplex:
@@ -256,13 +258,16 @@ class QuickPrintPage(QWidget):
 
         self.paper_combo.clear()
         self.paper_combo.addItems(caps.paper_names)
-        if "A4" in caps.paper_names:
-            self.paper_combo.setCurrentText("A4")
+        if 'A4' in caps.paper_names:
+            self.paper_combo.setCurrentText('A4')
 
     def _confirm_clear(self):
         from PySide6.QtWidgets import QMessageBox
+
         reply = QMessageBox.question(
-            self, "确认清除", "确定要清除所有已选文件吗？此操作不可撤销。",
+            self,
+            '确认清除',
+            '确定要清除所有已选文件吗？此操作不可撤销。',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
@@ -276,9 +281,9 @@ class QuickPrintPage(QWidget):
         self.progress.setVisible(False)
         self.cancel_btn.setVisible(False)
         self.tracking_label.setVisible(False)
-        self.tracking_label.setText("")
+        self.tracking_label.setText('')
         self.error_label.setVisible(False)
-        self.error_label.setText("")
+        self.error_label.setText('')
         self.submit_btn.reset()
 
     def _has_unsaved_content(self) -> bool:
@@ -300,7 +305,7 @@ class QuickPrintPage(QWidget):
         for i in range(self.file_list.count()):
             item = self.file_list.item(i)
             w = self.file_list.itemWidget(item)
-            if w and hasattr(w, "file_path"):
+            if w and hasattr(w, 'file_path'):
                 paths.append(w.file_path)
         return paths
 
@@ -330,16 +335,14 @@ class QuickPrintPage(QWidget):
                     printer=self.printer_combo.currentText(),
                     copies=self.copies_spin.value(),
                     duplex=self.duplex_cb.isChecked(),
-                    color=self.color_combo.currentText() == "彩色",
+                    color=self.color_combo.currentText() == '彩色',
                     paper_size=self.paper_combo.currentText(),
                 )
                 self._tracking_job_ids.append(job.id)
                 submitted += 1
 
         if submitted:
-            self.tracking_label.setText(
-                f"已提交 {submitted}/{total} 个任务，等待处理..."
-            )
+            self.tracking_label.setText(f'已提交 {submitted}/{total} 个任务，等待处理...')
             self.tracking_label.setVisible(True)
             self.progress.setRange(0, 100)
             self.submit_btn.set_success()
@@ -348,26 +351,27 @@ class QuickPrintPage(QWidget):
             self.submit_btn.set_error()
             self.progress.setVisible(False)
             self.cancel_btn.setVisible(False)
-            self.error_label.setText("文件上传失败，请检查文件是否存在或格式是否支持")
+            self.error_label.setText('文件上传失败，请检查文件是否存在或格式是否支持')
             self.error_label.setVisible(True)
 
     def _cancel_print(self):
         if not self._tracking_job_ids:
             return
         from app.printing.job_queue import get_queue
+
         queue = get_queue()
         for jid in self._tracking_job_ids:
             queue.cancel_job(jid)
         self._clear_all()
 
     def on_job_status(self, data: dict):
-        jid = data.get("job_id")
+        jid = data.get('job_id')
         if jid not in self._tracking_job_ids:
             return
-        status = data.get("status", "")
-        if status == "completed":
-            self.tracking_label.setText(f"任务 #{jid} 完成")
-        elif status == "failed":
-            self.tracking_label.setText(f"任务 #{jid} 失败: {data.get('error', '')}")
-        elif status == "printing":
-            self.tracking_label.setText(f"任务 #{jid} 正在打印...")
+        status = data.get('status', '')
+        if status == 'completed':
+            self.tracking_label.setText(f'任务 #{jid} 完成')
+        elif status == 'failed':
+            self.tracking_label.setText(f'任务 #{jid} 失败: {data.get("error", "")}')
+        elif status == 'printing':
+            self.tracking_label.setText(f'任务 #{jid} 正在打印...')

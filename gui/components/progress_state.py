@@ -1,4 +1,5 @@
 """QProgressBar state helpers: indeterminate, success, error."""
+
 from __future__ import annotations
 
 from PySide6.QtWidgets import QProgressBar
@@ -33,4 +34,4 @@ class ProgressState:
     def reset(self):
         self._bar.setRange(0, 100)
         self._bar.setValue(0)
-        self._bar.setStyleSheet("")
+        self._bar.setStyleSheet('')

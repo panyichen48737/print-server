@@ -1,4 +1,5 @@
 """Toast notification widget and confirmation dialog."""
+
 from __future__ import annotations
 
 from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, QTimer
@@ -14,7 +15,7 @@ from PySide6.QtWidgets import (
 
 
 class NotificationWidget(QFrame):
-    def __init__(self, text: str, color: str = "#4F46E5", parent=None):
+    def __init__(self, text: str, color: str = '#4F46E5', parent=None):
         super().__init__(parent)
         self.setStyleSheet(f"""
             NotificationWidget {{
@@ -26,9 +27,9 @@ class NotificationWidget(QFrame):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 10, 16, 10)
         self._label = QLabel(text)
-        self._label.setStyleSheet("color: white; font-size: 13px;")
-        close_btn = QPushButton("×")
-        close_btn.setStyleSheet("color: white; border: none; font-size: 16px;")
+        self._label.setStyleSheet('color: white; font-size: 13px;')
+        close_btn = QPushButton('×')
+        close_btn.setStyleSheet('color: white; border: none; font-size: 16px;')
         close_btn.clicked.connect(self.hide)
         layout.addWidget(self._label)
         layout.addWidget(close_btn)
@@ -42,7 +43,7 @@ class NotificationWidget(QFrame):
         parent_w = self.parent().width() if self.parent() else 400
         start_x = parent_w
         end_x = parent_w - self.width() - 24
-        anim = QPropertyAnimation(self, b"pos")
+        anim = QPropertyAnimation(self, b'pos')
         anim.setDuration(250)
         anim.setStartValue(QPoint(start_x, self.y()))
         anim.setEndValue(QPoint(end_x, self.y()))
@@ -50,7 +51,7 @@ class NotificationWidget(QFrame):
         anim.start()
 
     def _fade_out(self):
-        anim = QPropertyAnimation(self, b"windowOpacity")
+        anim = QPropertyAnimation(self, b'windowOpacity')
         anim.setDuration(300)
         anim.setStartValue(1.0)
         anim.setEndValue(0.0)
@@ -60,6 +61,7 @@ class NotificationWidget(QFrame):
 
 class NotificationStack(QWidget):
     """Stack of notification toasts at bottom-right."""
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
@@ -67,14 +69,15 @@ class NotificationStack(QWidget):
         layout.setAlignment(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight)
         self.setLayout(layout)
 
-    def show_notification(self, text: str, color: str = "#4F46E5"):
+    def show_notification(self, text: str, color: str = '#4F46E5'):
         n = NotificationWidget(text, color, self)
         self.layout().addWidget(n)
 
 
 # 通用确认对话框
-def confirm_dialog(parent, title: str, text: str,
-                   buttons: dict[str, QMessageBox.ButtonRole]) -> str | None:
+def confirm_dialog(
+    parent, title: str, text: str, buttons: dict[str, QMessageBox.ButtonRole]
+) -> str | None:
     """返回用户点击的按钮文本，或 None。"""
     msg = QMessageBox(parent)
     msg.setWindowTitle(title)

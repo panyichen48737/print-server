@@ -74,6 +74,7 @@ def _generate_version_manifest(version: str, res_dir: Path, env: dict):
 
     try:
         from importlib.metadata import version as pkg_ver
+
         manifest['build_tools']['pyinstaller'] = pkg_ver('pyinstaller')
     except Exception:
         pass
@@ -335,6 +336,7 @@ def build(version: str):
         update_zip = DIST_DIR / f'update-{version}.zip'
         if dist_dir.is_dir():
             import zipfile
+
             # 要打包的文件模式：排除缓存和日志
             skip_prefixes = {'__pycache__', '.git'}
             with zipfile.ZipFile(update_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
@@ -345,7 +347,9 @@ def build(version: str):
                         continue
                     arcname = entry.relative_to(dist_dir)
                     zf.write(entry, arcname)
-            print(f'[build] 更新包: {update_zip} ({update_zip.stat().st_size / 1024 / 1024:.1f} MB) | {len([e for e in dist_dir.rglob("*") if e.is_file()])} 个文件')
+            print(
+                f'[build] 更新包: {update_zip} ({update_zip.stat().st_size / 1024 / 1024:.1f} MB) | {len([e for e in dist_dir.rglob("*") if e.is_file()])} 个文件'
+            )
         else:
             print('[build] 警告: dist_dir 不存在，跳过 update.zip')
     else:

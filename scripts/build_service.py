@@ -1,4 +1,5 @@
 """编译 Go update_service.exe"""
+
 import subprocess
 import sys
 from pathlib import Path
@@ -27,10 +28,13 @@ def build_service():
         sys.exit(1)
 
     args = [
-        'go', 'build',
+        'go',
+        'build',
         '-mod=mod',
-        '-ldflags', '-s -w',  # strip debug info
-        '-o', str(out),
+        '-ldflags',
+        '-s -w',  # strip debug info
+        '-o',
+        str(out),
         '.',
     ]
 

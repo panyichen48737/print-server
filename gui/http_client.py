@@ -1,4 +1,5 @@
 """httpx.AsyncClient singleton with keep-alive connection pool."""
+
 import threading
 
 import httpx
@@ -18,7 +19,7 @@ def get_client() -> httpx.AsyncClient:
                     keepalive_expiry=30.0,
                 )
                 _client = httpx.AsyncClient(
-                    base_url="http://127.0.0.1:5000",
+                    base_url='http://127.0.0.1:5000',
                     limits=limits,
                     timeout=httpx.Timeout(10.0),
                 )

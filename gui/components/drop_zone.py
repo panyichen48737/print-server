@@ -1,4 +1,5 @@
 """Drag-and-drop zone for file selection — supports click to browse, multi-file, extension filter."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,9 +13,9 @@ from app.core.config import Config
 
 def _allowed_extensions() -> list[str]:
     try:
-        return Config().get("allowed_extensions", [".pdf"])
+        return Config().get('allowed_extensions', ['.pdf'])
     except Exception:
-        return [".pdf"]
+        return ['.pdf']
 
 
 def _is_allowed(path: Path, extensions: list[str] | None = None) -> bool:
@@ -27,6 +28,7 @@ class DropZoneWidget(QWidget):
 
     def _update_style(self):
         from gui.theme import ThemeEngine
+
         t = ThemeEngine.instance().tokens
         self.setStyleSheet(f"""
             DropZoneWidget {{
@@ -50,22 +52,24 @@ class DropZoneWidget(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._icon_label = QLabel("📄")
-        self._text_label = QLabel("点击选择文件，或拖拽到此处")
-        self._info_label = QLabel("")
-        self._info_label.setStyleSheet("background: transparent; color: #8A8178; font-size: 12px;")
+        self._icon_label = QLabel('📄')
+        self._text_label = QLabel('点击选择文件，或拖拽到此处')
+        self._info_label = QLabel('')
+        self._info_label.setStyleSheet('background: transparent; color: #8A8178; font-size: 12px;')
         for lb in (self._icon_label, self._text_label, self._info_label):
-            lb.setStyleSheet("background: transparent;")
+            lb.setStyleSheet('background: transparent;')
         layout.addWidget(self._icon_label, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._text_label, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._info_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
     def mousePressEvent(self, event):
         exts = self._extensions or _allowed_extensions()
-        patterns = " ".join(f"*{e}" for e in exts)
+        patterns = ' '.join(f'*{e}' for e in exts)
         files, _ = QFileDialog.getOpenFileNames(
-            self, "选择文件", "",
-            f"支持的文件 ({patterns});;所有文件 (*.*)",
+            self,
+            '选择文件',
+            '',
+            f'支持的文件 ({patterns});;所有文件 (*.*)',
         )
         if files:
             valid = [f for f in files if _is_allowed(Path(f), self._extensions)]
@@ -76,17 +80,17 @@ class DropZoneWidget(QWidget):
     def dragEnterEvent(self, event: QDragEnterEvent):
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
-            self.setProperty("drag_over", True)
+            self.setProperty('drag_over', True)
             self.style().unpolish(self)
             self.style().polish(self)
 
     def dragLeaveEvent(self, event):
-        self.setProperty("drag_over", False)
+        self.setProperty('drag_over', False)
         self.style().unpolish(self)
         self.style().polish(self)
 
     def dropEvent(self, event: QDropEvent):
-        self.setProperty("drag_over", False)
+        self.setProperty('drag_over', False)
         self.style().unpolish(self)
         self.style().polish(self)
         if event.mimeData().hasUrls():
@@ -102,7 +106,7 @@ class DropZoneWidget(QWidget):
     def _update_info(self, paths: list[str]):
         if len(paths) == 1:
             p = Path(paths[0])
-            self._info_label.setText(f"{p.name} ({p.stat().st_size / 1024:.1f} KB)")
+            self._info_label.setText(f'{p.name} ({p.stat().st_size / 1024:.1f} KB)')
         else:
             total = sum(Path(f).stat().st_size for f in paths)
-            self._info_label.setText(f"{len(paths)} 个文件（{total / 1024:.1f} KB）")
+            self._info_label.setText(f'{len(paths)} 个文件（{total / 1024:.1f} KB）')

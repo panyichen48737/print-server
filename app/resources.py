@@ -1,4 +1,5 @@
 """资源管理 — frozen 模式下资源由安装器放置在同级目录，无需运行时释放。"""
+
 from __future__ import annotations
 
 import sys
@@ -36,8 +37,8 @@ def ensure_resources() -> None:
     res = _resources_dir()
     gui_res = _gui_resources_dir()
     if not res:
-        logger.warning("resources/ 目录不存在，请重新安装")
+        logger.warning('resources/ 目录不存在，请重新安装')
     if not gui_res:
-        logger.warning("gui/resources/ 目录不存在，请重新安装")
+        logger.warning('gui/resources/ 目录不存在，请重新安装')
     if res:
-        logger.debug(f"资源目录: {res}")
+        logger.debug(f'资源目录: {res}')
