@@ -1,9 +1,9 @@
 # Normalize line endings and encoding
 * text=auto
 
-# NSIS needs UTF-8 with BOM for Chinese character support
-*.nsi text eol=crlf working-tree-encoding=UTF-8-BOM
-*.nsh text eol=crlf working-tree-encoding=UTF-8-BOM
+# NSIS files (UTF-8 with BOM for Chinese character support)
+*.nsi text eol=crlf
+*.nsh text eol=crlf
 
 # Shell scripts need LF endings
 *.sh text eol=lf
