@@ -171,7 +171,7 @@ jobs:
             python_version    = (python --version 2>&1).ToString().Trim()
             uv_version        = (uv --version 2>&1).ToString().Trim()
             pyinstaller_ver   = (python -c "from importlib.metadata import version; print(version('pyinstaller'))" 2>&1).ToString().Trim()
-            pip_packages      = (uv pip list --format=json 2>&1 | ConvertFrom-Json | ForEach-Object { "$($_.name)==$($_.version)" }) -join "; "
+            pip_packages      = (uv pip list --format=json 2>$null | ConvertFrom-Json | ForEach-Object { "$($_.name)==$($_.version)" }) -join "; "
             scalar_js_size_kb = [math]::Round((Get-Item "app/static/scalar.standalone.min.js" -ErrorAction SilentlyContinue).Length / 1024, 0)
             actions_checkout  = "v6"
             actions_setup_python = "v6"
