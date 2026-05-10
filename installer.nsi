@@ -45,6 +45,10 @@ Section "Install"
 SectionEnd
 
 Section "Uninstall"
+  # Kill running processes before uninstalling
+  ExecWait 'taskkill /F /IM "${PRODUCT_EXE}"'
+  ExecWait 'taskkill /F /IM "${UPDATE_SERVICE_EXE}"'
+
   # Ask user if they want to remove personal data
   MessageBox MB_YESNO|MB_ICONQUESTION "是否同时删除用户数据（配置文件、数据库、日志等）？" IDNO skip_data
 
