@@ -496,10 +496,8 @@ class JobManagerPage(QWidget):
         sort_col = settings.value('sort_column', type=int)
         sort_order = settings.value('sort_order')
         if sort_col is not None:
-            if sort_order is not None:
-                self.history_table.sortByColumn(sort_col, Qt.SortOrder(int(sort_order)))
-            else:
-                self.history_table.sortByColumn(sort_col)
+            order = Qt.SortOrder(int(sort_order)) if sort_order is not None else Qt.SortOrder.AscendingOrder
+            self.history_table.sortByColumn(sort_col, order)
         settings.endGroup()
 
     def _highlight_row(self, row: int):
