@@ -50,6 +50,13 @@ func installService(exePath string) {
 	}
 	defer m.Disconnect()
 
+	// Remove existing service first (handles re-install/update)
+	if old, err := m.OpenService(svcName); err == nil {
+		old.Control(svc.Stop)
+		old.Delete()
+		old.Close()
+	}
+
 	s, err := m.CreateService(svcName, exePath, mgr.Config{
 		DisplayName:      svcDisplayName,
 		Description:      "处理 iOSPrintServer 自动更新（下载、原子替换、回滚）",
