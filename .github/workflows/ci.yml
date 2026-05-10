@@ -140,7 +140,7 @@ jobs:
         run: |
           $ver = "${{ github.ref_name }}" -replace '^v', ''
           $zip = "dist/update-$ver.zip"
-          (certutil -hashfile $zip SHA256 | Select-String -NotMatch "SHA256|CertUtil").Trim() | Out-File -Encoding utf8 "dist/update-$ver.zip.sha256"
+          (certutil -hashfile $zip SHA256 | Select-String -NotMatch "SHA256|CertUtil" | ForEach-Object { $_.Line.Trim() }) | Out-File -Encoding utf8 "dist/update-$ver.zip.sha256"
       - name: Install NSIS
         shell: pwsh
         run: choco install nsis --no-progress -y
@@ -154,7 +154,7 @@ jobs:
         shell: pwsh
         run: |
           $installer = Get-ChildItem dist\iOSPrintServer-Setup-*.exe | Select-Object -First 1
-          (certutil -hashfile $installer.FullName SHA256 | Select-String -NotMatch "SHA256|CertUtil").Trim() | Out-File -Encoding utf8 dist\iOSPrintServer-Setup.sha256
+          (certutil -hashfile $installer.FullName SHA256 | Select-String -NotMatch "SHA256|CertUtil" | ForEach-Object { $_.Line.Trim() }) | Out-File -Encoding utf8 dist\iOSPrintServer-Setup.sha256
       - name: Generate build manifest
         shell: pwsh
         run: |
