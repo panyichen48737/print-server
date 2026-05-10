@@ -27,12 +27,11 @@
       "addLabels": ["ci"]
     }
   ],
-  "regexManagers": [
+  "customManagers": [
     {
-      "fileMatch": ["^\\.github/workflows/.*\\.yml$"],
-      "matchStrings": [
-        "python-version:\\s*['\"]?(?<currentValue>\\d+\\.\\d+)['\"]?"
-      ],
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/.*\\.yml$/"],
+      "matchStrings": ["python-version:\\s*['\"]?(?<currentValue>\\d+\\.\\d+)['\"]?"],
       "depNameTemplate": "python-version",
       "datasourceTemplate": "python-version",
       "versioningTemplate": "semver"
