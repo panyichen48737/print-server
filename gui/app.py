@@ -52,7 +52,7 @@ class MainWindow(QMainWindow):
 
         self._notifications = NotificationStack(self)
 
-        self.setWindowTitle('iOSPrintServer')
+        self.setWindowTitle('iOS 云打印服务器')
         self.setMinimumSize(900, 600)
         self.resize(1200, 800)
 
@@ -176,7 +176,7 @@ class MainWindow(QMainWindow):
             self.tray = QSystemTrayIcon(self._app_icon, self)
         else:
             self.tray = QSystemTrayIcon(self)
-        self.tray.setToolTip('iOSPrintServer')
+        self.tray.setToolTip('iOS 云打印服务器')
         menu = QMenu()
         show_action = menu.addAction('显示窗口')
         show_action.triggered.connect(self.show)
