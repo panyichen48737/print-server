@@ -3,16 +3,32 @@
   "extends": ["config:recommended"],
   "labels": ["dependencies"],
   "enabledManagers": ["pip_requirements", "gomod", "github-actions", "custom.regex"],
+  "assignees": ["panyichen48737"],
+  "schedule": ["before 9am on Monday"],
+  "minimumReleaseAge": "3 days",
+  "rangeStrategy": "bump",
+  "separateMinorPatch": true,
   "packageRules": [
     {
+      "matchManagers": ["pip_requirements", "gomod"],
+      "matchUpdateTypes": ["patch"],
+      "description": "Automerge patch updates for Python and Go deps",
+      "automerge": true,
+      "automergeStrategy": "squash"
+    },
+    {
       "matchManagers": ["pip_requirements"],
+      "matchUpdateTypes": ["minor", "major"],
+      "automerge": false,
       "commitMessagePrefix": "chore(deps)",
       "groupName": "Python dependencies"
     },
     {
       "matchManagers": ["github-actions"],
       "commitMessagePrefix": "ci",
-      "addLabels": ["ci"]
+      "addLabels": ["ci"],
+      "automerge": true,
+      "automergeStrategy": "squash"
     },
     {
       "matchManagers": ["gomod"],
