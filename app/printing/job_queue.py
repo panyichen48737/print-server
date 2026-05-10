@@ -19,6 +19,8 @@ class JobQueue:
         self._queue: queue.Queue = queue.Queue()
         self._cancelled_ids: set[str] = set()
         self._cancelled_lock = threading.Lock()
+        self._queued_ids: set[str] = set()
+        self._queued_ids_lock = threading.Lock()
 
     # ── 取消检测 ──
 
@@ -62,13 +64,18 @@ class JobQueue:
             source=source,
         )
         self._queue.put(job_id)
+        with self._queued_ids_lock:
+            self._queued_ids.add(job_id)
         logger.info(f'任务已入队: {job_id} - {filename}')
         return job_id
 
     def get_for_processing(self, timeout: float = 1.0) -> str | None:
         """阻塞获取下一个待处理任务 ID"""
         try:
-            return self._queue.get(timeout=timeout)
+            job_id = self._queue.get(timeout=timeout)
+            with self._queued_ids_lock:
+                self._queued_ids.discard(job_id)
+            return job_id
         except queue.Empty:
             return None
 
@@ -145,11 +152,22 @@ class JobQueue:
         heartbeat = (datetime.now() - timedelta(minutes=5)).isoformat()
         stuck_jobs = self._repo.get_jobs_by_status('printing')
         stuck_ids = [j['id'] for j in stuck_jobs if j['created_at'] < heartbeat]
-        if stuck_ids:
-            for jid in stuck_ids:
-                self._repo.update_status(jid, 'queued', '心跳恢复')
-                self._queue.put(jid)
-            logger.warning(f'心跳检测: 已将 {len(stuck_ids)} 个卡住的打印任务恢复为排队状态')
+
+        with self._queued_ids_lock:
+            already_queued = self._queued_ids.copy()
+
+        requeued = 0
+        for jid in stuck_ids:
+            if jid in already_queued:
+                continue
+            self._repo.update_status(jid, 'queued', '心跳恢复')
+            self._queue.put(jid)
+            with self._queued_ids_lock:
+                self._queued_ids.add(jid)
+            requeued += 1
+
+        if requeued > 0:
+            logger.warning(f'心跳检测: 已将 {requeued} 个卡住的打印任务恢复为排队状态')
 
     # ── 内部方法 ──
 
