@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QVBoxLayout, QWidget,
 )
 
-from app._paths import persistent_dir
+from app._paths import config_dir, persistent_dir
 from app.version import __build_date__, __pyinstaller_version__, __version__, get_build_manifest
 
 
@@ -223,10 +223,53 @@ class AboutPage(QWidget):
             subprocess.Popen(["explorer", str(log_dir)], shell=True)
 
     def _open_config_folder(self):
-        cfg_dir = Path(persistent_dir())
+        cfg_dir = Path(config_dir())
         if cfg_dir.exists():
             subprocess.Popen(["explorer", str(cfg_dir)], shell=True)
 
     def _check_update(self):
-        self.update_label.setText("暂无更新")
-        self.update_label.setStyleSheet("color: #6B8F6B;")
+        import json
+        from urllib.request import Request, urlopen
+        from urllib.error import URLError
+        from app.version import __version__
+
+        self.update_btn.setEnabled(False)
+        self.update_label.setText("正在检查更新...")
+        self.update_label.setStyleSheet("color: #8A8178;")
+
+        try:
+            req = Request(
+                "https://api.github.com/repos/panyichen48737/print-server/releases/latest",
+                headers={"Accept": "application/vnd.github.v3+json", "User-Agent": "iOSPrintServer"},
+            )
+            resp = urlopen(req, timeout=10)
+            data = json.loads(resp.read().decode())
+            latest = data.get("tag_name", "").lstrip("v")
+            if not latest:
+                raise ValueError("no tag")
+            if latest == __version__:
+                self.update_label.setText(f"✅ 已是最新版本 (v{__version__})")
+                self.update_label.setStyleSheet("color: #6B8F6B;")
+            else:
+                dl_url = QPushButton("下载更新")
+                dl_url.setObjectName("primary")
+                dl_url.clicked.connect(
+                    lambda: webbrowser.open(data.get("html_url", ""))
+                )
+                self.update_label.setText(f"新版本 v{latest} 可用")
+                self.update_label.setStyleSheet("color: #B8956A;")
+                lo = self.update_label.parent().layout()
+                if lo and dl_url not in (lo.itemAt(i).widget() for i in range(lo.count())):
+                    lo.addWidget(dl_url)
+        except (URLError, json.JSONDecodeError, ValueError, OSError):
+            self.update_label.setText("检查更新失败，请稍后重试")
+            self.update_label.setStyleSheet("color: #C53A3A;")
+            retry_btn = QPushButton("重试")
+            retry_btn.setObjectName("ghost")
+            retry_btn.setProperty("compact", True)
+            retry_btn.clicked.connect(self._check_update)
+            lo = self.update_label.parent().layout()
+            if lo and retry_btn not in (lo.itemAt(i).widget() for i in range(lo.count())):
+                lo.addWidget(retry_btn)
+        finally:
+            self.update_btn.setEnabled(True)

@@ -9,6 +9,8 @@ from PySide6.QtWidgets import (
     QLabel, QLineEdit, QPushButton, QScrollArea, QSpinBox, QVBoxLayout, QWidget,
 )
 
+from PySide6.QtGui import QValidator
+
 from gui.components.stateful_button import StatefulButton
 from gui.components.toggle_switch import LabeledToggle
 from gui.components.validators import PortValidator
@@ -186,7 +188,9 @@ class SettingsPage(QWidget):
         main_layout.addWidget(scroll)
 
         self._load_config()
+        self._setup_validation()
         self._populate_printers()
+        self.test_notify_btn.clicked.connect(self._test_notification)
         self._mw._app.state.event_bus.on("printer_list_updated", self._populate_printers)
 
     def _generate_key(self):
@@ -208,6 +212,26 @@ class SettingsPage(QWidget):
             QLineEdit.EchoMode.Normal if self._quark_key_visible else QLineEdit.EchoMode.Password
         )
         self.quark_eye_btn.setText("🙈" if self._quark_key_visible else "👁")
+
+    def _setup_validation(self):
+        """Bind validation feedback to port input."""
+        self.port_input.textChanged.connect(self._validate_port)
+
+    def _validate_port(self):
+        text = self.port_input.text()
+        validator = self.port_input.validator()
+        if not validator:
+            return
+        state, _, _ = validator.validate(text, len(text))
+        if state == QValidator.State.Acceptable:
+            self.port_input.setStyleSheet("border-color: #6B8F6B; border-width: 2px;")
+            self.port_input.setToolTip("")
+        elif state == QValidator.State.Intermediate:
+            self.port_input.setStyleSheet("border-color: #B8956A; border-width: 2px;")
+            self.port_input.setToolTip("端口号范围: 1024-65535")
+        else:
+            self.port_input.setStyleSheet("border-color: #C53A3A; border-width: 2px;")
+            self.port_input.setToolTip("无效端口号")
 
     def _load_config(self):
         if not self._config:
@@ -255,6 +279,29 @@ class SettingsPage(QWidget):
 
     _RESTART_KEYS = {"port", "ssl_enabled", "worker_count", "log_level", "job_timeout", "word_timeout", "print_dpi", "max_file_size_mb"}
 
+    def _show_restart_dialog(self):
+        from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
+        dlg = QDialog(self)
+        dlg.setWindowTitle("需要重启")
+        dlg.setMinimumWidth(380)
+        layout = QVBoxLayout(dlg)
+        layout.setSpacing(16)
+        msg = QLabel("部分设置需要重启服务器才能生效。")
+        msg.setWordWrap(True)
+        layout.addWidget(msg)
+        btn_row = QHBoxLayout()
+        later_btn = QPushButton("稍后")
+        later_btn.setObjectName("ghost")
+        later_btn.clicked.connect(dlg.reject)
+        restart_btn = QPushButton("立即重启")
+        restart_btn.setObjectName("primary")
+        restart_btn.clicked.connect(dlg.accept)
+        btn_row.addStretch()
+        btn_row.addWidget(later_btn)
+        btn_row.addWidget(restart_btn)
+        layout.addLayout(btn_row)
+        return dlg.exec() == QDialog.DialogCode.Accepted
+
     def _save(self):
         if not self._config:
             self.status_label.setText("配置不可用")
@@ -295,7 +342,9 @@ class SettingsPage(QWidget):
             self._config.set_many(updates)
             self._config.save()
             self.save_btn.set_success()
-            self.status_label.setText("设置已保存")
+            if hasattr(self._mw, "show_notification"):
+                self._mw.show_notification("设置已保存", "#6B8F6B")
+            self.status_label.setText("")
 
             # Check if restart is needed
             needs_restart = any(
@@ -304,15 +353,22 @@ class SettingsPage(QWidget):
             )
             if needs_restart:
                 self.restart_label.setVisible(True)
-                from PySide6.QtWidgets import QMessageBox
-                reply = QMessageBox.question(
-                    self, "需要重启",
-                    "部分设置需要重启服务器才能生效，是否立即重启？",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                )
-                if reply == QMessageBox.StandardButton.Yes:
+                if self._show_restart_dialog():
                     self._mw._on_restart()
         except Exception as e:
             self.save_btn.set_error()
             self.status_label.setText(f"保存失败: {e}")
             self.status_label.setStyleSheet("color: #C53A3A;")
+
+    def _test_notification(self):
+        from app.services.notifier import Notifier
+        from app.config import Config
+        notifier = Notifier(Config())
+        self.test_notify_btn.set_loading()
+        try:
+            notifier.notify("测试通知", "这是一条测试消息")
+            self.test_notify_btn.set_success()
+            if hasattr(self._mw, "show_notification"):
+                self._mw.show_notification("测试通知发送成功", "#6B8F6B")
+        except Exception as e:
+            self.test_notify_btn.set_error(str(e))

@@ -9,14 +9,14 @@ from pathlib import Path
 
 
 def _version_file() -> Path:
-    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-        return Path(sys._MEIPASS) / 'resources' / 'version.txt'
+    if getattr(sys, 'frozen', False):
+        return Path(sys.executable).parent / 'resources' / 'version.txt'
     return Path(__file__).resolve().parent.parent / 'version.txt'
 
 
 def _manifest_file() -> Path:
-    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-        return Path(sys._MEIPASS) / 'resources' / 'version_info.json'
+    if getattr(sys, 'frozen', False):
+        return Path(sys.executable).parent / 'resources' / 'version_info.json'
     return Path(__file__).resolve().parent.parent / 'build' / 'resources' / 'version_info.json'
 
 

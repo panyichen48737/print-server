@@ -28,10 +28,12 @@ class StatefulButton(QPushButton):
         self.setStyleSheet("background-color: #6B8F6B; color: white; border: none;")
         self._timer.start(duration_ms)
 
-    def set_error(self, duration_ms: int = 2000):
+    def set_error(self, error_msg: str = "", duration_ms: int = 2000):
         self._state = "error"
         self.setText("✗ 失败")
         self.setStyleSheet("background-color: #C53A3A; color: white; border: none;")
+        if error_msg:
+            self.setToolTip(error_msg)
         self._timer.start(duration_ms)
 
     def reset(self):
@@ -42,6 +44,7 @@ class StatefulButton(QPushButton):
         self._state = "default"
         self.setText(self._original_text)
         self.setStyleSheet("")
+        self.setToolTip("")
         self.setEnabled(True)
         # 恢复 QSS 主题样式
         style = self.style()

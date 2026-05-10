@@ -1,7 +1,7 @@
 """Toggle switch using QSlider + QSS for iOS-style sliding knob with capsule track."""
 from __future__ import annotations
 
-from PySide6.QtCore import QPropertyAnimation, Qt, Signal
+from PySide6.QtCore import QEvent, QPropertyAnimation, Qt, Signal
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QSlider, QWidget
 
@@ -60,10 +60,16 @@ class ToggleSwitch(QSlider):
         return "#FFFFFF"
 
     def _refresh_qss(self):
+        opacity = "0.4" if not self.isEnabled() else "1.0"
         self.setStyleSheet(TRACK_QSS.format(
             color=self._track_color(),
             knob=self._knob_color(),
-        ))
+        ) + f"QSlider {{ opacity: {opacity}; }}")
+
+    def changeEvent(self, event):
+        if event.type() == QEvent.Type.EnabledChange:
+            self._refresh_qss()
+        super().changeEvent(event)
 
     def _on_value_changed(self, val: int):
         checked = val == 1

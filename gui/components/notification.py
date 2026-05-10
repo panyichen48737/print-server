@@ -1,7 +1,7 @@
 """Toast notification widget and confirmation dialog."""
 from __future__ import annotations
 
-from PySide6.QtCore import QPropertyAnimation, QTimer, Qt
+from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, QTimer, Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 
@@ -25,8 +25,21 @@ class NotificationWidget(QFrame):
         layout.addWidget(self._label)
         layout.addWidget(close_btn)
 
+        self._slide_in()
+
         # Auto-hide after 3s
         QTimer.singleShot(3000, self._fade_out)
+
+    def _slide_in(self):
+        parent_w = self.parent().width() if self.parent() else 400
+        start_x = parent_w
+        end_x = parent_w - self.width() - 24
+        anim = QPropertyAnimation(self, b"pos")
+        anim.setDuration(250)
+        anim.setStartValue(QPoint(start_x, self.y()))
+        anim.setEndValue(QPoint(end_x, self.y()))
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        anim.start()
 
     def _fade_out(self):
         anim = QPropertyAnimation(self, b"windowOpacity")

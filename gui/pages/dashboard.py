@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import datetime
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QAbstractTableModel
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
     QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton,
-    QScrollArea, QVBoxLayout, QWidget,
+    QScrollArea, QTableView, QHeaderView, QVBoxLayout, QWidget,
 )
 
 
@@ -134,9 +134,12 @@ class BarChartWidget(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         w, h = self.width(), self.height()
-        bar_c1 = QColor("#8B7355")
+        from gui.theme import ThemeEngine
+        _theme = ThemeEngine.instance()
+        _is_dark = _theme.mode == "dark"
+        bar_c1 = QColor("#B8956A" if _is_dark else "#8B7355")
         bar_c1.setAlpha(191)
-        bar_c2 = QColor("#6B8F6B")
+        bar_c2 = QColor("#7DBD7D" if _is_dark else "#6B8F6B")
         bar_c2.setAlpha(191)
 
         n = len(self._data)
@@ -174,6 +177,29 @@ class BarChartWidget(QWidget):
                        Qt.AlignmentFlag.AlignCenter, label)
 
 
+class RecentJobsModel(QAbstractTableModel):
+    """Read-only table model for recent jobs."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._headers = ["ID", "文件名", "状态", "时间"]
+        self._data: list[list[str]] = []
+
+    def rowCount(self, parent=...): return len(self._data)
+    def columnCount(self, parent=...): return len(self._headers)
+    def headerData(self, section, orientation, role):
+        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
+            return self._headers[section]
+        return None
+    def data(self, index, role):
+        if role == Qt.ItemDataRole.DisplayRole:
+            return self._data[index.row()][index.column()]
+        return None
+    def set_data(self, data):
+        self.beginResetModel()
+        self._data = data
+        self.endResetModel()
+
+
 class DashboardPage(QWidget):
     def __init__(self, main_window, parent=None):
         super().__init__(parent)
@@ -186,12 +212,19 @@ class DashboardPage(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Error banner
-        self.error_banner = QLabel("")
+        # Error banner with retry
+        self.error_banner = QWidget()
         self.error_banner.setVisible(False)
-        self.error_banner.setStyleSheet(
-            "background-color: #FBF0F0; color: #C53A3A; padding: 8px 16px;"
-        )
+        eb_lo = QHBoxLayout(self.error_banner)
+        eb_lo.setContentsMargins(28, 8, 32, 8)
+        self.error_label = QLabel("")
+        self.error_label.setStyleSheet("color: #C53A3A;")
+        self.retry_btn = QPushButton("重试")
+        self.retry_btn.setObjectName("ghost")
+        self.retry_btn.setProperty("compact", True)
+        self.retry_btn.clicked.connect(self._refresh)
+        eb_lo.addWidget(self.error_label, 1)
+        eb_lo.addWidget(self.retry_btn)
         main_layout.addWidget(self.error_banner)
 
         # Scroll area
@@ -309,8 +342,30 @@ class DashboardPage(QWidget):
         self.bar_chart = BarChartWidget()
         ca_lo.addWidget(self.bar_chart, 1)
         cs_lo.addWidget(chart_area)
-        cs_lo.addSpacing(28)
         lo.addWidget(self.chart_section)
+
+        # Recent jobs section
+        self.recent_section = QWidget()
+        rs_lo = QVBoxLayout(self.recent_section)
+        rs_lo.setContentsMargins(0, 0, 0, 0)
+        rs_lo.setSpacing(0)
+
+        recent_heading = QLabel("最近任务")
+        recent_heading.setObjectName("sectionHeading")
+        rs_lo.addWidget(recent_heading)
+        rs_lo.addSpacing(14)
+
+        self.recent_table = QTableView()
+        self.recent_table.setObjectName("recentTable")
+        self.recent_model = RecentJobsModel()
+        self.recent_table.setModel(self.recent_model)
+        self.recent_table.setAlternatingRowColors(True)
+        self.recent_table.setMaximumHeight(200)
+        header = self.recent_table.horizontalHeader()
+        header.setStretchLastSection(True)
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        rs_lo.addWidget(self.recent_table)
+        lo.addWidget(self.recent_section)
 
         lo.addStretch()
         scroll.setWidget(container)
@@ -384,6 +439,15 @@ class DashboardPage(QWidget):
         self.empty_state.setVisible(not has_data and self._initial_loaded)
         self.chart_section.setVisible(has_data)
 
+        # Recent jobs
+        recent = repo.get_jobs(limit=10)
+        recent_rows = [
+            [str(j.get("id", "")), str(j.get("filename", "")), str(j.get("status", "")), str(j.get("created_at", "") or "")]
+            for j in recent
+        ]
+        self.recent_model.set_data(recent_rows)
+        self.recent_section.setVisible(has_data)
+
         weekday_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
         today = datetime.date.today()
         daily = repo.get_daily_counts(7)
@@ -397,8 +461,9 @@ class DashboardPage(QWidget):
         self.bar_chart.set_data(data)
 
     def show_error(self, msg: str):
-        self.error_banner.setText(f"⚠ {msg}")
+        self.error_label.setText(f"⚠ {msg}")
         self.error_banner.setVisible(True)
+        self.error_banner.raise_()
 
     def on_job_status(self, data: dict):
         self._refresh()

@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QPropertyAnimation, QTimer
-from PySide6.QtGui import QIcon, QShortcut, QKeySequence
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication, QHBoxLayout, QLabel, QMainWindow, QPushButton,
     QStackedWidget, QSystemTrayIcon, QVBoxLayout, QWidget, QMenu,
@@ -31,6 +31,7 @@ class MainWindow(QMainWindow):
         self._bridge = EventBridge(self._event_bus, self)
         self._bridge.job_status.connect(self._on_job_status)
         self._bridge.printer_status.connect(self._on_printer_status)
+        self._bridge.health_status.connect(self._on_health_status)
         self._bridge.log.connect(self._on_log)
 
         # Notification stack (bottom-right toasts)
@@ -98,7 +99,6 @@ class MainWindow(QMainWindow):
 
         # Select first page
         self.sidebar.setCurrentRow(0)
-        self._setup_shortcuts()
 
         # Position notification stack bottom-right
         self._notifications.raise_()
@@ -143,7 +143,10 @@ class MainWindow(QMainWindow):
         return bar
 
     def _setup_tray(self):
-        icon_path = str(Path(__file__).parent / "resources" / "icon_256.png")
+        if getattr(sys, 'frozen', False):
+            icon_path = str(Path(sys.executable).parent / "gui" / "resources" / "icon_256.png")
+        else:
+            icon_path = str(Path(__file__).parent / "resources" / "icon_256.png")
         self._app_icon = QIcon(icon_path) if Path(icon_path).exists() else QIcon()
         self.setWindowIcon(self._app_icon)
         if Path(icon_path).exists():
@@ -225,39 +228,6 @@ class MainWindow(QMainWindow):
             self.status_dot.setStyleSheet("background-color: #B0A89F; border-radius: 4px;")
             self.status_text.setText("未初始化")
 
-    def _setup_shortcuts(self):
-        for i in range(7):
-            sc = QShortcut(QKeySequence(f"Ctrl+{i+1}"), self)
-            sc.activated.connect(lambda idx=i: self.sidebar.setCurrentRow(idx))
-
-        QShortcut(QKeySequence("Ctrl+P"), self).activated.connect(lambda: self.sidebar.setCurrentRow(2))
-        QShortcut(QKeySequence("Ctrl+F"), self).activated.connect(self._focus_search)
-        QShortcut(QKeySequence("Ctrl+R"), self).activated.connect(self._refresh_current)
-        QShortcut(QKeySequence("F5"), self).activated.connect(self._refresh_current)
-        QShortcut(QKeySequence("Escape"), self).activated.connect(self._dismiss_popups)
-
-    def _focus_search(self):
-        w = self.stack.currentWidget()
-        for attr in ["search_input", "search", "filter_input"]:
-            field = getattr(w, attr, None)
-            if field and hasattr(field, "setFocus"):
-                field.setFocus()
-                if hasattr(field, "selectAll"):
-                    field.selectAll()
-                return
-
-    def _refresh_current(self):
-        w = self.stack.currentWidget()
-        if hasattr(w, "_refresh"):
-            w._refresh()
-
-    def _dismiss_popups(self):
-        from gui.components.notification import NotificationWidget
-        for child in self.findChildren(NotificationWidget):
-            if child.isVisible():
-                child.hide()
-                child.deleteLater()
-
     def _on_nav_changed(self, index: int):
         current = self.stack.currentWidget()
         if current and getattr(current, "_has_unsaved_content", lambda: False)():
@@ -310,8 +280,19 @@ class MainWindow(QMainWindow):
         if hasattr(current, "on_printer_status"):
             current.on_printer_status(data)
 
+    def _on_health_status(self, data: dict):
+        queue_size = data.get("queue_size", 0)
+        workers = data.get("workers", 0)
+        if self._server and self._server.is_running:
+            self.status_text.setText(
+                f"运行中 · 端口 {self._server.port} · 队列 {queue_size} · 工作进程 {workers}"
+            )
+
     def closeEvent(self, event):
         self._state_manager.save()
+        current_page = self.stack.currentWidget()
+        if hasattr(current_page, 'history_table'):
+            self._state_manager.save_table_state("history", current_page.history_table)
         event.ignore()
         self.hide()
 
@@ -333,6 +314,5 @@ def run_gui(app, config, server_handle: ServerHandle):
         saved_theme = "light"
     theme.apply(saved_theme, qapp)
     window = MainWindow(app, config, server_handle)
-    window.show()
     qapp.aboutToQuit.connect(window._bridge.stop)
     qapp.exec()

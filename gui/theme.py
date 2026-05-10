@@ -1,6 +1,7 @@
 """Theme engine: QPalette + QSS management with light/dark mode."""
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from PySide6.QtGui import QColor, QPalette
@@ -86,7 +87,11 @@ class ThemeEngine:
         self._mode = mode
         self._tokens = dict(TOKENS_LIGHT if mode == "light" else TOKENS_DARK)
         qapp.setPalette(self._palette())
-        qss_path = Path(__file__).parent / "resources" / f"{mode}.qss"
+        # frozen 模式：exe 同级 gui/resources/（安装器放置）；dev 模式：gui/resources/
+        if getattr(sys, 'frozen', False):
+            qss_path = Path(sys.executable).parent / 'gui' / 'resources' / f"{mode}.qss"
+        else:
+            qss_path = Path(__file__).parent / 'resources' / f"{mode}.qss"
         if qss_path.exists():
             with open(qss_path, encoding="utf-8") as f:
                 qapp.setStyleSheet(f.read())

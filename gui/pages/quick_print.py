@@ -15,6 +15,7 @@ from gui.components.drop_zone import DropZoneWidget
 from gui.components.stateful_button import StatefulButton
 from gui.components.toggle_switch import LabeledToggle
 from gui.components.printer_capabilities import query_capabilities
+from gui.components.progress_state import set_indeterminate, set_error as set_progress_error, set_success as set_progress_success
 
 
 IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif", ".heic", ".heif"]
@@ -165,11 +166,19 @@ class QuickPrintPage(QWidget):
         self.copies_spin.setToolTip("设置打印份数，最大不超过打印机支持上限")
         self.duplex_cb.setToolTip("开启后打印机将双面打印（需打印机支持）")
 
-        # Progress bar
+        # Progress bar + cancel
+        progress_row = QHBoxLayout()
         self.progress = QProgressBar()
         self.progress.setVisible(False)
         self.progress.setRange(0, 100)
-        layout.addWidget(self.progress)
+        self.cancel_btn = QPushButton("取消")
+        self.cancel_btn.setObjectName("ghostDanger")
+        self.cancel_btn.setProperty("compact", True)
+        self.cancel_btn.setVisible(False)
+        self.cancel_btn.clicked.connect(self._cancel_print)
+        progress_row.addWidget(self.progress, 1)
+        progress_row.addWidget(self.cancel_btn)
+        layout.addLayout(progress_row)
 
         # Submit button
         self.submit_btn = StatefulButton("开始打印")
@@ -181,6 +190,13 @@ class QuickPrintPage(QWidget):
         self.tracking_label.setVisible(False)
         self.tracking_label.setWordWrap(True)
         layout.addWidget(self.tracking_label)
+
+        # Error label
+        self.error_label = QLabel("")
+        self.error_label.setVisible(False)
+        self.error_label.setWordWrap(True)
+        self.error_label.setStyleSheet("color: #C53A3A; font-size: 12px; padding: 8px 0;")
+        layout.addWidget(self.error_label)
 
         layout.addStretch()
 
@@ -251,8 +267,11 @@ class QuickPrintPage(QWidget):
         self.file_list.clear()
         self.file_list.setVisible(False)
         self.progress.setVisible(False)
+        self.cancel_btn.setVisible(False)
         self.tracking_label.setVisible(False)
         self.tracking_label.setText("")
+        self.error_label.setVisible(False)
+        self.error_label.setText("")
         self.submit_btn.reset()
 
     def _has_unsaved_content(self) -> bool:
@@ -284,7 +303,9 @@ class QuickPrintPage(QWidget):
             return
         self.submit_btn.set_loading()
         self.progress.setVisible(True)
-        self.progress.setRange(0, 0)
+        self.cancel_btn.setVisible(True)
+        self.error_label.setVisible(False)
+        set_indeterminate(self.progress)
         self._tracking_job_ids.clear()
 
         from app.services.upload import save_upload
@@ -315,9 +336,22 @@ class QuickPrintPage(QWidget):
             self.tracking_label.setVisible(True)
             self.progress.setRange(0, 100)
             self.submit_btn.set_success()
+            self.cancel_btn.setVisible(False)
         else:
             self.submit_btn.set_error()
             self.progress.setVisible(False)
+            self.cancel_btn.setVisible(False)
+            self.error_label.setText("文件上传失败，请检查文件是否存在或格式是否支持")
+            self.error_label.setVisible(True)
+
+    def _cancel_print(self):
+        if not self._tracking_job_ids:
+            return
+        from app.printing.job_queue import get_queue
+        queue = get_queue()
+        for jid in self._tracking_job_ids:
+            queue.cancel_job(jid)
+        self._clear_all()
 
     def on_job_status(self, data: dict):
         jid = data.get("job_id")

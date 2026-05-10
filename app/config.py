@@ -144,9 +144,9 @@ class Config(BaseSettings):
     def __init__(self, config_path: str | None = None, **kwargs: Any) -> None:
         _skip_file = kwargs.pop('_skip_file', False)
         super().__init__(**kwargs)
-        from app._paths import persistent_dir
+        from app._paths import config_dir
 
-        self._config_path = Path(config_path) if config_path else persistent_dir() / 'config.json'
+        self._config_path = Path(config_path) if config_path else config_dir() / 'config.json'
         self._lock = threading.Lock()
         self._errors = []
         self._watch_stop = threading.Event()

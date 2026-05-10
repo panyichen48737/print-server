@@ -3,7 +3,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from app._paths import app_root, data_root, ensure_dir, persistent_dir
+from app._paths import app_root, config_dir, data_root, ensure_dir, persistent_dir
 
 
 class TestAppRoot:
@@ -25,9 +25,9 @@ class TestDataRoot:
         assert data_root() == app_root()
 
     @patch('app._paths.sys.frozen', True, create=True)
-    @patch('app._paths.sys._MEIPASS', '/fake/meipass', create=True)
-    def test_frozen_mode_returns_meipass(self):
-        assert data_root() == Path('/fake/meipass')
+    @patch('app._paths.sys.executable', '/fake/path/server.exe')
+    def test_frozen_mode_returns_app_root(self):
+        assert data_root() == Path('/fake/path')
 
 
 class TestEnsureDir:
@@ -48,18 +48,38 @@ class TestEnsureDir:
         assert result == tmp_path / 'x' / 'y'
 
 
+class TestConfigDir:
+    @patch('app._paths.sys.frozen', False, create=True)
+    def test_dev_mode_equals_app_root(self):
+        assert config_dir() == app_root()
+
+    @patch('app._paths.sys.frozen', True, create=True)
+    @patch('app._paths.os.environ', {'APPDATA': r'C:\Users\test\AppData\Roaming'})
+    def test_frozen_mode_uses_appdata(self):
+        assert config_dir() == Path(r'C:\Users\test\AppData\Roaming\iOSPrintServer')
+
+    @patch('app._paths.sys.frozen', True, create=True)
+    @patch('app._paths.os.environ', {})
+    @patch('app._paths.Path.home', return_value=Path(r'C:\Users\test'))
+    def test_frozen_mode_fallback_to_home(self, mock_home):
+        from app._paths import config_dir
+
+        result = config_dir()
+        assert result == Path(r'C:\Users\test\iOSPrintServer')
+
+
 class TestPersistentDir:
     @patch('app._paths.sys.frozen', False, create=True)
     def test_dev_mode_equals_app_root(self):
         assert persistent_dir() == app_root()
 
     @patch('app._paths.sys.frozen', True, create=True)
-    @patch('app._paths.os.environ', {'APPDATA': r'C:\Users\test\AppData\Roaming'})
-    def test_frozen_mode_uses_appdata(self):
-        assert persistent_dir() == Path(r'C:\Users\test\AppData\Roaming\iOSPrintServer')
+    @patch('app._paths.os.environ', {'LOCALAPPDATA': r'C:\Users\test\AppData\Local'})
+    def test_frozen_mode_uses_localappdata(self):
+        assert persistent_dir() == Path(r'C:\Users\test\AppData\Local\iOSPrintServer')
 
     @patch('app._paths.sys.frozen', True, create=True)
-    @patch('app._paths.os.environ', {})  # 无 APPDATA 时回退到 ~
+    @patch('app._paths.os.environ', {})
     @patch('app._paths.Path.home', return_value=Path(r'C:\Users\test'))
     def test_frozen_mode_fallback_to_home(self, mock_home):
         from app._paths import persistent_dir

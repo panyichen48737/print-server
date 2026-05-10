@@ -130,16 +130,8 @@ def build(version: str):
     changelog = PROJECT_ROOT / 'CHANGELOG.md'
     if changelog.exists():
         shutil.copy2(changelog, res_dir / 'CHANGELOG.md')
-    # SSL 证书 — 内嵌到 exe，运行后按需释放到数据目录
-    cert_dir = PROJECT_ROOT / 'certs'
-    cert_has_both = (cert_dir / 'cert.pem').exists() and (cert_dir / 'key.pem').exists()
-    if cert_has_both:
-        shutil.copytree(cert_dir, res_dir / 'certs', dirs_exist_ok=True)
-        print('[build] 已包含 SSL 证书')
-    elif cert_dir.exists():
-        print('[build] 提示: certs/ 目录为空，SSL 证书未打包（运行时会自检数据目录）')
 
-    # PyInstaller 参数（--onefile：所有内容打包进单一 exe，启动时解压到 %TEMP%）
+    # PyInstaller 参数（--onedir：目录模式，资源文件与 exe 同级放一起，由安装器放置）
     args = [
         sys.executable,
         '-m',
@@ -148,18 +140,7 @@ def build(version: str):
         '--name',
         APP_NAME,
         '--console',
-        '--onefile',
-        # Data 文件（--add-data 资源嵌入 exe，运行时由 MEIPASS 访问）
-        '--add-data',
-        f'{PROJECT_ROOT / "app" / "templates"}{os.pathsep}app/templates',
-        '--add-data',
-        f'{PROJECT_ROOT / "app" / "static"}{os.pathsep}app/static',
-        # 内嵌资源（嵌入 exe，运行时由 MEIPASS 访问，通过 app/resources.py 按需释放）
-        '--add-data',
-        f'{res_dir}{os.pathsep}resources',
-        # PySide6 GUI 资源
-        '--add-data',
-        f'{PROJECT_ROOT / "gui" / "resources"}{os.pathsep}gui/resources',
+        '--onedir',
     ]
 
     args += [
@@ -228,17 +209,59 @@ def build(version: str):
         '--hidden-import',
         'gui',
         '--hidden-import',
+        'gui.theme',
+        '--hidden-import',
+        'gui.settings_store',
+        '--hidden-import',
+        'gui.event_bridge',
+        '--hidden-import',
+        'gui.state',
+        '--hidden-import',
         'gui.pages',
         '--hidden-import',
+        'gui.pages.dashboard',
+        '--hidden-import',
+        'gui.pages.quick_print',
+        '--hidden-import',
+        'gui.pages.scan',
+        '--hidden-import',
+        'gui.pages.job_manager',
+        '--hidden-import',
+        'gui.pages.logs',
+        '--hidden-import',
+        'gui.pages.settings',
+        '--hidden-import',
+        'gui.pages.about',
+        '--hidden-import',
         'gui.components',
+        '--hidden-import',
+        'gui.components.sidebar',
+        '--hidden-import',
+        'gui.components.notification',
+        '--hidden-import',
+        'gui.components.stateful_button',
+        '--hidden-import',
+        'gui.components.toggle_switch',
+        '--hidden-import',
+        'gui.components.drop_zone',
+        '--hidden-import',
+        'gui.components.validators',
+        '--hidden-import',
+        'gui.components.printer_capabilities',
+        '--hidden-import',
+        'gui.components.progress_state',
+        '--hidden-import',
+        'gui.components.skeleton',
+        '--hidden-import',
+        'gui.components.printer_card',
+        '--hidden-import',
+        'gui.components.print_dialog',
         # 新增依赖
         '--hidden-import',
         'aiosqlite',
         '--hidden-import',
         'msgspec',
         # PySide6
-        '--hidden-import',
-        'PySide6.QtCharts',
         '--hidden-import',
         'PySide6.QtNetwork',
         # 排除不需要的库（减小体积）
@@ -262,7 +285,44 @@ def build(version: str):
 
     subprocess.run(args, cwd=PROJECT_ROOT, check=True, env=env)
 
-    exe_path = DIST_DIR / f'{APP_NAME}.exe'
+    # 构建后：复制资源文件到 dist/ 目录，与 exe 同级放置
+    dist_dir = DIST_DIR / APP_NAME
+    if dist_dir.is_dir():
+        # 复制 build/resources/（version.txt, version_info.json）
+        if res_dir.exists():
+            dst = dist_dir / 'resources'
+            dst.mkdir(parents=True, exist_ok=True)
+            for entry in os.listdir(str(res_dir)):
+                s = res_dir / entry
+                d = dst / entry
+                if s.is_file():
+                    shutil.copy2(str(s), str(d))
+                elif s.is_dir():
+                    shutil.copytree(str(s), str(d), dirs_exist_ok=True)
+            print(f'[build] 资源已复制到 {dst}')
+
+        # 复制 gui/resources/（QSS + 图标）
+        gui_res_src = PROJECT_ROOT / 'gui' / 'resources'
+        if gui_res_src.is_dir():
+            gui_res_dst = dist_dir / 'gui' / 'resources'
+            shutil.copytree(str(gui_res_src), str(gui_res_dst), dirs_exist_ok=True)
+            print(f'[build] GUI 资源已复制到 {gui_res_dst}')
+
+        # 复制 app/static/（Scalar JS，运行时动态下载，目录不存在则跳过）
+        static_src = PROJECT_ROOT / 'app' / 'static'
+        if static_src.is_dir():
+            static_dst = dist_dir / 'app' / 'static'
+            shutil.copytree(str(static_src), str(static_dst), dirs_exist_ok=True)
+            print(f'[build] 静态文件已复制到 {static_dst}')
+
+        # 复制 certs/（SSL 证书，供 frozen 模式使用）
+        certs_src = PROJECT_ROOT / 'certs'
+        if certs_src.is_dir():
+            certs_dst = dist_dir / 'certs'
+            shutil.copytree(str(certs_src), str(certs_dst), dirs_exist_ok=True)
+            print(f'[build] 证书已复制到 {certs_dst}')
+
+    exe_path = dist_dir / f'{APP_NAME}.exe'
     if exe_path.exists():
         print(f'[build] 构建完成: {exe_path} ({exe_path.stat().st_size / 1024 / 1024:.1f} MB)')
         print(f'[build] 版本: {version}')

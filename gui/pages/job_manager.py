@@ -1,10 +1,11 @@
 """Job manager page: queue + history tables with filter."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QAbstractTableModel
+from PySide6.QtCore import Qt, QAbstractTableModel, QVariantAnimation
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QComboBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
-    QScrollArea, QTableView, QVBoxLayout, QWidget,
+    QComboBox, QDateEdit, QFrame, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QProgressBar,
+    QPushButton, QScrollArea, QTableView, QVBoxLayout, QWidget,
 )
 
 
@@ -56,6 +57,30 @@ class JobManagerPage(QWidget):
         title_lbl.setObjectName("pageTitle")
         layout.addWidget(title_lbl)
 
+        # In-progress card
+        self.active_card = QFrame()
+        self.active_card.setObjectName("statCard")
+        self.active_card.setVisible(False)
+        ac_lo = QHBoxLayout(self.active_card)
+        ac_lo.setContentsMargins(16, 12, 16, 12)
+        self.active_icon = QLabel("📄")
+        self.active_name = QLabel("")
+        self.active_name.setObjectName("printName")
+        self.active_status = QLabel("")
+        self.active_status.setStyleSheet("font-size: 12px; color: #8B7355; font-weight: 600;")
+        self.active_progress = QProgressBar()
+        self.active_progress.setRange(0, 100)
+        self.active_progress.setFixedWidth(120)
+        self.active_cancel = QPushButton("取消")
+        self.active_cancel.setObjectName("ghostDanger")
+        self.active_cancel.setProperty("compact", True)
+        ac_lo.addWidget(self.active_icon)
+        ac_lo.addWidget(self.active_name)
+        ac_lo.addWidget(self.active_status)
+        ac_lo.addWidget(self.active_progress)
+        ac_lo.addWidget(self.active_cancel)
+        layout.addWidget(self.active_card)
+
         # Queue section
         layout.addWidget(QLabel("打印队列"))
         self.queue_empty_label = QLabel("队列为空，提交打印任务后将在此显示")
@@ -69,10 +94,20 @@ class JobManagerPage(QWidget):
         self.queue_table.setVisible(False)
         layout.addWidget(self.queue_table)
 
+        # Error widget with retry
+        self.job_error_widget = QWidget()
+        self.job_error_widget.setVisible(False)
+        je_lo = QHBoxLayout(self.job_error_widget)
+        je_lo.setContentsMargins(0, 0, 0, 0)
         self.job_error_label = QLabel("")
-        self.job_error_label.setVisible(False)
-        self.job_error_label.setStyleSheet("color: #C53A3A; font-size: 13px; padding: 12px;")
-        layout.addWidget(self.job_error_label)
+        self.job_error_label.setStyleSheet("color: #C53A3A; font-size: 13px;")
+        self.job_retry_btn = QPushButton("重试")
+        self.job_retry_btn.setObjectName("ghost")
+        self.job_retry_btn.setProperty("compact", True)
+        self.job_retry_btn.clicked.connect(self._refresh)
+        je_lo.addWidget(self.job_error_label, 1)
+        je_lo.addWidget(self.job_retry_btn)
+        layout.addWidget(self.job_error_widget)
 
         # History section
         layout.addWidget(QLabel("历史记录"))
@@ -90,6 +125,17 @@ class JobManagerPage(QWidget):
         filter_row.addWidget(self.status_filter)
         filter_row.addWidget(self.search_input)
         filter_row.addWidget(self.clear_filter_btn)
+        self.date_from = QDateEdit()
+        self.date_from.setCalendarPopup(True)
+        self.date_from.setSpecialValueText("开始日期")
+        self.date_from.setDate(self.date_from.minimumDate())
+        self.date_to = QDateEdit()
+        self.date_to.setCalendarPopup(True)
+        self.date_to.setSpecialValueText("结束日期")
+        self.date_to.setDate(self.date_to.maximumDate())
+        filter_row.addWidget(QLabel("日期:"))
+        filter_row.addWidget(self.date_from)
+        filter_row.addWidget(self.date_to)
         filter_row.addStretch()
         layout.addLayout(filter_row)
 
@@ -141,6 +187,8 @@ class JobManagerPage(QWidget):
 
         self.status_filter.currentTextChanged.connect(self._on_filter_changed)
         self.search_input.textChanged.connect(self._on_filter_changed)
+        self.date_from.dateChanged.connect(self._on_filter_changed)
+        self.date_to.dateChanged.connect(self._on_filter_changed)
 
     _STATUS_MAP = {
         "全部": None,
@@ -253,17 +301,28 @@ class JobManagerPage(QWidget):
         return getattr(app.state, "job_repo", None)
 
     def _refresh(self):
-        self.job_error_label.setVisible(False)
+        self.job_error_widget.setVisible(False)
         repo = self._job_repo()
         if repo is None:
             self.queue_empty_label.setText("加载失败")
             self.job_error_label.setText("无法连接数据库，请检查服务器状态")
-            self.job_error_label.setVisible(True)
+            self.job_error_widget.setVisible(True)
             return
 
         queued = repo.get_jobs_by_status("queued")
         printing = repo.get_jobs_by_status("printing")
         active = list(printing) + list(queued)
+
+        # Active card
+        if printing:
+            p = printing[0]
+            self.active_name.setText(str(p.get("filename", "")))
+            self.active_status.setText("正在打印")
+            self.active_progress.setValue(50)
+            self.active_card.setVisible(True)
+        else:
+            self.active_card.setVisible(False)
+
         queue_rows = [
             [
                 str(j.get("filename", "")),
@@ -299,9 +358,22 @@ class JobManagerPage(QWidget):
         ]
         self.history_model.set_data(history_rows)
 
+        if hasattr(self._mw, '_state_manager'):
+            self._mw._state_manager.restore_table_state("history", self.history_table)
+
     def on_job_status(self, data: dict):
         self._refresh()
 
     def on_log(self, data: dict):
         # Stub
         pass
+
+    def _highlight_row(self, row: int):
+        """Fade row background briefly on status change."""
+        anim = QVariantAnimation(self)
+        anim.setDuration(800)
+        anim.setStartValue(QColor("#E8DFD4"))
+        anim.setEndValue(QColor(0, 0, 0, 0))
+        idx = self.history_model.index(row, 0)
+        anim.valueChanged.connect(lambda v: self.history_table.model().setData(idx, v, Qt.ItemDataRole.BackgroundRole))
+        anim.start()

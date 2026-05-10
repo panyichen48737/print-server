@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QHBoxLayout, QLabel, QLineEdit,
@@ -13,12 +13,20 @@ from PySide6.QtWidgets import (
 from app._paths import persistent_dir
 
 
-LOG_COLORS = {
-    "ERROR": QColor("#C53A3A"),
-    "WARNING": QColor("#B8956A"),
-    "INFO": QColor("#8B7355"),
-    "DEBUG": QColor("#8A8178"),
-}
+def get_log_colors(dark: bool = False) -> dict[str, QColor]:
+    if dark:
+        return {
+            "ERROR": QColor("#F87171"),
+            "WARNING": QColor("#FBBF24"),
+            "INFO": QColor("#60A5FA"),
+            "DEBUG": QColor("#94A3B8"),
+        }
+    return {
+        "ERROR": QColor("#C53A3A"),
+        "WARNING": QColor("#B8956A"),
+        "INFO": QColor("#8B7355"),
+        "DEBUG": QColor("#8A8178"),
+    }
 
 
 class LogsPage(QWidget):
@@ -62,6 +70,11 @@ class LogsPage(QWidget):
         controls.addWidget(self.pause_btn)
         controls.addWidget(self.clear_btn)
         controls.addWidget(self.auto_scroll_cb)
+        self.open_log_btn = QPushButton("📁 打开文件夹")
+        self.open_log_btn.setObjectName("ghost")
+        self.open_log_btn.setProperty("compact", True)
+        self.open_log_btn.clicked.connect(self._open_log_folder)
+        controls.addWidget(self.open_log_btn)
         layout.addLayout(controls)
 
         # Empty state
@@ -97,7 +110,11 @@ class LogsPage(QWidget):
         self.pause_btn.clicked.connect(self._toggle_pause)
         self.clear_btn.clicked.connect(self.log_list.clear)
         self.level_filter.currentTextChanged.connect(self._apply_filters)
-        self.search_input.textChanged.connect(self._apply_filters)
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(300)
+        self._search_timer.timeout.connect(self._apply_filters)
+        self.search_input.textChanged.connect(self._search_timer.start)
 
         scroll.setWidget(container)
         main_layout.addWidget(scroll, 1)
@@ -139,7 +156,10 @@ class LogsPage(QWidget):
 
     def _append_line(self, text: str):
         item = QListWidgetItem(text)
-        for level, color in LOG_COLORS.items():
+        from gui.theme import ThemeEngine
+        theme = ThemeEngine.instance()
+        colors = get_log_colors(theme.mode == "dark")
+        for level, color in colors.items():
             if level in text:
                 item.setForeground(color)
                 break
@@ -176,3 +196,9 @@ class LogsPage(QWidget):
             if search and search not in text.lower():
                 visible = False
             item.setHidden(not visible)
+
+    def _open_log_folder(self):
+        import subprocess
+        log_dir = Path(persistent_dir() / "logs")
+        if log_dir.exists():
+            subprocess.Popen(["explorer", str(log_dir)], shell=True)
