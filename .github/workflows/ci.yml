@@ -24,9 +24,9 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout
-      - uses: actions/setup-python
-      - uses: astral-sh/setup-uv
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@v8
       - name: Install dependencies
         run: uv pip install --system ruff mypy
       - name: ruff check
@@ -47,12 +47,12 @@ jobs:
   test:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout
-      - uses: actions/setup-python
-      - uses: astral-sh/setup-uv
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@v8
       - name: Cache Python packages
         id: cache-pip
-        uses: actions/cache
+        uses: actions/cache@v5
         with:
           path: ${{ env.pythonLocation }}
           key: uv-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('requirements-dev.txt') }}
@@ -67,7 +67,7 @@ jobs:
           PYTHONIOENCODING: utf-8
           PYTHONUTF8: '1'
       - name: Upload coverage artifact
-        uses: actions/upload-artifact
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage
@@ -78,14 +78,14 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
-      - uses: actions/setup-python
-      - uses: astral-sh/setup-uv
+      - uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@v8
       - name: Restore Python packages cache
         id: cache-pip
-        uses: actions/cache
+        uses: actions/cache@v5
         with:
           path: ${{ env.pythonLocation }}
           key: uv-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('requirements-dev.txt') }}
@@ -95,7 +95,7 @@ jobs:
           uv pip install --system -r requirements-dev.txt
           uv pip install --system -e . --no-deps
       - name: Cache PyInstaller build
-        uses: actions/cache
+        uses: actions/cache@v5
         with:
           path: |
             build/
@@ -112,7 +112,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ github.ref_name }}
           PYTHONIOENCODING: utf-8
-      - uses: actions/setup-go
+      - uses: actions/setup-go@v6
       - name: Build update service
         run: python scripts/build_service.py
       - name: Build incremental update zip
@@ -167,17 +167,17 @@ jobs:
             pyinstaller_ver   = (python -c "from importlib.metadata import version; print(version('pyinstaller'))" 2>&1).ToString().Trim()
             pip_packages      = (uv pip list --format=json 2>&1 | ConvertFrom-Json | ForEach-Object { "$($_.name)==$($_.version)" }) -join "; "
             scalar_js_size_kb = [math]::Round((Get-Item "app/static/scalar.standalone.min.js" -ErrorAction SilentlyContinue).Length / 1024, 0)
-            actions_checkout  = "latest"
-            actions_setup_python = "latest"
-            astral_setup_uv   = "latest"
-            actions_cache     = "latest"
-            actions_upload_artifact = "latest"
-            actions_download_artifact = "latest"
-            softprops_gh_release = "latest"
+            actions_checkout  = "v6"
+            actions_setup_python = "v6"
+            astral_setup_uv   = "v8"
+            actions_cache     = "v5"
+            actions_upload_artifact = "v7"
+            actions_download_artifact = "v8"
+            softprops_gh_release = "v3"
           }
           $info | ConvertTo-Json | Out-File -Encoding utf8 dist/version_info.json
       - name: Archive build artifacts
-        uses: actions/upload-artifact
+        uses: actions/upload-artifact@v7
         with:
           name: iOSPrintServer-Setup-${{ github.ref_name }}
           path: |
@@ -193,14 +193,14 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout
+      - uses: actions/checkout@v6
       - name: Download build artifact
-        uses: actions/download-artifact
+        uses: actions/download-artifact@v8
         with:
           name: iOSPrintServer-Setup-${{ github.ref_name }}
           path: .
       - name: Create Release
-        uses: softprops/action-gh-release
+        uses: softprops/action-gh-release@v3
         with:
           name: iOS 云打印服务器 ${{ github.ref_name }}
           generate_release_notes: true
