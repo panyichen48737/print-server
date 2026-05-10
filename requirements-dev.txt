@@ -59,7 +59,7 @@ idna==3.13
     #   httpx
 iniconfig==2.3.0
     # via pytest
-librt==0.9.0
+librt==0.10.0
     # via mypy
 loguru==0.7.3
     # via ios-print-server (pyproject.toml)
