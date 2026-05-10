@@ -1,4 +1,5 @@
 import base64
+import contextlib
 import hashlib
 import io
 import time
@@ -14,17 +15,14 @@ from PIL import Image
 class QuarkEnhancer:
     """夸克扫描王 API 图片增强"""
 
-    def __init__(self, config: Any) -> None:
+    def __init__(self, config: Any, client: httpx.Client | None = None) -> None:
         self.config = config
-        self._client = httpx.Client(timeout=60)
+        self._client = client or httpx.Client(timeout=60)
 
-    def __del__(self) -> None:
-        """安全关闭 httpx 客户端，避免连接泄漏"""
-        try:
-            if hasattr(self, '_client'):
-                self._client.close()
-        except Exception:
-            pass
+    def close(self) -> None:
+        """显式关闭 httpx 客户端"""
+        with contextlib.suppress(Exception):
+            self._client.close()
 
     def enhance(self, filepath: str) -> bytes | None:
         """
