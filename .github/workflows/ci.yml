@@ -37,14 +37,6 @@ jobs:
         run: ruff format --check .
       - name: mypy
         run: mypy app/
-      - name: Verify lock files are up to date
-        continue-on-error: true
-        shell: bash
-        run: |
-          uv pip compile pyproject.toml -o /tmp/requirements.txt --quiet --python-platform windows
-          uv pip compile pyproject.toml --group dev -o /tmp/requirements-dev.txt --quiet --python-platform windows
-          diff <(grep -v '^#' requirements.txt) <(grep -v '^#' /tmp/requirements.txt) || { echo '::error::requirements.txt is stale — run: uv pip compile pyproject.toml -o requirements.txt'; exit 1; }
-          diff <(grep -v '^#' requirements-dev.txt) <(grep -v '^#' /tmp/requirements-dev.txt) || { echo '::error::requirements-dev.txt is stale — run: uv pip compile pyproject.toml --group dev -o requirements-dev.txt'; exit 1; }
 
   test:
     runs-on: windows-latest

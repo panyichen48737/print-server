@@ -8,6 +8,11 @@
   "minimumReleaseAge": "3 days",
   "rangeStrategy": "bump",
   "separateMinorPatch": true,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true,
+    "automergeStrategy": "squash"
+  },
   "packageRules": [
     {
       "matchManagers": ["pip_requirements"],
