@@ -12,6 +12,10 @@ InstallDir "$PROGRAMFILES64\iOSPrintServer"
 RequestExecutionLevel admin
 
 Section "Install"
+  # Kill running processes before updating
+  ExecWait 'taskkill /F /IM "${PRODUCT_EXE}"'
+  ExecWait 'taskkill /F /IM "${UPDATE_SERVICE_EXE}"'
+
   SetOutPath "$INSTDIR"
 
   # 递归复制整个程序目录
