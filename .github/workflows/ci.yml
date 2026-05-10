@@ -215,5 +215,7 @@ jobs:
             iOSPrintServer-Setup.sha256
             version_info.json
       - name: Upload incremental update zip
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           gh release upload "${{ github.ref_name }}" update-*.zip update-*.sha256
