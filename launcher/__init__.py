@@ -10,6 +10,7 @@ import os
 import sys
 import threading
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
 
 from loguru import logger
@@ -77,10 +78,6 @@ def _ensure_single_instance() -> None:
     _write_pid()
 
 
-# ── FastAPI lifespan 延迟绑定 ──
-
-
-from dataclasses import dataclass
 
 
 @dataclass

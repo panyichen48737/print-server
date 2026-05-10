@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Porcelain — iOS Print Server</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+/* ========== CSS Custom Properties ========== */
+:root {
+  --surface:       #FAFAF8;
+  --surface-alt:   #F5F0EB;
+  --primary:       #8B7355;
+  --primary-hover: #6D5940;
+  --primary-light: #E8DFD4;
+  --text-primary:  #1C1917;
+  --text-muted:    #8A8178;
+  --text-dim:      #B0A89F;
+  --border:        #E5DDD5;
+  --border-light:  #EFE9E2;
+  --success:       #6B8F6B;
+  --success-bg:    #EEF5EE;
+  --error:         #C53A3A;
+  --error-bg:      #FBF0F0;
+  --sidebar-bg:    #F5F0EB;
+  --sidebar-hover: #EDE6DD;
+  --sidebar-selected-bg: #E5DDD5;
+  --sidebar-selected-text: #8B7355;
+  --card-bg:       #FFFFFF;
+  --input-bg:      #FFFFFF;
+  --shadow-sm:     0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-md:     0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg:     0 8px 30px rgba(0,0,0,0.06);
+  --radius-sm:     6px;
+  --radius-md:     10px;
+  --radius-lg:     12px;
+  --transition:    200ms ease;
+  --font-serif:    'Newsreader', 'EB Garamond', Georgia, 'Times New Roman', serif;
+  --font-sans:     -apple-system, 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  --font-mono:     'IBM Plex Mono', Consolas, 'Cascadia Code', monospace;
+}
+
+/* ========== Reset ========== */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  background: #3A3530;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ========== Desktop Shadow ========== */
+.window-shadow {
+  box-shadow: 0 20px 60px rgba(0,0,0,0.30), 0 8px 20px rgba(0,0,0,0.20);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* ========== Main Window ========== */
+.window {
+  width: 1000px;
+  height: 700px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* ========== Title Bar ========== */
+.title-bar {
+  height: 36px;
+  min-height: 36px;
+  background: #F0ECE6;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.title-bar-dots {
+  display: flex;
+  gap: 7px;
+  margin-right: 14px;
+}
+
+.title-bar-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition: filter var(--transition);
+}
+
+.title-bar-dot:hover { filter: brightness(0.85); }
+
+.title-bar-dot.close    { background: #DD6B5C; }
+.title-bar-dot.minimize { background: #E6B85C; }
+.title-bar-dot.maximize { background: #6BB86B; }
+
+.title-bar-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+  font-family: var(--font-sans);
+}
+
+.title-bar-spacer { flex: 1; }
+
+/* ========== Body: Sidebar + Content ========== */
+.body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ========== Sidebar ========== */
+.sidebar {
+  width: 180px;
+  min-width: 180px;
+  background: var(--sidebar-bg);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 0 16px;
+  box-shadow: 1px 0 0 var(--border-light), 2px 0 6px rgba(0,0,0,0.03);
+  position: relative;
+  z-index: 1;
+}
+
+.sidebar-brand {
+  padding: 0 20px 22px;
+  font-family: var(--font-serif);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+  line-height: 1.4;
+}
+
+.sidebar-brand-sub {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+  font-family: var(--font-sans);
+  margin-top: 2px;
+}
+
+.sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 8px;
+}
+
+.sidebar-item {
+  padding: 9px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition);
+  user-select: none;
+  letter-spacing: 0.2px;
+  position: relative;
+}
+
+.sidebar-item:hover {
+  background: var(--sidebar-hover);
+  color: var(--text-primary);
+}
+
+.sidebar-item.active {
+  background: var(--sidebar-selected-bg);
+  color: var(--sidebar-selected-text);
+  font-weight: 600;
+}
+
+.sidebar-section-label {
+  padding: 14px 14px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  font-family: var(--font-sans);
+}
+
+.sidebar-footer {
+  padding: 12px 16px 0;
+  border-top: 1px solid var(--border-light);
+  margin: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-footer-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  flex-shrink: 0;
+}
+
+.sidebar-footer-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.sidebar-footer-sub {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
+
+/* ========== Content Area ========== */
+.content {
+  flex: 1;
+  padding: 28px 32px;
+  overflow-y: auto;
+  background: var(--surface);
+}
+
+.content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.content::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.content::-webkit-scrollbar-thumb:hover {
+  background: var(--text-dim);
+}
+
+/* ========== Page Header ========== */
+.page-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.page-title {
+  font-family: var(--font-serif);
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+  line-height: 1.2;
+}
+
+.page-title-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 400;
+  font-family: var(--font-sans);
+  margin-left: 12px;
+}
+
+.page-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ========== Buttons ========== */
+.btn {
+  height: 32px;
+  padding: 0 16px;
+  border-radius: var(--radius-sm);
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+  font-family: var(--font-sans);
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.btn-ghost:hover {
+  background: var(--surface-alt);
+  color: var(--text-primary);
+  border-color: var(--text-dim);
+}
+
+.btn-success {
+  background: var(--success);
+  color: #fff;
+}
+
+.btn-success:hover {
+  background: #5D7E5D;
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--error);
+  border: 1px solid var(--error);
+}
+
+.btn-danger:hover {
+  background: var(--error-bg);
+}
+
+/* ========== KPI Cards Grid ========== */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.kpi-card {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  padding: 20px 22px;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition);
+  cursor: default;
+}
+
+.kpi-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.kpi-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 6px;
+}
+
+.kpi-value {
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+  font-family: var(--font-serif);
+}
+
+.kpi-value.accent {
+  color: var(--primary);
+}
+
+.kpi-value.success {
+  color: var(--success);
+}
+
+.kpi-value.error {
+  color: var(--error);
+}
+
+.kpi-change {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.kpi-change.up { color: var(--success); }
+.kpi-change.down { color: var(--error); }
+
+/* ========== Section Headings ========== */
+.section-heading {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 14px;
+}
+
+/* ========== Chart Placeholder ========== */
+.chart-section {
+  margin-bottom: 28px;
+}
+
+.chart-area {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  padding: 22px 24px;
+  box-shadow: var(--shadow-sm);
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.chart-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.chart-legend {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.chart-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.chart-legend-dot.primary { background: var(--primary); }
+.chart-legend-dot.success { background: var(--success); }
+
+.chart-canvas {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.chart-bar-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.chart-bar-stack {
+  width: 100%;
+  display: flex;
+  gap: 3px;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.chart-bar {
+  width: 28px;
+  border-radius: 3px 3px 0 0;
+  transition: height 0.4s ease;
+  min-height: 4px;
+}
+
+.chart-bar.primary {
+  background: var(--primary);
+  opacity: 0.75;
+}
+
+.chart-bar.success {
+  background: var(--success);
+  opacity: 0.75;
+}
+
+.chart-bar-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-weight: 500;
+  font-family: var(--font-mono);
+}
+
+.chart-x-labels {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 2px 0;
+}
+
+.chart-x-label {
+  flex: 1;
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+/* ========== Printer Cards ========== */
+.printer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.printer-card {
+  background: var(--card-bg);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all var(--transition);
+  cursor: default;
+}
+
+.printer-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.printer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.printer-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.printer-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.printer-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.printer-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.printer-status-dot.ready   { background: var(--success); }
+.printer-status-dot.busy    { background: #D4A84B; }
+.printer-status-dot.error   { background: var(--error); }
+
+.printer-status-text.ready  { color: var(--success); }
+.printer-status-text.busy   { color: #D4A84B; }
+.printer-status-text.error  { color: var(--error); }
+
+/* ========== Status Bar ========== */
+.status-bar {
+  height: 44px;
+  min-height: 44px;
+  background: var(--card-bg);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 10px;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  flex-shrink: 0;
+}
+
+.status-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+  font-family: var(--font-mono);
+}
+
+.status-spacer { flex: 1; }
+
+.status-pills {
+  display: flex;
+  gap: 6px;
+}
+
+.status-pill {
+  height: 26px;
+  padding: 0 14px;
+  border-radius: 13px;
+  border: 1px solid var(--border);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition);
+  font-family: var(--font-sans);
+  letter-spacing: 0.2px;
+  display: flex;
+  align-items: center;
+}
+
+.status-pill:hover {
+  background: var(--surface-alt);
+  color: var(--text-primary);
+  border-color: var(--text-dim);
+}
+
+.status-pill.primary {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.status-pill.primary:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+.status-pill.success {
+  background: var(--success);
+  color: #fff;
+  border-color: var(--success);
+}
+
+.status-pill.success:hover {
+  background: #5D7E5D;
+  border-color: #5D7E5D;
+}
+
+/* ========== Animations ========== */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.kpi-card { animation: fadeIn 0.35s ease both; }
+.kpi-card:nth-child(2) { animation-delay: 0.04s; }
+.kpi-card:nth-child(3) { animation-delay: 0.08s; }
+.kpi-card:nth-child(4) { animation-delay: 0.12s; }
+.kpi-card:nth-child(5) { animation-delay: 0.16s; }
+.kpi-card:nth-child(6) { animation-delay: 0.20s; }
+</style>
+</head>
+<body>
+
+<div class="window-shadow">
+<div class="window">
+
+  <!-- ====== Title Bar ====== -->
+  <div class="title-bar">
+    <div class="title-bar-dots">
+      <div class="title-bar-dot close" title="关闭"></div>
+      <div class="title-bar-dot minimize" title="最小化"></div>
+      <div class="title-bar-dot maximize" title="最大化"></div>
+    </div>
+    <span class="title-bar-label">iOS Print Server</span>
+    <div class="title-bar-spacer"></div>
+  </div>
+
+  <!-- ====== Body ====== -->
+  <div class="body">
+
+    <!-- ====== Sidebar ====== -->
+    <nav class="sidebar">
+      <div class="sidebar-brand">
+        白瓷
+        <div class="sidebar-brand-sub">Print Server</div>
+      </div>
+
+      <div class="sidebar-nav">
+        <div class="sidebar-section-label">概览</div>
+        <div class="sidebar-item active" data-page="dashboard">仪表盘</div>
+
+        <div class="sidebar-section-label">操作</div>
+        <div class="sidebar-item" data-page="quickprint">快速打印</div>
+        <div class="sidebar-item" data-page="tasks">任务管理</div>
+        <div class="sidebar-item" data-page="logs">实时日志</div>
+
+        <div class="sidebar-section-label">管理</div>
+        <div class="sidebar-item" data-page="settings">设置</div>
+        <div class="sidebar-item" data-page="printers">打印机</div>
+        <div class="sidebar-item" data-page="about">关于</div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-indicator"></div>
+        <div>
+          <div class="sidebar-footer-text">运行中</div>
+          <div class="sidebar-footer-sub">端口 5000</div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ====== Content ====== -->
+    <main class="content">
+
+      <!-- Page Header -->
+      <div class="page-header">
+        <div>
+          <span class="page-title">仪表盘</span>
+          <span class="page-title-sub">今日概览</span>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-ghost">刷新</button>
+          <button class="btn btn-primary">+ 新打印任务</button>
+        </div>
+      </div>
+
+      <!-- KPI Grid -- Row 1 -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">排队中</div>
+          <div class="kpi-value accent">12</div>
+          <div class="kpi-change up">+3 较昨日</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">打印中</div>
+          <div class="kpi-value">3</div>
+          <div class="kpi-change">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">今日完成</div>
+          <div class="kpi-value accent">156</div>
+          <div class="kpi-change up">+24 较昨日</div>
+        </div>
+      </div>
+
+      <!-- KPI Grid -- Row 2 -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">今日失败</div>
+          <div class="kpi-value error">2</div>
+          <div class="kpi-change down">+1 较昨日</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">成功率</div>
+          <div class="kpi-value success">98.7%</div>
+          <div class="kpi-change up">+0.3%</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">总计</div>
+          <div class="kpi-value accent">3,452</div>
+          <div class="kpi-change up">历史累计</div>
+        </div>
+      </div>
+
+      <!-- Chart Section -->
+      <div class="chart-section">
+        <div class="section-heading">近 7 天打印趋势</div>
+        <div class="chart-area">
+          <div class="chart-header">
+            <span class="chart-label">页数 / 任务数</span>
+            <div class="chart-legend">
+              <div class="chart-legend-item">
+                <div class="chart-legend-dot primary"></div>
+                任务数
+              </div>
+              <div class="chart-legend-item">
+                <div class="chart-legend-dot success"></div>
+                打印页数
+              </div>
+            </div>
+          </div>
+
+          <!-- Bars -->
+          <div class="chart-canvas">
+            <div class="chart-bar-group">
+              <div class="chart-bar-stack">
+                <div class="chart-bar primary" style="height:36px"></div>
+                <div class="chart-bar success" style="height:52px"></div>
+              </div>
+              <div class="chart-bar-label">周一</div>
+            </div>
+            <div class="chart-bar-group">
+              <div class="chart-bar-stack">
+                <div class="chart-bar primary" style="height:42px"></div>
+                <div class="chart-bar success" style="height:64px"></div>
+              </div>
+              <div class="chart-bar-label">周二</div>
+            </div>
+            <div class="chart-bar-group">
+              <div class="chart-bar-stack">
+                <div class="chart-bar primary" style="height:28px"></div>
+                <div class="chart-bar success" style="height:40px"></div>
+              </div>
+              <div class="chart-bar-label">周三</div>
+            </div>
+            <div class="chart-bar-group">
+              <div class="chart-bar-stack">
+                <div class="chart-bar primary" style="height:56px"></div>
+                <div class="chart-bar success" style="height:78px"></div>
+              </div>
+              <div class="chart-bar-label">周四</div>
+            </div>
+            <div class="chart-bar-group">
+              <div class="chart-bar-stack">
+                <div class="chart-bar primary" style="height:48px"></div>
+                <div class="chart-bar success" style="height:60px"></div>
+              </div>
+              <div class="chart-bar-label">周五</div>
+            </div>
+            <div class="chart-bar-group">
+              <div class="chart-bar-stack">
+                <div class="chart-bar primary" style="height:62px"></div>
+                <div class="chart-bar success" style="height:88px"></div>
+              </div>
+              <div class="chart-bar-label">周六</div>
+            </div>
+            <div class="chart-bar-group">
+              <div class="chart-bar-stack">
+                <div class="chart-bar primary" style="height:44px"></div>
+                <div class="chart-bar success" style="height:70px"></div>
+              </div>
+              <div class="chart-bar-label">周日</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Printers -->
+      <div class="section-heading">打印机状态</div>
+      <div class="printer-grid">
+        <div class="printer-card">
+          <div class="printer-info">
+            <div class="printer-name">HP LaserJet Pro M404dn</div>
+            <div class="printer-meta">默认打印机 · A4 · 黑白</div>
+          </div>
+          <div class="printer-status">
+            <div class="printer-status-dot ready"></div>
+            <span class="printer-status-text ready">就绪</span>
+          </div>
+        </div>
+        <div class="printer-card">
+          <div class="printer-info">
+            <div class="printer-name">Canon PIXMA TS8360</div>
+            <div class="printer-meta">彩色 · A4 · 照片纸</div>
+          </div>
+          <div class="printer-status">
+            <div class="printer-status-dot busy"></div>
+            <span class="printer-status-text busy">忙碌</span>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ====== Status Bar ====== -->
+  <div class="status-bar">
+    <div class="status-indicator"></div>
+    <span class="status-text">运行中 · 端口 5000</span>
+    <div class="status-spacer"></div>
+    <div class="status-pills">
+      <button class="status-pill success">启动</button>
+      <button class="status-pill">停止</button>
+      <button class="status-pill">重启</button>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+(function() {
+  // Sidebar item switching
+  const items = document.querySelectorAll('.sidebar-item');
+  const pageTitle = document.querySelector('.page-title');
+  const pageSub = document.querySelector('.page-title-sub');
+
+  const pageNames = {
+    'dashboard':  { title: '仪表盘', sub: '今日概览' },
+    'quickprint': { title: '快速打印', sub: '拖放文件开始打印' },
+    'tasks':      { title: '任务管理', sub: '查看和管理所有打印任务' },
+    'logs':       { title: '实时日志', sub: '服务运行日志流' },
+    'settings':   { title: '设置', sub: '配置服务器和通知' },
+    'printers':   { title: '打印机', sub: '管理已安装的打印机' },
+    'about':      { title: '关于', sub: 'iOS Print Server v2.4.0' }
+  };
+
+  items.forEach(item => {
+    item.addEventListener('click', function() {
+      items.forEach(i => i.classList.remove('active'));
+      this.classList.add('active');
+
+      const page = this.dataset.page;
+      if (page && pageNames[page]) {
+        pageTitle.textContent = pageNames[page].title;
+        pageSub.textContent = pageNames[page].sub;
+      }
+    });
+  });
+
+  // Status bar pill interactions
+  const pills = document.querySelectorAll('.status-pill');
+  pills.forEach(pill => {
+    pill.addEventListener('click', function() {
+      pills.forEach(p => p.classList.remove('primary', 'success'));
+      this.classList.add('primary');
+
+      const statusDot = document.querySelector('.status-indicator');
+      const statusText = document.querySelector('.status-text');
+
+      if (this.textContent.trim() === '启动') {
+        statusDot.style.background = 'var(--success)';
+        statusText.textContent = '运行中 · 端口 5000';
+      } else if (this.textContent.trim() === '停止') {
+        statusDot.style.background = 'var(--error)';
+        statusText.textContent = '已停止 · 端口 5000';
+      } else if (this.textContent.trim() === '重启') {
+        statusDot.style.background = '#D4A84B';
+        statusText.textContent = '重启中 · 请稍候';
+        setTimeout(() => {
+          statusDot.style.background = 'var(--success)';
+          statusText.textContent = '运行中 · 端口 5000';
+          pills.forEach(p => p.classList.remove('primary', 'success'));
+        }, 1200);
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>

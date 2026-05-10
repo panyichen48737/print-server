@@ -63,7 +63,6 @@ class DropZoneWidget(QWidget):
     def mousePressEvent(self, event):
         exts = self._extensions or _allowed_extensions()
         patterns = " ".join(f"*{e}" for e in exts)
-        desc = ", ".join(exts).upper()
         files, _ = QFileDialog.getOpenFileNames(
             self, "选择文件", "",
             f"支持的文件 ({patterns});;所有文件 (*.*)",

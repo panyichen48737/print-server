@@ -553,7 +553,7 @@ class ScanPage(QWidget):
                 with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as f:
                     f.write(data)
                     tmp_path = f.name
-                job = queue.enqueue(
+                queue.enqueue(
                     tmp_path,
                     printer=printer,
                     copies=copies,

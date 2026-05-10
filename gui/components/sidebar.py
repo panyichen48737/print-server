@@ -85,7 +85,7 @@ class SidebarWidget(QFrame):
         btn = QPushButton(name)
         btn.setObjectName("navItem")
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.clicked.connect(lambda checked, i=index: self._on_click(i))
+        btn.clicked.connect(lambda _, i=index: self._on_click(i))
         layout.addWidget(btn)
         self._buttons.append(btn)
 

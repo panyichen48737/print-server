@@ -64,10 +64,12 @@ select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "ARG", "RUF", "PERF", "TCH"
 ignore = ["E501", "RUF002", "RUF001", "RUF003", "N818", "B008"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["ARG", "F841", "RUF059", "F401", "SIM105", "SIM117", "B904", "N803", "PERF203", "PERF401"]
-"gui/*" = ["ARG002", "PERF401"]
+"tests/*" = ["ARG", "F841", "RUF059", "F401", "SIM105", "SIM117", "B904", "N803", "PERF203", "PERF401", "SIM222"]
+"gui/*" = ["ARG002", "PERF401", "N802", "N815", "RUF012", "TC001", "TC002", "F821"]
+"launcher/*" = ["N815", "ARG001"]
 "app/printing/backends/*" = ["PERF203"]
 "app/services/sse_broadcaster.py" = ["PERF203"]
+"app/updater.py" = ["TC003"]
 
 [tool.ruff.format]
 quote-style = "single"

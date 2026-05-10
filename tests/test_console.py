@@ -43,7 +43,6 @@ def test_console_does_not_import_typer():
     import sys
 
     # 模拟干净的模块加载
-    assert 'typer' not in sys.modules or True
     # 验证 console 模块的源码中不包含 typer 引用
     import launcher
 

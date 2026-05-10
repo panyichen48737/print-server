@@ -2,7 +2,15 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, QTimer
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class NotificationWidget(QFrame):
@@ -68,7 +76,6 @@ class NotificationStack(QWidget):
 def confirm_dialog(parent, title: str, text: str,
                    buttons: dict[str, QMessageBox.ButtonRole]) -> str | None:
     """返回用户点击的按钮文本，或 None。"""
-    from PySide6.QtWidgets import QMessageBox
     msg = QMessageBox(parent)
     msg.setWindowTitle(title)
     msg.setText(text)

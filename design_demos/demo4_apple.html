@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Print Server — Apple Design</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a1e;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: -apple-system, "SF Pro Display", "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: 40px;
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+/* ─── MacosWindow ─── */
+const macosWindowStyles = {
+  window: {
+    display: 'inline-block',
+    background: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden',
+    boxShadow: '0 30px 80px rgba(0,0,0,0.35), 0 0 0 0.5px rgba(0,0,0,0.2)',
+    width: 1100,
+    height: 700,
+  },
+  titleBar: {
+    height: 40,
+    background: 'linear-gradient(to bottom, #f0f0f2, #e5e5e8)',
+    display: 'flex',
+    alignItems: 'center',
+    padding: '0 16px',
+    borderBottom: '0.5px solid rgba(0,0,0,0.08)',
+    position: 'relative',
+    userSelect: 'none',
+  },
+  trafficLights: {
+    display: 'flex',
+    gap: 8.5,
+    alignItems: 'center',
+  },
+  light: {
+    width: 13,
+    height: 13,
+    borderRadius: '50%',
+    border: '0.5px solid rgba(0,0,0,0.12)',
+  },
+  close: { background: '#ff5f57' },
+  minimize: { background: '#febc2e' },
+  maximize: { background: '#28c840' },
+  title: {
+    position: 'absolute',
+    left: 0, right: 0,
+    textAlign: 'center',
+    fontSize: 13,
+    color: '#555',
+    fontWeight: 500,
+    fontFamily: '-apple-system, "SF Pro Text", sans-serif',
+    pointerEvents: 'none',
+    letterSpacing: '0.01em',
+  },
+};
+
+function MacosWindow({ title, children }) {
+  return (
+    <div style={macosWindowStyles.window}>
+      <div style={macosWindowStyles.titleBar}>
+        <div style={macosWindowStyles.trafficLights}>
+          <div style={{...macosWindowStyles.light, ...macosWindowStyles.close}} />
+          <div style={{...macosWindowStyles.light, ...macosWindowStyles.minimize}} />
+          <div style={{...macosWindowStyles.light, ...macosWindowStyles.maximize}} />
+        </div>
+        <div style={macosWindowStyles.title}>{title}</div>
+      </div>
+      <div style={{ height: 660, position: 'relative' }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Color tokens ─── */
+const C = {
+  bg: '#F5F5F7',
+  sidebarBg: 'rgba(255,255,255,0.65)',
+  sidebarBorder: 'rgba(0,0,0,0.06)',
+  cardBg: '#FFFFFF',
+  cardShadow: '0 2px 12px rgba(0,0,0,0.04), 0 0 0 0.5px rgba(0,0,0,0.03)',
+  accent: '#007AFF',
+  accentLight: '#E8F2FF',
+  text: '#1D1D1F',
+  textSecondary: '#6E6E73',
+  textTertiary: '#98989D',
+  divider: 'rgba(0,0,0,0.06)',
+  green: '#30D158',
+  orange: '#FF9F0A',
+  red: '#FF453A',
+  sidebarWidth: 200,
+};
+
+/* ─── Nav items ─── */
+const NAV_ITEMS = [
+  { id: 'dashboard', label: '仪表盘', icon: '⊞' },
+  { id: 'quickprint', label: '快速打印', icon: '⊡' },
+  { id: 'queue', label: '任务队列', icon: '☰' },
+  { id: 'printers', label: '打印机', icon: '◻' },
+  { id: 'logs', label: '日志', icon: '☰' },
+  { id: 'settings', label: '设置', icon: '⚙' },
+];
+
+/* ─── Stat card ─── */
+function StatCard({ title, value, trend }) {
+  return (
+    <div style={{
+      background: C.cardBg,
+      borderRadius: 12,
+      padding: '18px 20px',
+      boxShadow: C.cardShadow,
+      minWidth: 0,
+    }}>
+      <div style={{ fontSize: 13, color: C.textSecondary, fontWeight: 400, marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: 28, color: C.text, fontWeight: 600, letterSpacing: '-0.02em' }}>{value}</div>
+      {trend != null && (
+        <div style={{ fontSize: 12, color: trend >= 0 ? C.green : C.red, marginTop: 4, fontWeight: 500 }}>
+          {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}%
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Job row ─── */
+function JobRow({ name, status, time }) {
+  const statusColors = {
+    completed: { bg: '#E8F8ED', text: '#30D158' },
+    printing: { bg: '#E8F2FF', text: '#007AFF' },
+    queued: { bg: '#F5F5F7', text: '#8E8E93' },
+    failed: { bg: '#FDE8E8', text: '#FF453A' },
+  };
+  const sc = statusColors[status] || statusColors.queued;
+  const labels = { completed: '已完成', printing: '打印中', queued: '排队中', failed: '失败' };
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '10px 0', borderBottom: '0.5px solid ' + C.divider,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{
+          width: 6, height: 6, borderRadius: '50%',
+          background: sc.text,
+        }} />
+        <span style={{ fontSize: 13, color: C.text }}>{name}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{
+          fontSize: 11, fontWeight: 500, color: sc.text,
+          background: sc.bg, padding: '2px 8px', borderRadius: 4,
+        }}>{labels[status]}</span>
+        <span style={{ fontSize: 12, color: C.textTertiary }}>{time}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Printer card ─── */
+function PrinterCard({ name, status, jobs }) {
+  const isOnline = status === 'online';
+  return (
+    <div style={{
+      background: C.cardBg,
+      borderRadius: 10,
+      padding: 14,
+      boxShadow: C.cardShadow,
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{
+          width: 8, height: 8, borderRadius: '50%',
+          background: isOnline ? C.green : C.textTertiary,
+        }} />
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 500, color: C.text }}>{name}</div>
+          <div style={{ fontSize: 11, color: C.textTertiary }}>{isOnline ? '在线' : '离线'}</div>
+        </div>
+      </div>
+      <div style={{ fontSize: 12, color: C.textSecondary }}>
+        {jobs} 个任务
+      </div>
+    </div>
+  );
+}
+
+/* ─── Main App ─── */
+function App() {
+  const [activeNav, setActiveNav] = useState('dashboard');
+  const [darkMode, setDarkMode] = useState(false);
+
+  // Dynamic tokens based on mode
+  const theme = darkMode ? {
+    bg: '#1C1C1E',
+    sidebarBg: 'rgba(44,44,46,0.72)',
+    sidebarBorder: 'rgba(255,255,255,0.06)',
+    cardBg: '#2C2C2E',
+    cardShadow: '0 2px 12px rgba(0,0,0,0.2), 0 0 0 0.5px rgba(0,0,0,0.2)',
+    text: '#F5F5F7',
+    textSecondary: '#98989D',
+    textTertiary: '#636366',
+    divider: 'rgba(255,255,255,0.06)',
+    accentLight: 'rgba(0,122,255,0.15)',
+  } : {
+    bg: C.bg, sidebarBg: C.sidebarBg, sidebarBorder: C.sidebarBorder,
+    cardBg: C.cardBg, cardShadow: C.cardShadow,
+    text: C.text, textSecondary: C.textSecondary, textTertiary: C.textTertiary,
+    divider: C.divider, accentLight: C.accentLight,
+  };
+
+  return (
+    <MacosWindow title="iOS Print Server">
+      <div style={{
+        display: 'flex', height: '100%',
+        background: theme.bg,
+        fontFamily: '-apple-system, "SF Pro Text", "Helvetica Neue", sans-serif',
+      }}>
+        {/* ─── Sidebar ─── */}
+        <div style={{
+          width: C.sidebarWidth,
+          background: theme.sidebarBg,
+          backdropFilter: 'blur(30px)',
+          WebkitBackdropFilter: 'blur(30px)',
+          borderRight: '0.5px solid ' + theme.sidebarBorder,
+          display: 'flex', flexDirection: 'column',
+          padding: '12px 0',
+        }}>
+          {/* App header */}
+          <div style={{
+            padding: '8px 16px 16px', borderBottom: '0.5px solid ' + theme.divider,
+            marginBottom: 8,
+          }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 7,
+              background: 'linear-gradient(135deg, #007AFF, #5856D6)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#fff', fontSize: 14, fontWeight: 700, marginBottom: 6,
+            }}>P</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: theme.text }}>Print Server</div>
+            <div style={{ fontSize: 11, color: theme.textTertiary }}>v2.4.1</div>
+          </div>
+          {/* Nav items */}
+          <div style={{ flex: 1, padding: '0 8px' }}>
+            {NAV_ITEMS.map(item => (
+              <div key={item.id} onClick={() => setActiveNav(item.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '8px 12px', marginBottom: 2,
+                  borderRadius: 7,
+                  cursor: 'pointer',
+                  background: activeNav === item.id ? theme.accentLight : 'transparent',
+                  color: activeNav === item.id ? C.accent : theme.textSecondary,
+                  fontSize: 13, fontWeight: activeNav === item.id ? 500 : 400,
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={e => { if (activeNav !== item.id) e.currentTarget.style.background = theme.divider; }}
+                onMouseLeave={e => { if (activeNav !== item.id) e.currentTarget.style.background = 'transparent'; }}
+              >
+                <span style={{ fontSize: 16, width: 20, textAlign: 'center', opacity: 0.7 }}>{item.icon}</span>
+                <span>{item.label}</span>
+              </div>
+            ))}
+          </div>
+          {/* Bottom section */}
+          <div style={{
+            padding: '16px 16px 8px',
+            borderTop: '0.5px solid ' + theme.divider,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <div style={{
+                width: 7, height: 7, borderRadius: '50%',
+                background: C.green, boxShadow: '0 0 6px rgba(48,209,88,0.4)',
+              }} />
+              <span style={{ fontSize: 12, color: C.green, fontWeight: 500 }}>服务器运行中</span>
+            </div>
+            {/* Dark mode toggle */}
+            <div onClick={() => setDarkMode(!darkMode)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '6px 10px', borderRadius: 6, cursor: 'pointer',
+                fontSize: 12, color: theme.textSecondary,
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = theme.divider}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <span>{darkMode ? '🌙' : '☀️'} 主题</span>
+              <div style={{
+                width: 32, height: 18, borderRadius: 9,
+                background: darkMode ? C.accent : '#C7C7CC',
+                position: 'relative', transition: 'background 0.2s',
+              }}>
+                <div style={{
+                  width: 14, height: 14, borderRadius: '50%',
+                  background: '#fff', position: 'absolute', top: 2,
+                  left: darkMode ? 16 : 2, transition: 'left 0.2s',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
+                }} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── Main Content ─── */}
+        <div style={{ flex: 1, padding: 24, overflow: 'auto' }}>
+          {/* Page header */}
+          <div style={{ marginBottom: 24 }}>
+            <h1 style={{
+              fontSize: 28, fontWeight: 700, color: theme.text,
+              fontFamily: '-apple-system, "SF Pro Display", sans-serif',
+              letterSpacing: '-0.02em', marginBottom: 4,
+            }}>仪表盘</h1>
+            <p style={{ fontSize: 13, color: theme.textSecondary }}>打印机与任务总览</p>
+          </div>
+
+          {/* KPI cards */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20,
+          }}>
+            <StatCard title="排队中" value="3" trend={12} />
+            <StatCard title="打印中" value="2" />
+            <StatCard title="今日完成" value="28" trend={8} />
+            <StatCard title="成功率" value="96%" trend={2} />
+          </div>
+
+          {/* Chart area — Apple style gradient */}
+          <div style={{
+            background: theme.cardBg,
+            borderRadius: 12, padding: 20,
+            boxShadow: theme.cardShadow, marginBottom: 20,
+            height: 180, position: 'relative', overflow: 'hidden',
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: theme.text, marginBottom: 4 }}>
+              近 7 天打印趋势
+            </div>
+            <div style={{ fontSize: 12, color: theme.textTertiary, marginBottom: 16 }}>
+              每日任务完成量
+            </div>
+            {/* Apple-style bar chart */}
+            <svg width="100%" height="90" viewBox="0 0 900 90" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="appleBar" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#007AFF" stopOpacity="0.7"/>
+                  <stop offset="100%" stopColor="#007AFF" stopOpacity="0.15"/>
+                </linearGradient>
+              </defs>
+              {[
+                { day: '05/02', val: 12 },
+                { day: '05/03', val: 18 },
+                { day: '05/04', val: 8 },
+                { day: '05/05', val: 22 },
+                { day: '05/06', val: 15 },
+                { day: '05/07', val: 28 },
+                { day: '05/08', val: 20 },
+              ].map((d, i) => {
+                const x = 35 + i * 120;
+                const h = (d.val / 28) * 70;
+                return <React.Fragment key={i}>
+                  <rect x={x + 25} y={90 - h} width={32} height={h} rx={4} fill="url(#appleBar)" />
+                  <text x={x + 41} y={84} textAnchor="middle" fontSize="10" fill="#8E8E93">{d.val}</text>
+                  <text x={x + 41} y={106} textAnchor="middle" fontSize="9" fill="#8E8E93">{d.day}</text>
+                </React.Fragment>;
+              })}
+            </svg>
+          </div>
+
+          {/* Bottom row */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            {/* Printers */}
+            <div style={{
+              background: theme.cardBg, borderRadius: 12, padding: 20,
+              boxShadow: theme.cardShadow,
+            }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: theme.text, marginBottom: 14 }}>
+                打印机状态
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <PrinterCard name="HP LaserJet M404" status="online" jobs={5} />
+                <PrinterCard name="Canon LBP226dw" status="online" jobs={2} />
+                <PrinterCard name="Brother HL-L2340D" status="online" jobs={0} />
+              </div>
+            </div>
+            {/* Recent jobs */}
+            <div style={{
+              background: theme.cardBg, borderRadius: 12, padding: 20,
+              boxShadow: theme.cardShadow,
+            }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: theme.text, marginBottom: 14 }}>
+                最近任务
+              </div>
+              <JobRow name="report_q3_2026.pdf" status="completed" time="2 分钟前" />
+              <JobRow name="invoice_8852.xlsx" status="printing" time="5 分钟前" />
+              <JobRow name="contract_draft.docx" status="queued" time="8 分钟前" />
+              <JobRow name="meeting_notes.pdf" status="completed" time="15 分钟前" />
+              <JobRow name="brochure_v3.pdf" status="failed" time="23 分钟前" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </MacosWindow>
+  );
+}
+
+/* ─── Render ─── */
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>

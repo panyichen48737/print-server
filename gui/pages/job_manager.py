@@ -341,7 +341,7 @@ class JobManagerPage(QWidget):
         ok, fail = 0, 0
         try:
             for j in failed:
-                new_id, err = jq.retry_job(str(j.get("id", "")))
+                new_id, _ = jq.retry_job(str(j.get("id", "")))
                 if new_id:
                     ok += 1
                 else:
