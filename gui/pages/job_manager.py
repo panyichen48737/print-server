@@ -1,12 +1,13 @@
 """Job manager page: queue + history tables with filter."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QVariantAnimation
+from PySide6.QtCore import Qt, QAbstractTableModel, QEvent, QSettings, QVariantAnimation
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QComboBox, QDateEdit, QFrame, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QProgressBar,
-    QPushButton, QScrollArea, QTableView, QVBoxLayout, QWidget,
+    QPushButton, QScrollArea, QStyledItemDelegate, QTableView, QVBoxLayout, QWidget,
 )
+from gui.components.skeleton import SkeletonWidget
 
 
 class SimpleTableModel(QAbstractTableModel):
@@ -34,6 +35,23 @@ class SimpleTableModel(QAbstractTableModel):
         self.beginResetModel()
         self._data = data
         self.endResetModel()
+
+
+class HoverHighlightDelegate(QStyledItemDelegate):
+    """Delegate that highlights row background on hover."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._hovered_row = -1
+
+    def set_hovered_row(self, row: int):
+        self._hovered_row = row
+
+    def paint(self, painter, option, index):
+        if index.row() == self._hovered_row:
+            painter.save()
+            painter.fillRect(option.rect, QColor(238, 242, 255))
+            painter.restore()
+        super().paint(painter, option, index)
 
 
 class JobManagerPage(QWidget):
@@ -148,6 +166,17 @@ class JobManagerPage(QWidget):
         self.history_table.setSortingEnabled(True)
         layout.addWidget(self.history_table)
 
+        # Skeleton loading placeholder
+        self.history_skeleton = QWidget()
+        self.history_skeleton.setVisible(False)
+        skel_lo = QVBoxLayout(self.history_skeleton)
+        skel_lo.setContentsMargins(0, 0, 0, 0)
+        skel_lo.setSpacing(8)
+        for _ in range(5):
+            skel_lo.addWidget(SkeletonWidget(600, 22))
+        skel_lo.addStretch()
+        layout.addWidget(self.history_skeleton)
+
         # Pagination
         pagination_row = QHBoxLayout()
         self.prev_btn = QPushButton("← 上一页")
@@ -189,6 +218,24 @@ class JobManagerPage(QWidget):
         self.search_input.textChanged.connect(self._on_filter_changed)
         self.date_from.dateChanged.connect(self._on_filter_changed)
         self.date_to.dateChanged.connect(self._on_filter_changed)
+
+        # Hover delegate
+        self._queue_delegate = HoverHighlightDelegate(self)
+        self.queue_table.setItemDelegate(self._queue_delegate)
+        self.queue_table.viewport().entered.connect(
+            lambda idx: self._on_entered(self._queue_delegate, self.queue_table, idx))
+        self.queue_table.setMouseTracking(True)
+
+        self._history_delegate = HoverHighlightDelegate(self)
+        self.history_table.setItemDelegate(self._history_delegate)
+        self.history_table.viewport().entered.connect(
+            lambda idx: self._on_entered(self._history_delegate, self.history_table, idx))
+        self.history_table.setMouseTracking(True)
+
+        self.queue_table.viewport().installEventFilter(self)
+        self.history_table.viewport().installEventFilter(self)
+
+        self._restore_table_state()
 
     _STATUS_MAP = {
         "全部": None,
@@ -304,10 +351,14 @@ class JobManagerPage(QWidget):
         self.job_error_widget.setVisible(False)
         repo = self._job_repo()
         if repo is None:
+            self.history_skeleton.setVisible(True)
+            self.history_table.setVisible(False)
             self.queue_empty_label.setText("加载失败")
             self.job_error_label.setText("无法连接数据库，请检查服务器状态")
             self.job_error_widget.setVisible(True)
             return
+        self.history_skeleton.setVisible(False)
+        self.history_table.setVisible(True)
 
         queued = repo.get_jobs_by_status("queued")
         printing = repo.get_jobs_by_status("printing")
@@ -367,6 +418,53 @@ class JobManagerPage(QWidget):
     def on_log(self, data: dict):
         # Stub
         pass
+
+    def _on_entered(self, delegate, table, index):
+        old = delegate._hovered_row
+        delegate.set_hovered_row(index.row())
+        if old >= 0:
+            table.update(table.visualRect(table.model().index(old, 0)))
+        table.update(table.visualRect(index))
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.Leave and obj in (
+            self.queue_table.viewport(), self.history_table.viewport()
+        ):
+            delegate = self._queue_delegate if obj is self.queue_table.viewport() else self._history_delegate
+            old = delegate._hovered_row
+            delegate.set_hovered_row(-1)
+            table = self.queue_table if obj is self.queue_table.viewport() else self.history_table
+            if old >= 0:
+                table.update(table.visualRect(table.model().index(old, 0)))
+            return False
+        return super().eventFilter(obj, event)
+
+    def hideEvent(self, event):
+        self._save_table_state()
+        super().hideEvent(event)
+
+    def _save_table_state(self):
+        settings = QSettings("iOSPrintServer", "job_manager")
+        settings.beginGroup("history_table")
+        for col in range(self.history_model.columnCount()):
+            settings.setValue(f"col_{col}_width", self.history_table.columnWidth(col))
+        if self.history_table.horizontalHeader().sortIndicatorSection() >= 0:
+            settings.setValue("sort_column", self.history_table.horizontalHeader().sortIndicatorSection())
+            settings.setValue("sort_order", int(self.history_table.horizontalHeader().sortIndicatorOrder()))
+        settings.endGroup()
+
+    def _restore_table_state(self):
+        settings = QSettings("iOSPrintServer", "job_manager")
+        settings.beginGroup("history_table")
+        for col in range(self.history_model.columnCount()):
+            w = settings.value(f"col_{col}_width", type=int)
+            if w:
+                self.history_table.setColumnWidth(col, w)
+        sort_col = settings.value("sort_column", type=int)
+        sort_order = settings.value("sort_order", type=int)
+        if sort_col is not None:
+            self.history_table.sortByColumn(sort_col, Qt.SortOrder(sort_order or 0))
+        settings.endGroup()
 
     def _highlight_row(self, row: int):
         """Fade row background briefly on status change."""

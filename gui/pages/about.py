@@ -206,7 +206,24 @@ class AboutPage(QWidget):
 
         self.update_status = QLabel("")
         self.update_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.update_status)
+
+        # ── Text-based spinner for update check ──
+        self._spinner_label = QLabel("")
+        self._spinner_label.setVisible(False)
+        self._spinner_label.setStyleSheet("font-size: 16px; color: #B8956A;")
+        self._spinner_timer = QTimer(self)
+        self._spinner_timer.timeout.connect(self._advance_spinner)
+        self._spinner_frames = ["◜", "◝", "◞", "◟"]
+        self._spinner_idx = 0
+
+        status_row = QHBoxLayout()
+        status_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        status_row.setSpacing(6)
+        status_row.addStretch()
+        status_row.addWidget(self._spinner_label)
+        status_row.addWidget(self.update_status)
+        status_row.addStretch()
+        layout.addLayout(status_row)
 
         # ── Other actions ──
         action_row = QHBoxLayout()
@@ -309,6 +326,7 @@ class AboutPage(QWidget):
         self.update_progress.setVisible(False)
         self.update_status.setStyleSheet("color: #8A8178;")
         self.update_status.setText("正在检查更新...")
+        self._start_spinner()
 
         # Reset previous download state
         self._update_info = None
@@ -317,6 +335,7 @@ class AboutPage(QWidget):
         self._start_worker("check")
 
     def _on_check_finished(self, info: UpdateInfo | None):
+        self._stop_spinner()
         self._cleanup_thread()
         self.update_btn.setEnabled(True)
         self.update_btn.setText("检查更新")
@@ -474,6 +493,22 @@ class AboutPage(QWidget):
             )
             self.update_btn.setEnabled(True)
 
+    def _advance_spinner(self):
+        self._spinner_idx = (self._spinner_idx + 1) % len(self._spinner_frames)
+        self._spinner_label.setText(self._spinner_frames[self._spinner_idx])
+
+    def _start_spinner(self):
+        self._spinner_idx = 0
+        self._spinner_label.setText(self._spinner_frames[0])
+        self._spinner_label.setVisible(True)
+        self._spinner_timer.start(200)  # 200ms per frame
+
+    def _stop_spinner(self):
+        self._spinner_timer.stop()
+        self._spinner_label.setVisible(False)
+        self._spinner_label.setText("")
+
     def cleanup(self):
         """Stop pending thread when page is destroyed."""
+        self._stop_spinner()
         self._cleanup_thread()

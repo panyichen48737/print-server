@@ -127,8 +127,10 @@ class ScanPage(QWidget):
         options_row = QHBoxLayout()
         self.output_combo = QComboBox()
         self.output_combo.addItems(["PDF", "图片"])
+        self.output_combo.setToolTip("选择输出为 PDF 文档或独立图片文件")
         self.output_combo.currentTextChanged.connect(self._on_output_format_changed)
         self.merge_cb = LabeledToggle("合并为一个文件", checked=False)
+        self.merge_cb.setToolTip("多张图片合并为一个 PDF 文件")
         self.merge_cb.setVisible(False)
         options_row.addWidget(QLabel("输出格式:"))
         options_row.addWidget(self.output_combo)
@@ -145,6 +147,13 @@ class ScanPage(QWidget):
         self.generate_btn = StatefulButton("开始扫描")
         self.generate_btn.clicked.connect(self._generate)
         layout.addWidget(self.generate_btn)
+
+        # Cancel button (hidden until generation starts)
+        self.cancel_btn = QPushButton("取消")
+        self.cancel_btn.setObjectName("ghostDanger")
+        self.cancel_btn.setVisible(False)
+        self.cancel_btn.clicked.connect(self._cancel_generation)
+        layout.addWidget(self.cancel_btn)
 
         # Result list
         self.result_list = QListWidget()
@@ -217,6 +226,7 @@ class ScanPage(QWidget):
 
         self._file_paths: list[str] = []
         self._worker: ScanWorker | None = None
+        self._cancelled_by_user = False
 
         QTimer.singleShot(300, self._refresh_printers)
         self._printer_combo.currentTextChanged.connect(self._on_printer_changed)
@@ -263,6 +273,8 @@ class ScanPage(QWidget):
         self._clear_results()
         self.progress.setVisible(False)
         self._status_label.setText("")
+        self.cancel_btn.setVisible(False)
+        self.generate_btn.setVisible(True)
         self.generate_btn.reset()
         self._export_action_widget.setVisible(False)
 
@@ -311,6 +323,9 @@ class ScanPage(QWidget):
         if not paths:
             return
         self.generate_btn.set_loading()
+        self.generate_btn.setVisible(False)
+        self.cancel_btn.setVisible(True)
+        self._cancelled_by_user = False
         self.progress.setVisible(True)
         self.progress.setRange(0, 0)
         self.result_list.clear()
@@ -327,11 +342,30 @@ class ScanPage(QWidget):
         self._worker.error.connect(self._on_scan_error)
         self._worker.start()
 
+    def _cancel_generation(self):
+        if self._worker:
+            self._worker.cancel()
+        self._cancelled_by_user = True
+        self._reset_after_cancel()
+
+    def _reset_after_cancel(self):
+        self.cancel_btn.setVisible(False)
+        self.generate_btn.setVisible(True)
+        self.generate_btn.reset()
+        self.progress.setVisible(False)
+        self._status_label.setText("已取消")
+        self._status_label.setStyleSheet("")
+
     def _on_scan_progress(self, current: int, total: int):
         self.progress.setRange(0, total)
         self.progress.setValue(current)
 
     def _on_scan_finished(self, total: int, results: list[tuple[str, bytes | None]]):
+        # Ignore results if user cancelled
+        if self._cancelled_by_user:
+            return
+        self.cancel_btn.setVisible(False)
+        self.generate_btn.setVisible(True)
         self.progress.setRange(0, 100)
         self.generate_btn.set_success()
 
@@ -428,6 +462,8 @@ class ScanPage(QWidget):
     def _on_scan_error(self, msg: str):
         self._status_label.setText(msg)
         self._status_label.setStyleSheet("color: #C53A3A;")
+        self.cancel_btn.setVisible(False)
+        self.generate_btn.setVisible(True)
         self.generate_btn.set_error()
         self.progress.setVisible(False)
 

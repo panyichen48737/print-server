@@ -15,7 +15,7 @@ from gui.components.drop_zone import DropZoneWidget
 from gui.components.stateful_button import StatefulButton
 from gui.components.toggle_switch import LabeledToggle
 from gui.components.printer_capabilities import query_capabilities
-from gui.components.progress_state import set_indeterminate, set_error as set_progress_error, set_success as set_progress_success
+from gui.components.progress_state import ProgressState
 
 
 IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif", ".heic", ".heif"]
@@ -169,6 +169,7 @@ class QuickPrintPage(QWidget):
         # Progress bar + cancel
         progress_row = QHBoxLayout()
         self.progress = QProgressBar()
+        self._progress = ProgressState(self.progress)
         self.progress.setVisible(False)
         self.progress.setRange(0, 100)
         self.cancel_btn = QPushButton("取消")
@@ -305,7 +306,7 @@ class QuickPrintPage(QWidget):
         self.progress.setVisible(True)
         self.cancel_btn.setVisible(True)
         self.error_label.setVisible(False)
-        set_indeterminate(self.progress)
+        self._progress.set_indeterminate()
         self._tracking_job_ids.clear()
 
         from app.services.upload import save_upload

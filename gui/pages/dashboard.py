@@ -1,10 +1,7 @@
-"""Dashboard page: stat cards, grouped bar chart."""
+"""Dashboard page: stat cards, recent jobs table."""
 from __future__ import annotations
 
-import datetime
-
 from PySide6.QtCore import Qt, QTimer, QAbstractTableModel
-from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
     QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton,
     QScrollArea, QTableView, QHeaderView, QVBoxLayout, QWidget,
@@ -111,70 +108,6 @@ class StatCard(QFrame):
     def set_value(self, value: str):
         self.value_lbl.setText(value)
         self.value_lbl.setStyleSheet(f"color: {self._val_color};")
-
-
-class BarChartWidget(QWidget):
-    """Custom painted grouped bar chart."""
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._data: list[tuple[str, int, int]] = []
-        self._max_value = 0
-        self.setMinimumHeight(120)
-
-    def set_data(self, data: list[tuple[str, int, int]]):
-        self._data = data
-        self._max_value = max((max(v1, v2) for _, v1, v2 in data), default=0)
-        self.update()
-
-    def paintEvent(self, event):
-        from PySide6.QtCore import QRectF
-        if not self._data:
-            return
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        w, h = self.width(), self.height()
-        from gui.theme import ThemeEngine
-        _theme = ThemeEngine.instance()
-        _is_dark = _theme.mode == "dark"
-        bar_c1 = QColor("#B8956A" if _is_dark else "#8B7355")
-        bar_c1.setAlpha(191)
-        bar_c2 = QColor("#7DBD7D" if _is_dark else "#6B8F6B")
-        bar_c2.setAlpha(191)
-
-        n = len(self._data)
-        pad = 20
-        label_h = 24
-        chart_h = h - label_h - 8
-        total_w = w - pad * 2
-        group_w = min(60, max(20, int(total_w / max(n, 1))))
-        gap = 3
-        bar_w = min(12, group_w // 2 - gap)
-        spacing = max(8, (total_w - n * group_w) // max(n - 1, 1)) if n > 1 else 0
-
-        for i, (label, v1, v2) in enumerate(self._data):
-            cx = pad + i * (group_w + spacing) + group_w / 2
-            max_h = chart_h
-            h1 = int((v1 / self._max_value) * max_h) if self._max_value > 0 else 0
-            h2 = int((v2 / self._max_value) * max_h) if self._max_value > 0 else 0
-
-            if h1 > 0:
-                p.setBrush(bar_c1)
-                p.setPen(Qt.PenStyle.NoPen)
-                x1 = int(cx - bar_w - gap / 2)
-                p.drawRoundedRect(x1, h - label_h - h1, bar_w, h1, 3, 3)
-            if h2 > 0:
-                p.setBrush(bar_c2)
-                p.setPen(Qt.PenStyle.NoPen)
-                x2 = int(cx + gap / 2)
-                p.drawRoundedRect(x2, h - label_h - h2, bar_w, h2, 3, 3)
-
-            p.setPen(QColor("#B0A89F"))
-            font = p.font()
-            font.setPixelSize(10)
-            p.setFont(font)
-            p.drawText(QRectF(cx - group_w / 2, h - label_h + 4, group_w, label_h),
-                       Qt.AlignmentFlag.AlignCenter, label)
 
 
 class RecentJobsModel(QAbstractTableModel):
@@ -293,58 +226,7 @@ class DashboardPage(QWidget):
         lo.addWidget(self._stat_widget)
         lo.addSpacing(24)
 
-        # ===== Chart Section =====
-        self.chart_section = QWidget()
-        cs_lo = QVBoxLayout(self.chart_section)
-        cs_lo.setContentsMargins(0, 0, 0, 0)
-        cs_lo.setSpacing(0)
-
-        chart_heading = QLabel("近 7 天打印趋势")
-        chart_heading.setObjectName("sectionHeading")
-        cs_lo.addWidget(chart_heading)
-        cs_lo.addSpacing(14)
-
-        chart_area = QFrame()
-        chart_area.setObjectName("chartArea")
-        ca_lo = QVBoxLayout(chart_area)
-        ca_lo.setContentsMargins(22, 24, 22, 24)
-        ca_lo.setSpacing(0)
-
-        chart_header = QWidget()
-        ch_lo = QHBoxLayout(chart_header)
-        ch_lo.setContentsMargins(0, 0, 0, 0)
-        chart_label = QLabel("任务数 / 页数")
-        chart_label.setObjectName("chartLabel")
-        ch_lo.addWidget(chart_label)
-        ch_lo.addStretch()
-
-        legend = QWidget()
-        leg_lo = QHBoxLayout(legend)
-        leg_lo.setContentsMargins(0, 0, 0, 0)
-        leg_lo.setSpacing(14)
-        for color, text in [("#8B7355", "任务数"), ("#6B8F6B", "打印页数")]:
-            item = QWidget()
-            il = QHBoxLayout(item)
-            il.setContentsMargins(0, 0, 0, 0)
-            il.setSpacing(5)
-            dot = QLabel()
-            dot.setFixedSize(8, 8)
-            dot.setStyleSheet(f"background-color: {color}; border-radius: 2px;")
-            label = QLabel(text)
-            label.setStyleSheet("font-size: 11px; color: #8A8178;")
-            il.addWidget(dot)
-            il.addWidget(label)
-            leg_lo.addWidget(item)
-        ch_lo.addWidget(legend)
-        ca_lo.addWidget(chart_header)
-        ca_lo.addSpacing(16)
-
-        self.bar_chart = BarChartWidget()
-        ca_lo.addWidget(self.bar_chart, 1)
-        cs_lo.addWidget(chart_area)
-        lo.addWidget(self.chart_section)
-
-        # Recent jobs section
+        # ===== Recent Jobs Section =====
         self.recent_section = QWidget()
         rs_lo = QVBoxLayout(self.recent_section)
         rs_lo.setContentsMargins(0, 0, 0, 0)
@@ -437,7 +319,6 @@ class DashboardPage(QWidget):
 
         has_data = total > 0
         self.empty_state.setVisible(not has_data and self._initial_loaded)
-        self.chart_section.setVisible(has_data)
 
         # Recent jobs
         recent = repo.get_jobs(limit=10)
@@ -447,18 +328,6 @@ class DashboardPage(QWidget):
         ]
         self.recent_model.set_data(recent_rows)
         self.recent_section.setVisible(has_data)
-
-        weekday_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-        today = datetime.date.today()
-        daily = repo.get_daily_counts(7)
-        data = []
-        for i in range(6, -1, -1):
-            d = today - datetime.timedelta(days=i)
-            ds = d.strftime("%Y-%m-%d")
-            count = daily.get(ds, 0)
-            label = weekday_names[d.weekday()]
-            data.append((label, count, 0))
-        self.bar_chart.set_data(data)
 
     def show_error(self, msg: str):
         self.error_label.setText(f"⚠ {msg}")

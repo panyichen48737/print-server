@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import secrets
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import (
     QComboBox, QFormLayout, QGroupBox, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QScrollArea, QSpinBox, QVBoxLayout, QWidget,
@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 
 from PySide6.QtGui import QValidator
 
+from gui.components.skeleton import SkeletonWidget
 from gui.components.stateful_button import StatefulButton
 from gui.components.toggle_switch import LabeledToggle
 from gui.components.validators import PortValidator
@@ -33,6 +34,17 @@ class SettingsPage(QWidget):
         title_lbl = QLabel("设置")
         title_lbl.setObjectName("pageTitle")
         layout.addWidget(title_lbl)
+
+        # Skeleton loading overlay (shown briefly on init for smooth perceived loading)
+        self._skeleton = self._build_skeleton()
+        layout.addWidget(self._skeleton)
+
+        # Real form content — hidden until skeleton pulse completes
+        self._content = QWidget()
+        self._content_layout = QVBoxLayout(self._content)
+        self._content_layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._content)
+        self._content.setVisible(False)
 
         # Group 1: Security
         security_group = QGroupBox("安全")
@@ -60,7 +72,7 @@ class SettingsPage(QWidget):
         key_widget = QWidget()
         key_widget.setLayout(key_row)
         security_form.addRow("API Key:", key_widget)
-        layout.addWidget(security_group)
+        self._content_layout.addWidget(security_group)
 
         # Group 1.5: Quark API
         quark_group = QGroupBox("夸克扫描 API")
@@ -82,7 +94,7 @@ class SettingsPage(QWidget):
         quark_key_widget = QWidget()
         quark_key_widget.setLayout(quark_key_row)
         quark_form.addRow("API Key:", quark_key_widget)
-        layout.addWidget(quark_group)
+        self._content_layout.addWidget(quark_group)
 
         # Group 2: Server
         server_group = QGroupBox("服务器")
@@ -92,7 +104,7 @@ class SettingsPage(QWidget):
         server_form.addRow("端口:", self.port_input)
         self.ssl_cb = LabeledToggle("启用 SSL", checked=True)
         server_form.addRow("", self.ssl_cb)
-        layout.addWidget(server_group)
+        self._content_layout.addWidget(server_group)
 
         # Group 3: Printer
         printer_group = QGroupBox("打印机")
@@ -106,7 +118,7 @@ class SettingsPage(QWidget):
         self.retry_spin = QSpinBox()
         self.retry_spin.setRange(0, 10)
         printer_form.addRow("重试次数:", self.retry_spin)
-        layout.addWidget(printer_group)
+        self._content_layout.addWidget(printer_group)
 
         # Group 4: Notification
         notif_group = QGroupBox("通知")
@@ -118,7 +130,7 @@ class SettingsPage(QWidget):
         notif_form.addRow("Webhook / Key:", self.webhook_input)
         self.test_notify_btn = StatefulButton("测试通知")
         notif_form.addRow("", self.test_notify_btn)
-        layout.addWidget(notif_group)
+        self._content_layout.addWidget(notif_group)
 
         # Group 5: Print Options
         print_opts_group = QGroupBox("打印选项")
@@ -133,7 +145,7 @@ class SettingsPage(QWidget):
         self.paper_size_combo = QComboBox()
         self.paper_size_combo.addItems(["A4", "Letter", "A3"])
         print_opts_form.addRow("默认纸张:", self.paper_size_combo)
-        layout.addWidget(print_opts_group)
+        self._content_layout.addWidget(print_opts_group)
 
         # Group 6: Worker
         worker_group = QGroupBox("Worker")
@@ -153,7 +165,7 @@ class SettingsPage(QWidget):
         self.word_timeout_spin.setRange(30, 600)
         self.word_timeout_spin.setSuffix(" 秒")
         worker_form.addRow("Word 超时:", self.word_timeout_spin)
-        layout.addWidget(worker_group)
+        self._content_layout.addWidget(worker_group)
 
         # Group 7: Logging
         log_group = QGroupBox("日志")
@@ -164,24 +176,24 @@ class SettingsPage(QWidget):
         self.log_max_days_spin = QSpinBox()
         self.log_max_days_spin.setRange(1, 365)
         log_form.addRow("日志保留天数:", self.log_max_days_spin)
-        layout.addWidget(log_group)
+        self._content_layout.addWidget(log_group)
 
         # Save button
         self.save_btn = StatefulButton("保存设置")
         self.save_btn.clicked.connect(self._save)
-        layout.addWidget(self.save_btn)
+        self._content_layout.addWidget(self.save_btn)
 
         # Status label
         self.status_label = QLabel("")
-        layout.addWidget(self.status_label)
+        self._content_layout.addWidget(self.status_label)
 
         # Restart required label
         self.restart_label = QLabel("部分设置需要重启服务器才能生效")
         self.restart_label.setVisible(False)
         self.restart_label.setStyleSheet("color: #B8956A; font-size: 12px; padding: 4px 0;")
-        layout.addWidget(self.restart_label)
+        self._content_layout.addWidget(self.restart_label)
 
-        layout.addStretch()
+        self._content_layout.addStretch()
         scroll.setWidget(container)
 
         main_layout = QVBoxLayout(self)
@@ -192,6 +204,26 @@ class SettingsPage(QWidget):
         self._populate_printers()
         self.test_notify_btn.clicked.connect(self._test_notification)
         self._mw._app.state.event_bus.on("printer_list_updated", self._populate_printers)
+
+        # Brief skeleton pulse before revealing the form
+        QTimer.singleShot(200, self._show_content)
+
+    def _build_skeleton(self):
+        """Build the skeleton loading placeholder mimicking form layout."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setSpacing(12)
+        # 10 rows of varying widths to simulate form fields
+        for w in [280, 200, 350, 220, 300, 260, 340, 200, 250, 320]:
+            sk = SkeletonWidget(width=w, height=24)
+            layout.addWidget(sk, alignment=Qt.AlignmentFlag.AlignLeft)
+        layout.addStretch()
+        return widget
+
+    def _show_content(self):
+        """Hide skeleton, reveal real form content."""
+        self._skeleton.setVisible(False)
+        self._content.setVisible(True)
 
     def _generate_key(self):
         self.api_key_input.setText(secrets.token_hex(32))
