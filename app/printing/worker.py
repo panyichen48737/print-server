@@ -13,7 +13,7 @@ from typing import Any
 
 from loguru import logger
 
-from app.utils import safe_remove
+from app.core.utils import safe_remove
 
 
 class JobExecutor:

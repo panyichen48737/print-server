@@ -3,7 +3,7 @@
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from app.config import Config
+from app.core.config import Config
 
 
 @given(st.text(alphabet='abcdefghijklmnopqrstuvwxyz.', min_size=1, max_size=20))

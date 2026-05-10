@@ -16,7 +16,7 @@ def app_root() -> Path:
     """返回 exe 所在目录（frozen）或项目根目录（dev）"""
     if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
         return Path(sys.executable).parent
-    return Path(__file__).resolve().parent.parent
+    return Path(__file__).resolve().parent.parent.parent
 
 
 def data_root() -> Path:

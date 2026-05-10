@@ -9,7 +9,7 @@ import pytest
 @pytest.mark.integration
 async def test_daemon_health():
     from app.bootstrap import bootstrap
-    from app.config import Config
+    from app.core.config import Config
     from launcher import ServerHandle, _server_lifespan
 
     config = Config()
@@ -42,7 +42,7 @@ async def test_daemon_health():
 async def test_web_api():
     """Verify the API root returns health info."""
     from app.bootstrap import bootstrap
-    from app.config import Config
+    from app.core.config import Config
     from launcher import ServerHandle, _server_lifespan
 
     config = Config()

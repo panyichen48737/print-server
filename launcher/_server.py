@@ -11,7 +11,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from app._paths import app_root, persistent_dir
+from app.core._paths import app_root, persistent_dir
 
 
 def _find_cert(config) -> tuple[str | None, str | None]:

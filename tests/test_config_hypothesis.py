@@ -8,7 +8,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from pydantic import ValidationError
 
-from app.config import Config
+from app.core.config import Config
 
 config_kwargs = st.fixed_dictionaries(
     {

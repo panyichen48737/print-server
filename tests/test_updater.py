@@ -15,7 +15,7 @@ from app.updater import (
     install_update,
     get_installed_version_from_registry,
 )
-from app.version import __version__
+from app.core.version import __version__
 
 
 class TestVersionGreater:

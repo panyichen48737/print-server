@@ -11,7 +11,7 @@ from PIL import Image, ImageOps
 from app.printing.backends.base import PrinterBackend, register
 from app.printing.backends.pdf import PdfBackend
 from app.printing.enhancer import QuarkEnhancer
-from app.utils import safe_remove
+from app.core.utils import safe_remove
 
 
 @register('.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif', '.heic', '.heif')

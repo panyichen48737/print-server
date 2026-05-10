@@ -57,7 +57,7 @@ class ScanWorker(QThread):
 
     def run(self):
         from app.printing.enhancer import QuarkEnhancer
-        from app.config import Config
+        from app.core.config import Config
 
         config = Config()
         enhancer = QuarkEnhancer(config)

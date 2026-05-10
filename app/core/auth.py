@@ -2,7 +2,7 @@
 
 from fastapi import HTTPException, Request
 
-from app.exceptions import AuthError
+from app.core.exceptions import AuthError
 
 
 async def require_auth(request: Request) -> None:

@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import QFileDialog, QLabel, QVBoxLayout, QWidget
 
-from app.config import Config
+from app.core.config import Config
 
 
 def _allowed_extensions() -> list[str]:

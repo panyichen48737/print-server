@@ -16,10 +16,10 @@ from fastapi import (
 from fastapi.responses import StreamingResponse
 from loguru import logger
 
-from app._paths import persistent_dir
-from app.auth import require_auth
-from app.exceptions import FileTypeError, PrintServerError
-from app.schemas import (
+from app.core._paths import persistent_dir
+from app.core.auth import require_auth
+from app.core.exceptions import FileTypeError, PrintServerError
+from app.core.schemas import (
     CancelAllResponse,
     CancelResponse,
     HealthResponse,
@@ -33,8 +33,8 @@ from app.schemas import (
     StatusResponse,
 )
 from app.services.upload import handle_file_upload
-from app.utils import format_time
-from app.version import __build_date__, __pyinstaller_version__, __version__
+from app.core.utils import format_time
+from app.core.version import __build_date__, __pyinstaller_version__, __version__
 
 api_router = APIRouter()
 

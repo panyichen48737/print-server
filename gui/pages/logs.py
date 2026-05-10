@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QListWidget, QListWidgetItem, QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
 
-from app._paths import persistent_dir
+from app.core._paths import persistent_dir
 
 
 def get_log_colors(dark: bool = False) -> dict[str, QColor]:

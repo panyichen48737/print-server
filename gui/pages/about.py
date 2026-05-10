@@ -12,9 +12,9 @@ from PySide6.QtWidgets import (
     QScrollArea, QVBoxLayout, QWidget,
 )
 
-from app._paths import config_dir, persistent_dir
+from app.core._paths import config_dir, persistent_dir
 from app.updater import UpdateInfo, check_latest_version, download_installer, install_update
-from app.version import __build_date__, __pyinstaller_version__, __version__, get_build_manifest
+from app.core.version import __build_date__, __pyinstaller_version__, __version__, get_build_manifest
 
 
 class _UpdateCheckWorker(QObject):

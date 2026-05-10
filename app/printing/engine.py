@@ -6,7 +6,7 @@ import sys
 import threading
 from typing import Any
 
-from app.exceptions import FileTypeError
+from app.core.exceptions import FileTypeError
 from app.printing.backends import (  # noqa: F401 保留命名空间供测试 mock
     ImageBackend,
     OfficeBackend,
@@ -14,7 +14,7 @@ from app.printing.backends import (  # noqa: F401 保留命名空间供测试 mo
     PrinterBackend,
     discover_backends,
 )
-from app.utils import safe_remove
+from app.core.utils import safe_remove
 
 # 以便测试用 @patch('app.printing.engine.OfficeBackend') 替换
 

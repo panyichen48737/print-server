@@ -9,9 +9,9 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
-from app._paths import ensure_dir, persistent_dir
-from app.exceptions import AuthError, FileTypeError, PrintServerError
-from app.version import __version__
+from app.core._paths import ensure_dir, persistent_dir
+from app.core.exceptions import AuthError, FileTypeError, PrintServerError
+from app.core.version import __version__
 
 _SCALAR_URL = (
     "https://cdn.jsdelivr.net/npm/@scalar/api-reference@latest"

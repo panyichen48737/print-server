@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
-    from app.config import Config
+    from app.core.config import Config
     from launcher._server import ServerHandle
 
 server: ServerHandle | None = None

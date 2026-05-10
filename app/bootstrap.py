@@ -5,8 +5,8 @@ import threading
 from loguru import logger
 
 from app import create_app
-from app.config import Config
-from app.utils import format_time
+from app.core.config import Config
+from app.core.utils import format_time
 
 
 def bootstrap(config: Config, lifespan=None):

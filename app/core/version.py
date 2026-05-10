@@ -11,13 +11,13 @@ from pathlib import Path
 def _version_file() -> Path:
     if getattr(sys, 'frozen', False):
         return Path(sys.executable).parent / 'resources' / 'version.txt'
-    return Path(__file__).resolve().parent.parent / 'version.txt'
+    return Path(__file__).resolve().parent.parent.parent / 'version.txt'
 
 
 def _manifest_file() -> Path:
     if getattr(sys, 'frozen', False):
         return Path(sys.executable).parent / 'resources' / 'version_info.json'
-    return Path(__file__).resolve().parent.parent / 'build' / 'resources' / 'version_info.json'
+    return Path(__file__).resolve().parent.parent.parent / 'build' / 'resources' / 'version_info.json'
 
 
 def _get_version() -> str:
@@ -35,7 +35,7 @@ def _get_version() -> str:
             capture_output=True,
             text=True,
             timeout=2,
-            cwd=Path(__file__).resolve().parent.parent,
+            cwd=Path(__file__).resolve().parent.parent.parent,
         )
         if desc.returncode == 0 and desc.stdout.strip():
             return desc.stdout.strip().lstrip('v')
@@ -78,4 +78,3 @@ def get_build_manifest() -> dict:
 __version__: str = _get_version()
 __build_date__: str = _get_build_date()
 __pyinstaller_version__: str = _get_pyinstaller_version()
-

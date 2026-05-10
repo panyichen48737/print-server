@@ -6,7 +6,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from app._paths import ensure_dir, persistent_dir
+from app.core._paths import ensure_dir, persistent_dir
 
 
 @dataclass

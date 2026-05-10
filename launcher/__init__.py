@@ -14,11 +14,11 @@ from pathlib import Path
 
 from loguru import logger
 
-from app._paths import app_root
+from app.core._paths import app_root
 
 sys.path.insert(0, str(app_root()))
 
-from app.config import Config
+from app.core.config import Config
 from app.logging import setup_logging
 
 from ._server import ServerHandle
@@ -31,7 +31,7 @@ _PID_PATH: Path | None = None
 def _pid_file() -> Path:
     global _PID_PATH
     if _PID_PATH is None:
-        from app._paths import persistent_dir
+        from app.core._paths import persistent_dir
 
         _PID_PATH = persistent_dir() / 'launcher.pid'
     return _PID_PATH

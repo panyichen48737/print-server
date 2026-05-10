@@ -3,29 +3,29 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from app._paths import app_root, config_dir, data_root, ensure_dir, persistent_dir
+from app.core._paths import app_root, config_dir, data_root, ensure_dir, persistent_dir
 
 
 class TestAppRoot:
-    @patch('app._paths.sys.frozen', False, create=True)
+    @patch('app.core._paths.sys.frozen', False, create=True)
     def test_dev_mode(self):
         root = app_root()
         assert 'print_server' in str(root) or 'print-server' in str(root)
 
-    @patch('app._paths.sys.frozen', True, create=True)
-    @patch('app._paths.sys.executable', '/fake/path/server.exe')
+    @patch('app.core._paths.sys.frozen', True, create=True)
+    @patch('app.core._paths.sys.executable', '/fake/path/server.exe')
     def test_frozen_mode(self):
         root = app_root()
         assert root == Path('/fake/path')
 
 
 class TestDataRoot:
-    @patch('app._paths.sys.frozen', False, create=True)
+    @patch('app.core._paths.sys.frozen', False, create=True)
     def test_dev_mode_equals_app_root(self):
         assert data_root() == app_root()
 
-    @patch('app._paths.sys.frozen', True, create=True)
-    @patch('app._paths.sys.executable', '/fake/path/server.exe')
+    @patch('app.core._paths.sys.frozen', True, create=True)
+    @patch('app.core._paths.sys.executable', '/fake/path/server.exe')
     def test_frozen_mode_returns_app_root(self):
         assert data_root() == Path('/fake/path')
 
@@ -49,40 +49,40 @@ class TestEnsureDir:
 
 
 class TestConfigDir:
-    @patch('app._paths.sys.frozen', False, create=True)
+    @patch('app.core._paths.sys.frozen', False, create=True)
     def test_dev_mode_equals_app_root(self):
         assert config_dir() == app_root()
 
-    @patch('app._paths.sys.frozen', True, create=True)
-    @patch('app._paths.os.environ', {'APPDATA': r'C:\Users\test\AppData\Roaming'})
+    @patch('app.core._paths.sys.frozen', True, create=True)
+    @patch('app.core._paths.os.environ', {'APPDATA': r'C:\Users\test\AppData\Roaming'})
     def test_frozen_mode_uses_appdata(self):
         assert config_dir() == Path(r'C:\Users\test\AppData\Roaming\iOSPrintServer')
 
-    @patch('app._paths.sys.frozen', True, create=True)
-    @patch('app._paths.os.environ', {})
-    @patch('app._paths.Path.home', return_value=Path(r'C:\Users\test'))
+    @patch('app.core._paths.sys.frozen', True, create=True)
+    @patch('app.core._paths.os.environ', {})
+    @patch('app.core._paths.Path.home', return_value=Path(r'C:\Users\test'))
     def test_frozen_mode_fallback_to_home(self, mock_home):
-        from app._paths import config_dir
+        from app.core._paths import config_dir
 
         result = config_dir()
         assert result == Path(r'C:\Users\test\iOSPrintServer')
 
 
 class TestPersistentDir:
-    @patch('app._paths.sys.frozen', False, create=True)
+    @patch('app.core._paths.sys.frozen', False, create=True)
     def test_dev_mode_equals_app_root(self):
         assert persistent_dir() == app_root()
 
-    @patch('app._paths.sys.frozen', True, create=True)
-    @patch('app._paths.os.environ', {'LOCALAPPDATA': r'C:\Users\test\AppData\Local'})
+    @patch('app.core._paths.sys.frozen', True, create=True)
+    @patch('app.core._paths.os.environ', {'LOCALAPPDATA': r'C:\Users\test\AppData\Local'})
     def test_frozen_mode_uses_localappdata(self):
         assert persistent_dir() == Path(r'C:\Users\test\AppData\Local\iOSPrintServer')
 
-    @patch('app._paths.sys.frozen', True, create=True)
-    @patch('app._paths.os.environ', {})
-    @patch('app._paths.Path.home', return_value=Path(r'C:\Users\test'))
+    @patch('app.core._paths.sys.frozen', True, create=True)
+    @patch('app.core._paths.os.environ', {})
+    @patch('app.core._paths.Path.home', return_value=Path(r'C:\Users\test'))
     def test_frozen_mode_fallback_to_home(self, mock_home):
-        from app._paths import persistent_dir
+        from app.core._paths import persistent_dir
 
         result = persistent_dir()
         assert result == Path(r'C:\Users\test\iOSPrintServer')

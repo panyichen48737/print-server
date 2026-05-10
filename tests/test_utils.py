@@ -3,7 +3,7 @@
 import os
 from datetime import datetime
 
-from app.utils import format_time, safe_int, safe_remove
+from app.core.utils import format_time, safe_int, safe_remove
 
 
 class TestSafeInt:

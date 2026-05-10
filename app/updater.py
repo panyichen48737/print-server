@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-from app.version import __version__
+from app.core.version import __version__
 
 _GITHUB_API = "https://api.github.com/repos/panyichen48737/print-server/releases/latest"
 _USER_AGENT = "iOSPrintServer"

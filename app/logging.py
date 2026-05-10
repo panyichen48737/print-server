@@ -8,7 +8,7 @@ def setup_logging(log_dir: str | Path | None = None, level: str = 'INFO'):
     """配置 loguru 日志：文件轮转 + stderr"""
     import loguru
 
-    from app._paths import persistent_dir
+    from app.core._paths import persistent_dir
 
     if log_dir is None:
         log_dir = persistent_dir() / 'logs'

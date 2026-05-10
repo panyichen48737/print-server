@@ -394,7 +394,7 @@ class SettingsPage(QWidget):
 
     def _test_notification(self):
         from app.services.notifier import Notifier
-        from app.config import Config
+        from app.core.config import Config
         notifier = Notifier(Config())
         self.test_notify_btn.set_loading()
         try:

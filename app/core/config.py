@@ -12,7 +12,7 @@ from loguru import logger
 from pydantic import Field, PrivateAttr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.exceptions import ConfigError
+from app.core.exceptions import ConfigError
 
 
 class Config(BaseSettings):
@@ -145,7 +145,7 @@ class Config(BaseSettings):
     def __init__(self, config_path: str | None = None, **kwargs: Any) -> None:
         _skip_file = kwargs.pop('_skip_file', False)
         super().__init__(**kwargs)
-        from app._paths import config_dir
+        from app.core._paths import config_dir
 
         self._config_path = Path(config_path) if config_path else config_dir() / 'config.json'
         self._lock = threading.Lock()

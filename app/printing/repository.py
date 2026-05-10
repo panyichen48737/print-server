@@ -18,7 +18,7 @@ class JobRepository:
 
     def __init__(self, db_path: str | Path | None = None) -> None:
         if db_path is None:
-            from app._paths import ensure_dir, persistent_dir
+            from app.core._paths import ensure_dir, persistent_dir
 
             db_dir = ensure_dir(persistent_dir(), 'jobs')
             db_path = db_dir / 'jobs.db'
@@ -28,7 +28,11 @@ class JobRepository:
         self._thread = threading.Thread(target=self._loop.run_forever, daemon=True)
         self._thread.start()
 
-        self._conn: aiosqlite.Connection = self._sync(self._connect(), timeout=10)
+        try:
+            self._conn: aiosqlite.Connection = self._sync(self._connect(), timeout=10)
+        except Exception as e:
+            logger.error(f'Failed to connect to database: {e}')
+            raise
         self._sync(self._init_db(), timeout=10)
 
     # ── 异步基础设施 ──
@@ -44,15 +48,24 @@ class JobRepository:
         """在专用事件循环上执行协程，阻塞调用方直到完成。"""
         return asyncio.run_coroutine_threadsafe(coro, self._loop).result(timeout=timeout)
 
-    def _ensure_connection(self) -> None:
+    async def _ensure_connection(self) -> None:
+        """Ensure database connection is healthy, reconnect if lost."""
+        # Check if we have a valid connection
         try:
-            self._sync(self._conn.execute('SELECT 1'))
-        except Exception:
-            logger.warning('Database connection lost, reconnecting...')
+            if self._conn is None:
+                self._conn = await self._connect()
+                return
+            # Try to execute a simple query
+            await self._conn.execute('SELECT 1')
+        except Exception as e:
+            # Connection is lost, try to reconnect
+            logger.warning(f'Database connection lost ({type(e).__name__}), reconnecting...')
             old = self._conn
-            self._conn = self._sync(self._connect(), timeout=10)
-            with contextlib.suppress(Exception):
-                old.close()
+            self._conn = await self._connect()
+            # Close old connection if it still exists
+            if old is not None:
+                with contextlib.suppress(Exception):
+                    old.close()
 
     async def _execute(
         self,
@@ -65,6 +78,7 @@ class JobRepository:
         commit: bool = False,
         executemany: bool = False,
     ) -> Any:
+        self._ensure_connection()
         if row_factory:
             self._conn.row_factory = aiosqlite.Row
         else:

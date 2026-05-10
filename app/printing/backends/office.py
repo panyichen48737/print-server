@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-from app.exceptions import FileTypeError, PrintError
+from app.core.exceptions import FileTypeError, PrintError
 from app.printing.backends.base import PrinterBackend, register
 
 
