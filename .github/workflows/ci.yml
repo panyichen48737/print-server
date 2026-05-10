@@ -207,3 +207,6 @@ with zipfile.ZipFile(f'dist/update-{ver}.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
             iOSPrintServer-Setup-*.exe
             iOSPrintServer-Setup.sha256
             version_info.json
+      - name: Upload incremental update zip
+        run: |
+          gh release upload "${{ github.ref_name }}" update-*.zip update-*.sha256
