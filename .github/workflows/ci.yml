@@ -104,7 +104,10 @@ jobs:
       - name: Download latest Scalar API Reference
         shell: bash
         run: |
-          curl -sL "https://cdn.jsdelivr.net/npm/@scalar/api-reference@latest/dist/browser/standalone.min.js" -o app/static/scalar.standalone.min.js
+          for i in {1..3}; do
+            curl -sL "https://cdn.jsdelivr.net/npm/@scalar/api-reference@latest/dist/browser/standalone.min.js" -o app/static/scalar.standalone.min.js && break
+            sleep 3
+          done
       - name: Build with PyInstaller
         run: python scripts/build.py --release
         env:
