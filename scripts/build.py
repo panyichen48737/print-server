@@ -182,6 +182,8 @@ def build(version: str):
         '--hidden-import',
         'app.config',
         '--hidden-import',
+        'app.updater',
+        '--hidden-import',
         'app.routes.api',
         '--hidden-import',
         'app.routes.admin',

@@ -1,4 +1,4 @@
-"""About page: version info, build manifest, links."""
+"""About page: version info, build manifest, update check/download/install."""
 from __future__ import annotations
 
 import os
@@ -6,14 +6,42 @@ import subprocess
 import webbrowser
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
 from PySide6.QtWidgets import (
-    QGridLayout, QHBoxLayout, QLabel, QPushButton,
+    QGridLayout, QHBoxLayout, QLabel, QProgressBar, QPushButton,
     QScrollArea, QVBoxLayout, QWidget,
 )
 
 from app._paths import config_dir, persistent_dir
+from app.updater import UpdateInfo, check_latest_version, download_installer, install_update
 from app.version import __build_date__, __pyinstaller_version__, __version__, get_build_manifest
+
+
+class _UpdateCheckWorker(QObject):
+    """Background worker for update operations. Runs on a QThread."""
+
+    check_finished = Signal(object)  # UpdateInfo | None
+    download_progress = Signal(int, int)  # downloaded, total
+    download_finished = Signal(bool)  # success
+    install_launched = Signal(bool)
+
+    @Slot()
+    def run_check(self):
+        info = check_latest_version()
+        self.check_finished.emit(info)
+
+    @Slot(str, str)
+    def run_download(self, url: str, dest: str):
+        success = download_installer(url, Path(dest), self._on_progress)
+        self.download_finished.emit(success)
+
+    def _on_progress(self, downloaded: int, total: int):
+        self.download_progress.emit(downloaded, total)
+
+    @Slot(str)
+    def run_install(self, installer_path: str):
+        ok = install_update(Path(installer_path))
+        self.install_launched.emit(ok)
 
 
 class _ToggleSection(QWidget):
@@ -47,6 +75,10 @@ class AboutPage(QWidget):
     def __init__(self, main_window, parent=None):
         super().__init__(parent)
         self._mw = main_window
+        self._update_info: UpdateInfo | None = None
+        self._installer_path: Path | None = None
+        self._update_thread: QThread | None = None
+        self._update_worker: _UpdateCheckWorker | None = None
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -160,15 +192,26 @@ class AboutPage(QWidget):
 
         layout.addWidget(info_card, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # ── Action buttons ──
-        action_row = QHBoxLayout()
-        action_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        action_row.setSpacing(10)
-
+        # ── Update section ──
         self.update_btn = QPushButton("检查更新")
         self.update_btn.setObjectName("primary")
         self.update_btn.clicked.connect(self._check_update)
-        action_row.addWidget(self.update_btn)
+        layout.addWidget(self.update_btn, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        self.update_progress = QProgressBar()
+        self.update_progress.setVisible(False)
+        self.update_progress.setFixedHeight(6)
+        self.update_progress.setTextVisible(False)
+        layout.addWidget(self.update_progress)
+
+        self.update_status = QLabel("")
+        self.update_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.update_status)
+
+        # ── Other actions ──
+        action_row = QHBoxLayout()
+        action_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        action_row.setSpacing(10)
 
         log_btn = QPushButton("日志文件夹")
         log_btn.setObjectName("ghost")
@@ -183,11 +226,6 @@ class AboutPage(QWidget):
         action_row.addWidget(cfg_btn)
 
         layout.addLayout(action_row)
-
-        self.update_label = QLabel("")
-        self.update_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.update_label)
-
         layout.addStretch()
 
         scroll.setWidget(container)
@@ -200,7 +238,6 @@ class AboutPage(QWidget):
         body_layout.setContentsMargins(4, 4, 4, 4)
         body_layout.setSpacing(1)
 
-        # Show in alphabetical order
         sorted_pkgs = sorted(pkgs.items())
         for name, ver in sorted_pkgs:
             row = QHBoxLayout()
@@ -227,49 +264,151 @@ class AboutPage(QWidget):
         if cfg_dir.exists():
             subprocess.Popen(["explorer", str(cfg_dir)], shell=True)
 
+    # ── Update flow ──
+
+    def _start_worker(self, mode: str):
+        self._cleanup_thread()
+        self._update_thread = QThread(self)
+        self._update_worker = _UpdateCheckWorker()
+        self._update_worker.moveToThread(self._update_thread)
+
+        if mode == "check":
+            self._update_worker.check_finished.connect(self._on_check_finished)
+            self._update_thread.started.connect(self._update_worker.run_check)
+            self._update_thread.start()
+        elif mode == "download":
+            url = self._update_info.download_url if self._update_info else None
+            dest = str(self._installer_path) if self._installer_path else ""
+            if not url or not dest:
+                self._on_download_finished(False)
+                return
+            self._update_worker.download_progress.connect(self._on_download_progress)
+            self._update_worker.download_finished.connect(self._on_download_finished)
+            self._update_thread.started.connect(
+                lambda: self._update_worker.run_download(url, dest)
+            )
+            self._update_thread.start()
+        elif mode == "install":
+            dest = str(self._installer_path) if self._installer_path else ""
+            self._update_worker.install_launched.connect(self._on_install_launched)
+            self._update_thread.started.connect(
+                lambda: self._update_worker.run_install(dest)
+            )
+            self._update_thread.start()
+
+    def _cleanup_thread(self):
+        if self._update_thread and self._update_thread.isRunning():
+            self._update_thread.quit()
+            self._update_thread.wait(2000)
+        self._update_thread = None
+        self._update_worker = None
+
     def _check_update(self):
-        import json
-        from urllib.request import Request, urlopen
-        from urllib.error import URLError
-        from app.version import __version__
+        self.update_btn.setEnabled(False)
+        self.update_btn.setText("检查中...")
+        self.update_progress.setVisible(False)
+        self.update_status.setStyleSheet("color: #8A8178;")
+        self.update_status.setText("正在检查更新...")
+
+        # Reset previous download state
+        self._update_info = None
+        self._installer_path = None
+
+        self._start_worker("check")
+
+    def _on_check_finished(self, info: UpdateInfo | None):
+        self._cleanup_thread()
+        self.update_btn.setEnabled(True)
+        self.update_btn.setText("检查更新")
+
+        if info is None:
+            self.update_status.setText("检查更新失败，请稍后重试")
+            self.update_status.setStyleSheet("color: #C53A3A;")
+            self.update_btn.setText("重试")
+            self.update_btn.clicked.disconnect()
+            self.update_btn.clicked.connect(self._check_update)
+            return
+
+        self._update_info = info
+
+        if not info.is_newer:
+            self.update_status.setText(f"✅ 已是最新版本 (v{__version__})")
+            self.update_status.setStyleSheet("color: #6B8F6B;")
+            return
+
+        self.update_status.setText(f"新版本 v{info.latest_version} 可用")
+        self.update_status.setStyleSheet("color: #B8956A;")
+
+        if info.download_url:
+            self.update_btn.setText("下载更新")
+            self.update_btn.clicked.disconnect()
+            self.update_btn.clicked.connect(self._start_download)
+            self.update_btn.setEnabled(True)
+        else:
+            self.update_btn.setText("前往下载页")
+            self.update_btn.clicked.disconnect()
+            self.update_btn.clicked.connect(
+                lambda: webbrowser.open(info.release_url)
+            )
+            self.update_btn.setEnabled(True)
+
+    def _start_download(self):
+        cache_dir = persistent_dir() / "update_cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        self._installer_path = (
+            cache_dir / f"iOSPrintServer-Setup-{self._update_info.latest_version}.exe"
+        )
 
         self.update_btn.setEnabled(False)
-        self.update_label.setText("正在检查更新...")
-        self.update_label.setStyleSheet("color: #8A8178;")
+        self.update_btn.setText("准备下载...")
+        self.update_progress.setVisible(True)
+        self.update_progress.setValue(0)
 
-        try:
-            req = Request(
-                "https://api.github.com/repos/panyichen48737/print-server/releases/latest",
-                headers={"Accept": "application/vnd.github.v3+json", "User-Agent": "iOSPrintServer"},
-            )
-            resp = urlopen(req, timeout=10)
-            data = json.loads(resp.read().decode())
-            latest = data.get("tag_name", "").lstrip("v")
-            if not latest:
-                raise ValueError("no tag")
-            if latest == __version__:
-                self.update_label.setText(f"✅ 已是最新版本 (v{__version__})")
-                self.update_label.setStyleSheet("color: #6B8F6B;")
-            else:
-                dl_url = QPushButton("下载更新")
-                dl_url.setObjectName("primary")
-                dl_url.clicked.connect(
-                    lambda: webbrowser.open(data.get("html_url", ""))
-                )
-                self.update_label.setText(f"新版本 v{latest} 可用")
-                self.update_label.setStyleSheet("color: #B8956A;")
-                lo = self.update_label.parent().layout()
-                if lo and dl_url not in (lo.itemAt(i).widget() for i in range(lo.count())):
-                    lo.addWidget(dl_url)
-        except (URLError, json.JSONDecodeError, ValueError, OSError):
-            self.update_label.setText("检查更新失败，请稍后重试")
-            self.update_label.setStyleSheet("color: #C53A3A;")
-            retry_btn = QPushButton("重试")
-            retry_btn.setObjectName("ghost")
-            retry_btn.setProperty("compact", True)
-            retry_btn.clicked.connect(self._check_update)
-            lo = self.update_label.parent().layout()
-            if lo and retry_btn not in (lo.itemAt(i).widget() for i in range(lo.count())):
-                lo.addWidget(retry_btn)
-        finally:
+        self._start_worker("download")
+
+    def _on_download_progress(self, downloaded: int, total: int):
+        self.update_progress.setVisible(True)
+        self.update_progress.setMaximum(total)
+        self.update_progress.setValue(downloaded)
+        mb_d = downloaded / 1024 / 1024
+        mb_t = total / 1024 / 1024
+        pct = int(downloaded * 100 / total) if total else 0
+        self.update_status.setText(f"下载中... {mb_d:.1f}/{mb_t:.1f} MB ({pct}%)")
+
+    def _on_download_finished(self, success: bool):
+        self._cleanup_thread()
+        self.update_progress.setVisible(False)
+
+        if not success:
+            self.update_status.setText("下载失败，请重试")
+            self.update_status.setStyleSheet("color: #C53A3A;")
+            self.update_btn.setText("重试")
+            self.update_btn.clicked.disconnect()
+            self.update_btn.clicked.connect(self._start_download)
             self.update_btn.setEnabled(True)
+            if self._installer_path and self._installer_path.exists():
+                self._installer_path.unlink(missing_ok=True)
+            return
+
+        self.update_status.setText("下载完成！正在安装...")
+        self.update_status.setStyleSheet("color: #6B8F6B;")
+        self.update_btn.setEnabled(False)
+        self.update_btn.setText("安装中...")
+
+        self._start_worker("install")
+
+    def _on_install_launched(self, success: bool):
+        self._cleanup_thread()
+        if not success:
+            self.update_status.setText("安装启动失败，请手动下载")
+            self.update_status.setStyleSheet("color: #C53A3A;")
+            self.update_btn.setText("前往下载页")
+            self.update_btn.clicked.disconnect()
+            self.update_btn.clicked.connect(
+                lambda: webbrowser.open(self._update_info.release_url)
+            )
+            self.update_btn.setEnabled(True)
+
+    def cleanup(self):
+        """Stop pending thread when page is destroyed."""
+        self._cleanup_thread()

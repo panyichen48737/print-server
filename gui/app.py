@@ -26,6 +26,7 @@ class MainWindow(QMainWindow):
         self._server = server_handle
         self._theme_mode = "light"
         self._event_bus = app.state.event_bus
+        self._pending_update = None
 
         # EventBridge — thread-safe EventBus to Qt signal bridge
         self._bridge = EventBridge(self._event_bus, self)
@@ -103,6 +104,11 @@ class MainWindow(QMainWindow):
         # Position notification stack bottom-right
         self._notifications.raise_()
 
+        # Auto-update check (deferred to avoid delaying startup)
+        auto_enabled = self._config.get("auto_update_check", True) if self._config else True
+        if auto_enabled:
+            QTimer.singleShot(8000, self._check_auto_update)
+
     def show_notification(self, text: str, color: str = "#8B7355"):
         self._notifications.show_notification(text, color)
 
@@ -166,10 +172,14 @@ class MainWindow(QMainWindow):
         self.theme_action = menu.addAction("深色主题")
         self.theme_action.triggered.connect(self._toggle_theme)
         menu.addSeparator()
+        update_action = menu.addAction("检查更新")
+        update_action.triggered.connect(self._tray_check_update)
+        menu.addSeparator()
         quit_action = menu.addAction("退出")
         quit_action.triggered.connect(self._on_quit)
         self.tray.setContextMenu(menu)
         self.tray.activated.connect(self._on_tray_activated)
+        self.tray.messageClicked.connect(self._on_tray_message_clicked)
         self.tray.show()
 
     def _on_tray_activated(self, reason):
@@ -194,6 +204,49 @@ class MainWindow(QMainWindow):
         if self._server:
             self._server.stop()
             self._server.start(self._app, self._config)
+
+    # ── Auto-update ──
+
+    def _check_auto_update(self):
+        """Background check for updates on startup."""
+        import threading
+        from app.updater import check_latest_version
+
+        def _worker():
+            info = check_latest_version()
+            if info and info.is_newer and info.download_url:
+                QTimer.singleShot(0, self._on_auto_update_found)
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_auto_update_found(self):
+        self._pending_update = True
+        self.tray.showMessage(
+            "更新可用",
+            "新版本已发布，点击查看",
+            QSystemTrayIcon.MessageIcon.Information,
+            8000,
+        )
+        self.show_notification("新版本可用 - 前往「关于」页面更新", "#B8956A")
+
+    def _tray_check_update(self):
+        about_idx = self.NAV_ITEMS.index("关于")
+        self.sidebar.setCurrentRow(about_idx)
+        about_page = self.stack.widget(about_idx)
+        if hasattr(about_page, '_check_update'):
+            about_page._check_update()
+        self.show()
+        self.raise_()
+
+    def _on_tray_message_clicked(self):
+        about_idx = self.NAV_ITEMS.index("关于")
+        self.sidebar.setCurrentRow(about_idx)
+        about_page = self.stack.widget(about_idx)
+        if hasattr(about_page, '_check_update') and getattr(self, '_pending_update', None):
+            about_page._check_update()
+            self._pending_update = None
+        self.show()
+        self.raise_()
 
     def _toggle_theme(self):
         from gui.theme import ThemeEngine
@@ -293,6 +346,8 @@ class MainWindow(QMainWindow):
         current_page = self.stack.currentWidget()
         if hasattr(current_page, 'history_table'):
             self._state_manager.save_table_state("history", current_page.history_table)
+        if hasattr(current_page, 'cleanup'):
+            current_page.cleanup()
         event.ignore()
         self.hide()
 

@@ -74,6 +74,7 @@ class Config(BaseSettings):
     job_timeout: int = Field(default=300, ge=30, le=3600)
     auto_retry_count: int = Field(default=0, ge=0, le=10)
     theme_mode: str = 'system'
+    auto_update_check: bool = Field(default=True, description="启动时自动检查更新")
 
     # ── 内部状态（PrivateAttr 不会被 .model_dump() 导出） ──
     _config_path: Path = PrivateAttr()
