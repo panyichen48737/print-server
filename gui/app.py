@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QPropertyAnimation, QTimer
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -444,9 +444,6 @@ class MainWindow(QMainWindow):
 
 def run_gui(app, config, server_handle: ServerHandle):
     qapp = QApplication(sys.argv)
-    # Set default font for Chinese character support on Windows
-    font = QFont('Microsoft YaHei UI', 9)
-    qapp.setFont(font)
     from gui.theme import ThemeEngine
 
     theme = ThemeEngine.instance()
