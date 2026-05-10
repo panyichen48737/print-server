@@ -10,9 +10,9 @@
   "separateMinorPatch": true,
   "packageRules": [
     {
-      "matchManagers": ["pip_requirements", "gomod"],
+      "matchManagers": ["pip_requirements"],
       "matchUpdateTypes": ["patch"],
-      "description": "Automerge patch updates for Python and Go deps",
+      "description": "Automerge patch updates for Python deps",
       "automerge": true,
       "automergeStrategy": "squash"
     },
@@ -32,6 +32,9 @@
     },
     {
       "matchManagers": ["gomod"],
+      "description": "Automerge Go module updates (minor + patch)",
+      "automerge": true,
+      "automergeStrategy": "squash",
       "commitMessagePrefix": "chore(deps)",
       "commitMessageTopic": "Go module",
       "addLabels": ["dependencies"]
