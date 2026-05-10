@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -14,6 +15,8 @@ import (
 func runUpdate(zipPath, exePath, appDir string) {
 	internalDir := filepath.Join(appDir, "_internal")
 	backupDir := filepath.Join(appDir, "_internal.bak")
+	exeBak := exePath + ".bak"
+	svcBak := filepath.Join(appDir, "update_service.exe.bak")
 	updateLog := filepath.Join(appDir, "update.log")
 
 	log.Printf("Starting update: zip=%s, exe=%s, appDir=%s", zipPath, exePath, appDir)
@@ -27,22 +30,19 @@ func runUpdate(zipPath, exePath, appDir string) {
 	}
 	log.Println("Main process exited")
 
-	// Step 2: Backup current _internal/
-	log.Println("Backing up _internal/...")
-	if _, err := os.Stat(internalDir); err == nil {
-		os.RemoveAll(backupDir)
-		if err := os.Rename(internalDir, backupDir); err != nil {
-			log.Printf("Backup failed: %v", err)
-			logToFile(updateLog, "更新失败：备份 _internal/ 失败")
-			return
-		}
-	}
+	// Step 2: Backup files that could be overwritten
+	log.Println("Backing up current files...")
+	backups := backupFile(internalDir, backupDir)
+	backups += backupFile(exePath, exeBak)
+	backups += backupFile(filepath.Join(appDir, "update_service.exe"), svcBak)
+	log.Printf("Backed up %d items", backups)
 
-	// Step 3: Extract new _internal/ from zip
+	// Step 3: Extract zip to appDir (overwrites _internal/, exe, resources, etc.)
 	log.Println("Extracting update...")
 	if err := extractZip(zipPath, appDir); err != nil {
 		log.Printf("Extract failed: %v", err)
-		rollback(internalDir, backupDir, updateLog)
+		restoreAll(internalDir, backupDir, exePath, exeBak, svcBak, appDir)
+		logToFile(updateLog, fmt.Sprintf("更新失败：解压错误 - %v", err))
 		return
 	}
 	log.Println("Extraction complete")
@@ -53,7 +53,8 @@ func runUpdate(zipPath, exePath, appDir string) {
 	cmd.Dir = appDir
 	if err := cmd.Start(); err != nil {
 		log.Printf("Start failed: %v", err)
-		rollback(internalDir, backupDir, updateLog)
+		restoreAll(internalDir, backupDir, exePath, exeBak, svcBak, appDir)
+		logToFile(updateLog, fmt.Sprintf("更新失败：无法启动新版 - %v", err))
 		return
 	}
 
@@ -61,7 +62,7 @@ func runUpdate(zipPath, exePath, appDir string) {
 	time.Sleep(10 * time.Second)
 	if !isProcessRunning("iOSPrintServer.exe") {
 		log.Println("New process crashed, rolling back")
-		rollback(internalDir, backupDir, updateLog)
+		restoreAll(internalDir, backupDir, exePath, exeBak, svcBak, appDir)
 		exec.Command(exePath).Start()
 		logToFile(updateLog, "更新失败：新版启动后崩溃，已回滚")
 		return
@@ -69,18 +70,44 @@ func runUpdate(zipPath, exePath, appDir string) {
 
 	// Step 6: Cleanup
 	os.RemoveAll(backupDir)
+	os.Remove(exeBak)
+	os.Remove(svcBak)
 	os.Remove(zipPath)
 
 	log.Println("Update completed successfully")
 	logToFile(updateLog, "✅ 更新成功！")
 }
 
-func rollback(internalDir, backupDir, updateLog string) {
+func backupFile(src, dst string) int {
+	if _, err := os.Stat(src); os.IsNotExist(err) {
+		return 0
+	}
+	os.RemoveAll(dst)
+	if err := os.Rename(src, dst); err != nil {
+		log.Printf("Backup of %s failed: %v", src, err)
+		return 0
+	}
+	return 1
+}
+
+func restoreAll(internalDir, backupDir, exePath, exeBak, svcBak, appDir string) {
+	// Restore _internal/
 	os.RemoveAll(internalDir)
 	if _, err := os.Stat(backupDir); err == nil {
 		if err := os.Rename(backupDir, internalDir); err != nil {
-			log.Printf("Rollback rename failed: %v", err)
+			log.Printf("Rollback _internal/ failed: %v", err)
 		}
+	}
+	// Restore exe
+	if _, err := os.Stat(exeBak); err == nil {
+		os.Remove(exePath)
+		os.Rename(exeBak, exePath)
+	}
+	// Restore update_service.exe
+	svcPath := filepath.Join(appDir, "update_service.exe")
+	if _, err := os.Stat(svcBak); err == nil {
+		os.Remove(svcPath)
+		os.Rename(svcBak, svcPath)
 	}
 }
 

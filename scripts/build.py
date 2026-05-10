@@ -332,19 +332,23 @@ def build(version: str):
         print(f'[build] 构建完成: {exe_path} ({exe_path.stat().st_size / 1024 / 1024:.1f} MB)')
         print(f'[build] 版本: {version}')
 
-        # 构建 update.zip（仅含 _internal/，用于 Service 增量更新）
-        internal_dir = dist_dir / '_internal'
+        # 构建 update.zip（完整增量更新：_internal/ + exe + 资源文件）
         update_zip = DIST_DIR / f'update-{version}.zip'
-        if internal_dir.is_dir():
+        if dist_dir.is_dir():
             import zipfile
+            # 要打包的文件模式：排除缓存和日志
+            skip_prefixes = {'__pycache__', '.git'}
             with zipfile.ZipFile(update_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
-                for entry in internal_dir.rglob('*'):
-                    if entry.is_file():
-                        arcname = entry.relative_to(dist_dir)
-                        zf.write(entry, arcname)
-            print(f'[build] 更新包: {update_zip} ({update_zip.stat().st_size / 1024 / 1024:.1f} MB)')
+                for entry in dist_dir.rglob('*'):
+                    if not entry.is_file():
+                        continue
+                    if any(p in entry.parts for p in skip_prefixes):
+                        continue
+                    arcname = entry.relative_to(dist_dir)
+                    zf.write(entry, arcname)
+            print(f'[build] 更新包: {update_zip} ({update_zip.stat().st_size / 1024 / 1024:.1f} MB) | {len([e for e in dist_dir.rglob("*") if e.is_file()])} 个文件')
         else:
-            print(f'[build] 警告: _internal/ 不存在，跳过 update.zip')
+            print(f'[build] 警告: dist_dir 不存在，跳过 update.zip')
     else:
         print(f'[build] 构建失败: {exe_path} 未生成')
 
