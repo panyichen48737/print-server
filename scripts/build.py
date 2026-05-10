@@ -140,7 +140,7 @@ def build(version: str):
         '--noconfirm',
         '--name',
         APP_NAME,
-        '--console',
+        '--windowed',
         '--onedir',
     ]
 
