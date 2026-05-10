@@ -12,6 +12,8 @@ from app.utils import format_time
 def bootstrap(config: Config, lifespan=None):
     """初始化所有服务并返回 (app, job_queue, worker_pool, print_engine, printer_monitor)"""
 
+    import httpx
+
     from app.printing.engine import PrintEngine
     from app.printing.job_queue import JobQueue
     from app.printing.repository import JobRepository
@@ -22,15 +24,18 @@ def bootstrap(config: Config, lifespan=None):
 
     app = create_app(lifespan=lifespan)
 
+    # 全局 HTTP 客户端，随 app 生命周期管理
+    http_client = httpx.Client(timeout=10)
+
     channel = config.get('notify_channel', 'disabled')
     dingtalk = None
     bark = None
     notifier: object = None
     if channel == 'dingtalk':
-        dingtalk = DingTalk(config)
+        dingtalk = DingTalk(config, client=http_client)
         notifier = dingtalk
     elif channel == 'bark':
-        bark = BarkNotifier(config)
+        bark = BarkNotifier(config, client=http_client)
         notifier = bark
 
     # 日志实时推送
@@ -99,6 +104,7 @@ def bootstrap(config: Config, lifespan=None):
     app.state.bark = bark
     app.state.printer_monitor = printer_monitor
     app.state.sse = broadcaster
+    app.state.http_client = http_client
 
     job_queue.cleanup_old_jobs(config.get('job_retention_days', 30))
 

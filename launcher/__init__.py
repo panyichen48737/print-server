@@ -106,6 +106,11 @@ async def _server_lifespan(_app):
         ref.heartbeat.stop()
     if ref.worker_pool:
         ref.worker_pool.stop()
+    # 关闭全局 HTTP 客户端
+    http_client = getattr(_app.state, 'http_client', None)
+    if http_client:
+        with contextlib.suppress(Exception):
+            http_client.close()
     logger.info('服务器已完全关闭')
 
 

@@ -5,13 +5,11 @@ from loguru import logger
 
 from app.services.notifier import Notifier, format_error_message
 
-# 共享长连接客户端
-_client = httpx.Client(timeout=10)
-
 
 class BarkNotifier(Notifier):
-    def __init__(self, config: Any) -> None:
+    def __init__(self, config: Any, client: httpx.Client | None = None) -> None:
         self.config = config
+        self._client = client or httpx.Client(timeout=10)
 
     def send_notification(self, title: str, message: str, _level: str = 'info') -> None:
         if self.config.get('notify_channel', 'disabled') != 'bark':
@@ -22,7 +20,7 @@ class BarkNotifier(Notifier):
         server = self.config.get('bark_server', 'https://api.day.app')
         try:
             payload = {'title': title, 'body': message, 'group': 'PrintServer'}
-            resp = _client.post(f'{server}/{key}', json=payload, timeout=10)
+            resp = self._client.post(f'{server}/{key}', json=payload, timeout=10)
             if resp.status_code == 200:
                 logger.info('Bark 通知发送成功')
             else:

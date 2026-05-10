@@ -5,13 +5,11 @@ from loguru import logger
 
 from app.services.notifier import Notifier, format_error_message
 
-# 共享长连接客户端，复用 TCP 连接池
-_client = httpx.Client(timeout=10)
-
 
 class DingTalk(Notifier):
-    def __init__(self, config: Any) -> None:
+    def __init__(self, config: Any, client: httpx.Client | None = None) -> None:
         self.config = config
+        self._client = client or httpx.Client(timeout=10)
 
     def send_notification(self, title: str, message: str, level: str = 'error') -> None:
         """发送钉钉通知"""
@@ -26,7 +24,7 @@ class DingTalk(Notifier):
         try:
             content = f'{title}\n\n{message}'
             payload = {'msgtype': 'text', 'text': {'content': content}}
-            resp = _client.post(webhook, json=payload, timeout=10)
+            resp = self._client.post(webhook, json=payload, timeout=10)
             if resp.status_code == 200:
                 logger.info('钉钉通知发送成功')
             else:
