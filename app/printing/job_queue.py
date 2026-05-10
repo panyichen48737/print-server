@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
-from app.printing.repository import JobRepository
+from app.printing.repository import JobRecord, JobRepository
 
 
 class JobQueue:
@@ -171,7 +171,7 @@ class JobQueue:
 
     # ── 内部方法 ──
 
-    def _emit_job_status(self, job: dict, status: str, error: str = '') -> None:
+    def _emit_job_status(self, job: JobRecord, status: str, error: str = '') -> None:
         if self._event_bus:
             self._event_bus.publish(
                 'job_status',

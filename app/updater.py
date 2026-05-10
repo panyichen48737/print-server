@@ -67,7 +67,7 @@ def check_latest_version() -> UpdateInfo | None:
 
         if incremental_url:
             download_url = incremental_url
-            download_type = "incremental"
+            download_type: str | None = "incremental"
         else:
             download_url = full_url
             download_type = "full" if full_url else None

@@ -50,9 +50,9 @@ class PrintEngine:
         target = getattr(mod, cls.__name__, cls)
         name = cls.__name__
         if name == 'PdfBackend':
-            return target(self.config)
+            return target(self.config)  # type: ignore[call-arg]
         if name == 'OfficeBackend':
-            return target(self.config, self._excel_lock, self._ppt_lock)
+            return target(self.config, self._excel_lock, self._ppt_lock)  # type: ignore[call-arg]
         if name == 'ImageBackend':
             pdf_inst = None
             for existing_cls, inst in self._instances.items():
@@ -66,8 +66,8 @@ class PrintEngine:
                         pdf_inst = self._build_instance(reg_cls)
                         self._instances[reg_cls] = pdf_inst
                         break
-            return target(self.config, pdf_inst)
-        return target(self.config)
+            return target(self.config, pdf_inst)  # type: ignore[call-arg]
+        return target(self.config)  # type: ignore[call-arg]
 
     def _get_backend(self, file_type: str) -> Any:
         ext = file_type.lower()

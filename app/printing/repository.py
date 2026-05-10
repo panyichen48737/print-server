@@ -90,7 +90,7 @@ class JobRepository:
             self._conn = await self._connect()
             if old is not None:
                 with contextlib.suppress(Exception):
-                    old.close()
+                    await old.close()
 
     async def _execute(
         self,
@@ -259,7 +259,7 @@ class JobRepository:
             params.append(f'%{search}%')
         return query, params
 
-    def get_jobs_by_status(self, status: str) -> list[dict]:
+    def get_jobs_by_status(self, status: str) -> list[JobRecord]:
         return self._sync(self._execute(
             'SELECT * FROM jobs WHERE status = ?', (status,), fetchall=True, row_factory=True
         ))
