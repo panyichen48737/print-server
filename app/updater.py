@@ -125,7 +125,7 @@ def install_update(installer_path: Path) -> bool:
         subprocess.Popen(
             [str(installer_path), '/S'],
             shell=True,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,  # type: ignore[attr-defined]
         )
         # Give installer a moment to start, then hard-exit so NSIS can overwrite files
         threading.Timer(1.0, lambda: os._exit(0)).start()
@@ -152,12 +152,12 @@ def get_installed_version_from_registry() -> str | None:
     try:
         import winreg
 
-        key = winreg.OpenKey(
-            winreg.HKEY_LOCAL_MACHINE,
+        key = winreg.OpenKey(  # type: ignore[attr-defined]
+            winreg.HKEY_LOCAL_MACHINE,  # type: ignore[attr-defined]
             r'Software\Microsoft\Windows\CurrentVersion\Uninstall\iOS 云打印服务器',
         )
-        version, _ = winreg.QueryValueEx(key, 'DisplayVersion')
-        winreg.CloseKey(key)
+        version, _ = winreg.QueryValueEx(key, 'DisplayVersion')  # type: ignore[attr-defined]
+        winreg.CloseKey(key)  # type: ignore[attr-defined]
         return version
     except (OSError, ImportError):
         return None
