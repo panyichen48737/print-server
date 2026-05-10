@@ -13,6 +13,8 @@ anyio==4.13.0
     #   httpx
     #   starlette
     #   watchfiles
+ast-serialize==0.3.0
+    # via mypy
 certifi==2026.4.22
     # via
     #   httpcore
@@ -59,13 +61,13 @@ idna==3.13
     #   httpx
 iniconfig==2.3.0
     # via pytest
-librt==0.9.0
+librt==0.10.0
     # via mypy
 loguru==0.7.3
     # via ios-print-server (pyproject.toml)
 msgspec==0.21.1
     # via ios-print-server (pyproject.toml)
-mypy==1.20.2
+mypy==2.0.0
     # via ios-print-server (pyproject.toml:dev)
 mypy-extensions==1.1.0
     # via mypy
@@ -92,14 +94,14 @@ pluggy==1.6.0
     #   pytest-cov
 pre-commit==4.6.0
     # via ios-print-server (pyproject.toml:dev)
-pydantic==2.13.3
+pydantic==2.13.4
     # via
     #   ios-print-server (pyproject.toml)
     #   fastapi
     #   pydantic-settings
-pydantic-core==2.46.3
+pydantic-core==2.46.4
     # via pydantic
-pydantic-settings==2.14.0
+pydantic-settings==2.14.1
     # via ios-print-server (pyproject.toml)
 pygments==2.20.0
     # via pytest

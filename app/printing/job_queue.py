@@ -3,7 +3,7 @@
 import queue
 import threading
 from datetime import datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 

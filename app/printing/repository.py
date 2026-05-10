@@ -103,7 +103,7 @@ class JobRepository:
         commit: bool = False,
         executemany: bool = False,
     ) -> Any:
-        self._ensure_connection()
+        await self._ensure_connection()
         if row_factory:
             self._conn.row_factory = aiosqlite.Row
         else:

@@ -44,14 +44,14 @@ msgspec==0.21.1
     # via ios-print-server (pyproject.toml)
 pillow==12.2.0
     # via ios-print-server (pyproject.toml)
-pydantic==2.13.3
+pydantic==2.13.4
     # via
     #   ios-print-server (pyproject.toml)
     #   fastapi
     #   pydantic-settings
-pydantic-core==2.46.3
+pydantic-core==2.46.4
     # via pydantic
-pydantic-settings==2.14.0
+pydantic-settings==2.14.1
     # via ios-print-server (pyproject.toml)
 pyside6==6.11.0
     # via ios-print-server (pyproject.toml)
