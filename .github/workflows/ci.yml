@@ -119,16 +119,16 @@ jobs:
         shell: pwsh
         run: |
           python -c "
-import zipfile, pathlib, os
-dist = pathlib.Path('dist/iOSPrintServer')
-ver = '${{ github.ref_name }}'.lstrip('v')
-skip = {'__pycache__'}
-with zipfile.ZipFile(f'dist/update-{ver}.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
-    for f in dist.rglob('*'):
-        if not f.is_file(): continue
-        if any(p in f.parts for p in skip): continue
-        zf.write(f, f.relative_to(dist))
-"
+          import zipfile, pathlib, os
+          dist = pathlib.Path('dist/iOSPrintServer')
+          ver = '${{ github.ref_name }}'.lstrip('v')
+          skip = {'__pycache__'}
+          with zipfile.ZipFile(f'dist/update-{ver}.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
+              for f in dist.rglob('*'):
+                  if not f.is_file(): continue
+                  if any(p in f.parts for p in skip): continue
+                  zf.write(f, f.relative_to(dist))
+          "
       - name: Generate update zip SHA256
         shell: pwsh
         run: |
