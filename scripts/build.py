@@ -142,6 +142,8 @@ def build(version: str):
         APP_NAME,
         '--windowed',
         '--onedir',
+        '--icon',
+        str(PROJECT_ROOT / 'gui' / 'resources' / 'icon.ico'),
     ]
 
     args += [
