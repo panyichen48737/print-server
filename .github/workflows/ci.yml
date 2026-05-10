@@ -117,6 +117,8 @@ jobs:
           RELEASE_VERSION: ${{ github.ref_name }}
           PYTHONIOENCODING: utf-8
       - uses: actions/setup-go@v6
+        with:
+          go-version-file: service/go.mod
       - name: Build update service
         run: python scripts/build_service.py
       - name: Build incremental update zip
