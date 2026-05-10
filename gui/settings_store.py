@@ -30,7 +30,7 @@ class WindowStateManager:
         sort_col = table.horizontalHeader().sortIndicatorSection()
         sort_order = table.horizontalHeader().sortIndicatorOrder()
         self._settings.setValue(f'table_{table_key}_sort_col', sort_col)
-        self._settings.setValue(f'table_{table_key}_sort_order', int(sort_order))
+        self._settings.setValue(f'table_{table_key}_sort_order', sort_order.value)
 
     def restore_table_state(self, table_key: str, table):
         """Restore column widths and sort for a table."""
