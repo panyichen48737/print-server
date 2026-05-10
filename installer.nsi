@@ -1,4 +1,4 @@
-!define PRODUCT_NAME "iOSPrintServer"
+﻿!define PRODUCT_NAME "iOSPrintServer"
 !define PRODUCT_VERSION "2.4.0"
 !define PRODUCT_EXE "iOSPrintServer.exe"
 !define UPDATE_SERVICE_EXE "update_service.exe"
