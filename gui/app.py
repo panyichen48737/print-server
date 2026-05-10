@@ -33,6 +33,10 @@ class MainWindow(QMainWindow):
         self._bridge.printer_status.connect(self._on_printer_status)
         self._bridge.log.connect(self._on_log)
 
+        # Notification stack (bottom-right toasts)
+        from gui.components.notification import NotificationStack
+        self._notifications = NotificationStack(self)
+
         self.setWindowTitle("iOS 云打印服务器")
         self.setMinimumSize(900, 600)
         self.resize(1200, 800)
@@ -95,6 +99,12 @@ class MainWindow(QMainWindow):
         # Select first page
         self.sidebar.setCurrentRow(0)
         self._setup_shortcuts()
+
+        # Position notification stack bottom-right
+        self._notifications.raise_()
+
+    def show_notification(self, text: str, color: str = "#8B7355"):
+        self._notifications.show_notification(text, color)
 
     def _build_status_bar(self) -> QWidget:
         bar = QWidget()
@@ -189,6 +199,10 @@ class MainWindow(QMainWindow):
         theme.apply(new_mode, QApplication.instance())
         self._theme_mode = new_mode
         self.theme_action.setText("浅色主题" if new_mode == "dark" else "深色主题")
+        # Persist to config
+        if self._config:
+            self._config.set("theme_mode", new_mode)
+            self._config.save()
 
     def _refresh_status(self):
         if self._server and self._server.is_running:
@@ -284,8 +298,12 @@ class MainWindow(QMainWindow):
         status = data.get("status", "")
         if status == "completed":
             self.tray.showMessage("打印完成", f"任务 #{data['job_id']} 已完成", QSystemTrayIcon.MessageIcon.Information, 3000)
+            self._notifications.show_notification(f"任务 #{data['job_id']} 打印完成", "#6B8F6B")
         elif status == "failed":
             self.tray.showMessage("打印失败", f"任务 #{data['job_id']} 失败: {data.get('error', '')}", QSystemTrayIcon.MessageIcon.Critical, 5000)
+            self._notifications.show_notification(f"任务 #{data['job_id']} 失败", "#C53A3A")
+        elif status == "submitted":
+            self._notifications.show_notification(f"任务 #{data['job_id']} 已提交", "#8B7355")
 
     def _on_printer_status(self, data: dict):
         current = self.stack.currentWidget()
@@ -297,12 +315,23 @@ class MainWindow(QMainWindow):
         event.ignore()
         self.hide()
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # Position notification stack in bottom-right
+        nw = 320
+        nh = self._notifications.sizeHint().height()
+        self._notifications.setGeometry(self.width() - nw - 24, self.height() - nh - 60, nw, nh)
+
 
 def run_gui(app, config, server_handle: ServerHandle):
     qapp = QApplication(sys.argv)
     from gui.theme import ThemeEngine
     theme = ThemeEngine.instance()
-    theme.apply("light", qapp)
+    # Load persisted theme, default to light
+    saved_theme = config.get("theme_mode", "light")
+    if saved_theme not in ("light", "dark"):
+        saved_theme = "light"
+    theme.apply(saved_theme, qapp)
     window = MainWindow(app, config, server_handle)
     window.show()
     qapp.aboutToQuit.connect(window._bridge.stop)

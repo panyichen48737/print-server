@@ -1,7 +1,7 @@
 """Toggle switch using QSlider + QSS for iOS-style sliding knob with capsule track."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QPropertyAnimation, Qt, Signal
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QSlider, QWidget
 
@@ -36,10 +36,20 @@ class ToggleSwitch(QSlider):
         self.setRange(0, 1)
         self.setValue(1 if checked else 0)
         self._checked = checked
+        self._animating = False
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedSize(52, 30)
         self._refresh_qss()
         self.valueChanged.connect(self._on_value_changed)
+
+    def _animate_toggle(self, target: int):
+        self._animating = True
+        anim = QPropertyAnimation(self, b"value")
+        anim.setDuration(150)
+        anim.setStartValue(self.value())
+        anim.setEndValue(target)
+        anim.finished.connect(lambda: setattr(self, '_animating', False))
+        anim.start()
 
     def _track_color(self) -> str:
         if self._checked:
@@ -69,13 +79,13 @@ class ToggleSwitch(QSlider):
         if checked == self._checked:
             return
         self._checked = checked
-        self.setValue(1 if checked else 0)
+        self._animate_toggle(1 if checked else 0)
         self._refresh_qss()
 
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
             self._checked = not self._checked
-            self.setValue(1 if self._checked else 0)
+            self._animate_toggle(1 if self._checked else 0)
             self._refresh_qss()
             self.toggled.emit(self._checked)
             return

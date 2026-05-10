@@ -1,19 +1,18 @@
 """About page: version info, build manifest, links."""
 from __future__ import annotations
 
+import os
+import subprocess
 import webbrowser
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QGridLayout,
-    QHBoxLayout,
-    QLabel,
-    QPushButton,
-    QScrollArea,
-    QVBoxLayout,
-    QWidget,
+    QGridLayout, QHBoxLayout, QLabel, QPushButton,
+    QScrollArea, QVBoxLayout, QWidget,
 )
 
+from app._paths import persistent_dir
 from app.version import __build_date__, __pyinstaller_version__, __version__, get_build_manifest
 
 
@@ -161,11 +160,29 @@ class AboutPage(QWidget):
 
         layout.addWidget(info_card, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # ── Check for updates ──
+        # ── Action buttons ──
+        action_row = QHBoxLayout()
+        action_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        action_row.setSpacing(10)
+
         self.update_btn = QPushButton("检查更新")
         self.update_btn.setObjectName("primary")
         self.update_btn.clicked.connect(self._check_update)
-        layout.addWidget(self.update_btn, alignment=Qt.AlignmentFlag.AlignCenter)
+        action_row.addWidget(self.update_btn)
+
+        log_btn = QPushButton("日志文件夹")
+        log_btn.setObjectName("ghost")
+        log_btn.setProperty("compact", True)
+        log_btn.clicked.connect(self._open_log_folder)
+        action_row.addWidget(log_btn)
+
+        cfg_btn = QPushButton("配置文件")
+        cfg_btn.setObjectName("ghost")
+        cfg_btn.setProperty("compact", True)
+        cfg_btn.clicked.connect(self._open_config_folder)
+        action_row.addWidget(cfg_btn)
+
+        layout.addLayout(action_row)
 
         self.update_label = QLabel("")
         self.update_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -199,6 +216,16 @@ class AboutPage(QWidget):
             body_layout.addLayout(row)
 
         parent_layout.addWidget(section)
+
+    def _open_log_folder(self):
+        log_dir = Path(persistent_dir()) / "logs"
+        if log_dir.exists():
+            subprocess.Popen(["explorer", str(log_dir)], shell=True)
+
+    def _open_config_folder(self):
+        cfg_dir = Path(persistent_dir())
+        if cfg_dir.exists():
+            subprocess.Popen(["explorer", str(cfg_dir)], shell=True)
 
     def _check_update(self):
         self.update_label.setText("暂无更新")

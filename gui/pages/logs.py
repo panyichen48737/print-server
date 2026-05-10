@@ -70,6 +70,13 @@ class LogsPage(QWidget):
         self.log_empty_label.setStyleSheet("color: #8A8178; font-size: 14px; padding: 40px;")
         layout.addWidget(self.log_empty_label)
 
+        # Loading history label
+        self.loading_label = QLabel("正在加载历史日志...")
+        self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.loading_label.setStyleSheet("color: #8A8178; font-size: 12px; padding: 12px;")
+        self.loading_label.setVisible(False)
+        layout.addWidget(self.loading_label)
+
         # Log list
         self.log_list = QListWidget()
         self.log_list.setVisible(False)
@@ -98,14 +105,18 @@ class LogsPage(QWidget):
         self._load_history()
 
     def _load_history(self):
+        self.loading_label.setVisible(True)
         log_path = Path(persistent_dir()) / "logs" / "print_server.log"
         if not log_path.exists():
+            self.loading_label.setVisible(False)
             return
         try:
             with log_path.open("r", encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()[-200:]
         except OSError:
+            self.loading_label.setVisible(False)
             return
+        self.loading_label.setVisible(False)
         for line in lines:
             line = line.rstrip("\n")
             if not line:

@@ -11,6 +11,44 @@ from PySide6.QtWidgets import (
 )
 
 
+class SkeletonCard(QFrame):
+    """Placeholder card with pulsing animation."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("statCard")
+        self._pulse = 0
+        self._forward = True
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._pulse_step)
+        self._timer.start(30)
+
+    def _pulse_step(self):
+        if self._forward:
+            self._pulse += 1
+            if self._pulse >= 20:
+                self._forward = False
+        else:
+            self._pulse -= 1
+            if self._pulse <= 0:
+                self._forward = True
+        alpha = 180 + self._pulse * 3  # 180-240 range
+        self.setStyleSheet(f"""
+            QFrame#statCard {{
+                background-color: rgba(200, 195, 185, {alpha});
+                border: 1px solid #E5DDD5;
+                border-radius: 12px;
+                min-height: 100px;
+            }}
+        """)
+
+    def stop_pulse(self):
+        self._timer.stop()
+        self.setStyleSheet("")
+        self.setObjectName("statCard")
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+
 class StatCard(QFrame):
     """KPI card: label, large serif value with inline change, trend footer."""
     VALUE_COLORS = {
@@ -141,6 +179,8 @@ class DashboardPage(QWidget):
         super().__init__(parent)
         self._mw = main_window
         self._event_bus = getattr(main_window, "_event_bus", None)
+        self._skeleton_cards: list[SkeletonCard] = []
+        self._initial_loaded = False
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -200,9 +240,11 @@ class DashboardPage(QWidget):
         lo.addSpacing(28)
 
         # ===== KPI Grid (2 rows × 3 cols) =====
-        kpi_grid = QGridLayout()
-        kpi_grid.setSpacing(18)
         self._stats: dict[str, StatCard] = {}
+        self._stat_widget = QWidget()
+        self._kpi_grid = QGridLayout()
+        self._kpi_grid.setSpacing(18)
+        self._stat_widget.setLayout(self._kpi_grid)
         stat_defs = [
             ("排队中", "0", "accent", "", "default", ""),
             ("打印中", "0", "active", "", "default", ""),
@@ -214,8 +256,8 @@ class DashboardPage(QWidget):
         for i, (title, val, variant, change, cv, trend) in enumerate(stat_defs):
             card = StatCard(title, val, variant, change, cv, trend)
             self._stats[title] = card
-            kpi_grid.addWidget(card, i // 3, i % 3)
-        lo.addLayout(kpi_grid)
+            self._kpi_grid.addWidget(card, i // 3, i % 3)
+        lo.addWidget(self._stat_widget)
         lo.addSpacing(24)
 
         # ===== Chart Section =====
@@ -293,12 +335,44 @@ class DashboardPage(QWidget):
         self._timer.timeout.connect(self._refresh)
         self._timer.start(3000)
 
+        # Show skeleton on init
+        self._show_skeleton()
+
+    def _show_skeleton(self):
+        """Replace stat cards with skeleton pulse placeholders."""
+        for card in self._stats.values():
+            card.setVisible(False)
+        for sk in self._skeleton_cards:
+            sk.stop_pulse()
+            sk.setParent(None)
+            sk.deleteLater()
+        self._skeleton_cards.clear()
+        for i in range(6):
+            sk = SkeletonCard()
+            self._skeleton_cards.append(sk)
+            self._kpi_grid.addWidget(sk, i // 3, i % 3)
+
+    def _hide_skeleton(self):
+        for sk in self._skeleton_cards:
+            sk.stop_pulse()
+            sk.setParent(None)
+            sk.deleteLater()
+        self._skeleton_cards.clear()
+        for card in self._stats.values():
+            card.setVisible(True)
+
     def _refresh(self):
         repo = getattr(self._mw._app.state, "job_repo", None)
         if repo is None:
             return
         stats = repo.get_stats()
         total = stats.get("total", 0)
+
+        # First successful load: hide skeleton
+        if not self._initial_loaded:
+            self._initial_loaded = True
+            self._hide_skeleton()
+
         self._stats["排队中"].set_value(str(stats.get("queued", 0)))
         self._stats["打印中"].set_value(str(stats.get("printing", 0)))
         self._stats["今日完成"].set_value(str(stats.get("today_completed", 0)))
@@ -307,7 +381,7 @@ class DashboardPage(QWidget):
         self._stats["总计"].set_value(str(total))
 
         has_data = total > 0
-        self.empty_state.setVisible(not has_data)
+        self.empty_state.setVisible(not has_data and self._initial_loaded)
         self.chart_section.setVisible(has_data)
 
         weekday_names = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
@@ -321,13 +395,6 @@ class DashboardPage(QWidget):
             label = weekday_names[d.weekday()]
             data.append((label, count, 0))
         self.bar_chart.set_data(data)
-
-    def show_loading(self):
-        self.error_banner.setVisible(False)
-        self.empty_state.setVisible(False)
-        for card in self._stats.values():
-            card.set_value("---")
-            card.value_lbl.setStyleSheet("color: #D0C8BE;")
 
     def show_error(self, msg: str):
         self.error_banner.setText(f"⚠ {msg}")

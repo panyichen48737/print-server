@@ -133,7 +133,27 @@ class SettingsPage(QWidget):
         print_opts_form.addRow("默认纸张:", self.paper_size_combo)
         layout.addWidget(print_opts_group)
 
-        # Group 6: Logging
+        # Group 6: Worker
+        worker_group = QGroupBox("Worker")
+        worker_form = QFormLayout(worker_group)
+        self.worker_count_spin = QSpinBox()
+        self.worker_count_spin.setRange(1, 16)
+        worker_form.addRow("工作进程数:", self.worker_count_spin)
+        self.max_file_size_spin = QSpinBox()
+        self.max_file_size_spin.setRange(1, 500)
+        self.max_file_size_spin.setSuffix(" MB")
+        worker_form.addRow("最大文件大小:", self.max_file_size_spin)
+        self.print_dpi_spin = QSpinBox()
+        self.print_dpi_spin.setRange(72, 1200)
+        self.print_dpi_spin.setSuffix(" DPI")
+        worker_form.addRow("打印 DPI:", self.print_dpi_spin)
+        self.word_timeout_spin = QSpinBox()
+        self.word_timeout_spin.setRange(30, 600)
+        self.word_timeout_spin.setSuffix(" 秒")
+        worker_form.addRow("Word 超时:", self.word_timeout_spin)
+        layout.addWidget(worker_group)
+
+        # Group 7: Logging
         log_group = QGroupBox("日志")
         log_form = QFormLayout(log_group)
         self.log_level_combo = QComboBox()
@@ -152,6 +172,12 @@ class SettingsPage(QWidget):
         # Status label
         self.status_label = QLabel("")
         layout.addWidget(self.status_label)
+
+        # Restart required label
+        self.restart_label = QLabel("部分设置需要重启服务器才能生效")
+        self.restart_label.setVisible(False)
+        self.restart_label.setStyleSheet("color: #B8956A; font-size: 12px; padding: 4px 0;")
+        layout.addWidget(self.restart_label)
 
         layout.addStretch()
         scroll.setWidget(container)
@@ -206,6 +232,10 @@ class SettingsPage(QWidget):
         self.default_duplex_cb.setChecked(c.get("default_duplex", False))
         self.default_color_cb.setChecked(c.get("default_color", True))
         self.paper_size_combo.setCurrentText(c.get("paper_size", "A4"))
+        self.worker_count_spin.setValue(c.get("worker_count", 2))
+        self.max_file_size_spin.setValue(c.get("max_file_size_mb", 50))
+        self.print_dpi_spin.setValue(c.get("print_dpi", 600))
+        self.word_timeout_spin.setValue(c.get("word_timeout", 120))
         self.log_level_combo.setCurrentText(c.get("log_level", "INFO"))
         self.log_max_days_spin.setValue(c.get("job_retention_days", 30))
 
@@ -222,6 +252,8 @@ class SettingsPage(QWidget):
         idx = self.default_printer_combo.findText(default)
         if idx >= 0:
             self.default_printer_combo.setCurrentIndex(idx)
+
+    _RESTART_KEYS = {"port", "ssl_enabled", "worker_count", "log_level", "job_timeout", "word_timeout", "print_dpi", "max_file_size_mb"}
 
     def _save(self):
         if not self._config:
@@ -246,6 +278,10 @@ class SettingsPage(QWidget):
                 "default_duplex": self.default_duplex_cb.isChecked(),
                 "default_color": self.default_color_cb.isChecked(),
                 "paper_size": self.paper_size_combo.currentText(),
+                "worker_count": self.worker_count_spin.value(),
+                "max_file_size_mb": self.max_file_size_spin.value(),
+                "print_dpi": self.print_dpi_spin.value(),
+                "word_timeout": self.word_timeout_spin.value(),
                 "log_level": self.log_level_combo.currentText(),
                 "job_retention_days": self.log_max_days_spin.value(),
             }
@@ -253,11 +289,29 @@ class SettingsPage(QWidget):
                 updates["dingtalk_webhook"] = webhook_val
             elif channel == "bark":
                 updates["bark_key"] = webhook_val
+
+            # Detect restart-required keys
+            old = {k: self._config.get(k) for k in self._RESTART_KEYS}
             self._config.set_many(updates)
             self._config.save()
             self.save_btn.set_success()
             self.status_label.setText("设置已保存")
-            self.status_label.setStyleSheet("color: #6B8F6B;")
+
+            # Check if restart is needed
+            needs_restart = any(
+                str(self._config.get(k)) != str(old.get(k))
+                for k in self._RESTART_KEYS
+            )
+            if needs_restart:
+                self.restart_label.setVisible(True)
+                from PySide6.QtWidgets import QMessageBox
+                reply = QMessageBox.question(
+                    self, "需要重启",
+                    "部分设置需要重启服务器才能生效，是否立即重启？",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                )
+                if reply == QMessageBox.StandardButton.Yes:
+                    self._mw._on_restart()
         except Exception as e:
             self.save_btn.set_error()
             self.status_label.setText(f"保存失败: {e}")

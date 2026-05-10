@@ -63,10 +63,16 @@ class JobManagerPage(QWidget):
         self.queue_empty_label.setStyleSheet("color: #8A8178; font-size: 14px; padding: 20px;")
         layout.addWidget(self.queue_empty_label)
         self.queue_table = QTableView()
+        self.queue_table.setAlternatingRowColors(True)
         self.queue_model = SimpleTableModel(["文件名", "状态", "进度", "操作"])
         self.queue_table.setModel(self.queue_model)
         self.queue_table.setVisible(False)
         layout.addWidget(self.queue_table)
+
+        self.job_error_label = QLabel("")
+        self.job_error_label.setVisible(False)
+        self.job_error_label.setStyleSheet("color: #C53A3A; font-size: 13px; padding: 12px;")
+        layout.addWidget(self.job_error_label)
 
         # History section
         layout.addWidget(QLabel("历史记录"))
@@ -88,6 +94,7 @@ class JobManagerPage(QWidget):
         layout.addLayout(filter_row)
 
         self.history_table = QTableView()
+        self.history_table.setAlternatingRowColors(True)
         self.history_model = SimpleTableModel(
             ["ID", "文件名", "类型", "状态", "提交时间", "完成时间", "操作"]
         )
@@ -246,8 +253,12 @@ class JobManagerPage(QWidget):
         return getattr(app.state, "job_repo", None)
 
     def _refresh(self):
+        self.job_error_label.setVisible(False)
         repo = self._job_repo()
         if repo is None:
+            self.queue_empty_label.setText("加载失败")
+            self.job_error_label.setText("无法连接数据库，请检查服务器状态")
+            self.job_error_label.setVisible(True)
             return
 
         queued = repo.get_jobs_by_status("queued")
