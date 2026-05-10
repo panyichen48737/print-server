@@ -496,7 +496,6 @@ class JobManagerPage(QWidget):
         sort_col = settings.value('sort_column', type=int)
         sort_order = settings.value('sort_order')
         if sort_col is not None:
-            header = self.history_table.horizontalHeader()
             if sort_order is not None:
                 self.history_table.sortByColumn(sort_col, Qt.SortOrder(int(sort_order)))
             else:
