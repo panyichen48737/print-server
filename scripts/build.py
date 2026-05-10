@@ -15,6 +15,7 @@ import os
 import shutil
 import subprocess
 import sys
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -184,6 +185,8 @@ def build(version: str):
         '--hidden-import',
         'app.updater',
         '--hidden-import',
+        'gui.pipe_client',
+        '--hidden-import',
         'app.routes.api',
         '--hidden-import',
         'app.routes.admin',
@@ -328,6 +331,20 @@ def build(version: str):
     if exe_path.exists():
         print(f'[build] 构建完成: {exe_path} ({exe_path.stat().st_size / 1024 / 1024:.1f} MB)')
         print(f'[build] 版本: {version}')
+
+        # 构建 update.zip（仅含 _internal/，用于 Service 增量更新）
+        internal_dir = dist_dir / '_internal'
+        update_zip = DIST_DIR / f'update-{version}.zip'
+        if internal_dir.is_dir():
+            import zipfile
+            with zipfile.ZipFile(update_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for entry in internal_dir.rglob('*'):
+                    if entry.is_file():
+                        arcname = entry.relative_to(dist_dir)
+                        zf.write(entry, arcname)
+            print(f'[build] 更新包: {update_zip} ({update_zip.stat().st_size / 1024 / 1024:.1f} MB)')
+        else:
+            print(f'[build] 警告: _internal/ 不存在，跳过 update.zip')
     else:
         print(f'[build] 构建失败: {exe_path} 未生成')
 

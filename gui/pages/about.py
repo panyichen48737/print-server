@@ -6,7 +6,7 @@ import subprocess
 import webbrowser
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
+from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal, Slot
 from PySide6.QtWidgets import (
     QGridLayout, QHBoxLayout, QLabel, QProgressBar, QPushButton,
     QScrollArea, QVBoxLayout, QWidget,
@@ -355,9 +355,16 @@ class AboutPage(QWidget):
     def _start_download(self):
         cache_dir = persistent_dir() / "update_cache"
         cache_dir.mkdir(parents=True, exist_ok=True)
-        self._installer_path = (
-            cache_dir / f"iOSPrintServer-Setup-{self._update_info.latest_version}.exe"
-        )
+
+        is_incremental = self._update_info and self._update_info.download_type == "incremental"
+        if is_incremental:
+            self._installer_path = (
+                cache_dir / f"update-{self._update_info.latest_version}.zip"
+            )
+        else:
+            self._installer_path = (
+                cache_dir / f"iOSPrintServer-Setup-{self._update_info.latest_version}.exe"
+            )
 
         self.update_btn.setEnabled(False)
         self.update_btn.setText("准备下载...")
@@ -395,7 +402,65 @@ class AboutPage(QWidget):
         self.update_btn.setEnabled(False)
         self.update_btn.setText("安装中...")
 
-        self._start_worker("install")
+        # Route based on download type
+        if self._update_info and self._update_info.download_type == "incremental":
+            self._apply_incremental_update()
+        else:
+            self._start_worker("install")
+
+    def _apply_incremental_update(self):
+        """Send update zip to service for atomic replacement."""
+        from gui.pipe_client import apply_update, service_status
+        import sys
+        import os
+
+        # Check service is running
+        status = service_status()
+        if status is None:
+            self.update_status.setText("更新服务未运行，请使用安装器手动更新")
+            self.update_status.setStyleSheet("color: #C53A3A;")
+            self.update_btn.setText("下载安装器")
+            self.update_btn.clicked.disconnect()
+            self.update_btn.clicked.connect(self._switch_to_full_download)
+            self.update_btn.setEnabled(True)
+            return
+
+        app_dir = self._get_app_dir()
+
+        resp = apply_update(str(self._installer_path), app_dir)
+        if resp is None or resp.status != "ok":
+            self.update_status.setText("更新服务响应失败，请重试")
+            self.update_status.setStyleSheet("color: #C53A3A;")
+            self.update_btn.setText("重试")
+            self.update_btn.clicked.disconnect()
+            self.update_btn.clicked.connect(self._apply_incremental_update)
+            self.update_btn.setEnabled(True)
+            return
+
+        self.update_status.setText("更新提交成功，程序即将重启...")
+        self.update_status.setStyleSheet("color: #6B8F6B;")
+
+        # Exit — service will wait, replace _internal/, and restart
+        QTimer.singleShot(1000, lambda: os._exit(0))
+
+    def _switch_to_full_download(self):
+        """Fallback: download full installer instead."""
+        if self._update_info and self._update_info.release_url:
+            import webbrowser
+            webbrowser.open(self._update_info.release_url)
+            self.update_status.setText("请在浏览器中下载安装器")
+            self.update_btn.setText("检查更新")
+            self.update_btn.clicked.disconnect()
+            self.update_btn.clicked.connect(self._check_update)
+            self.update_btn.setEnabled(True)
+
+    def _get_app_dir(self) -> str | None:
+        """Detect installation directory."""
+        import sys
+        from pathlib import Path
+        if getattr(sys, 'frozen', False):
+            return str(Path(sys.executable).parent)
+        return None
 
     def _on_install_launched(self, success: bool):
         self._cleanup_thread()

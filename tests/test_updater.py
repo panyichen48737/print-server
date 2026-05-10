@@ -67,7 +67,24 @@ class TestCheckLatestVersion:
         assert info.latest_version == "9.9.9"
         assert info.is_newer is True
         assert info.download_url == "https://github.com/test/setup.exe"
+        assert info.download_type == "full"
         assert info.release_url == "https://github.com/test/release"
+
+    @patch("app.updater.urlopen")
+    def test_prefers_incremental_zip(self, mock_urlopen):
+        mock_urlopen.return_value = self._mock_github_response({
+            "tag_name": "v9.9.9",
+            "html_url": "https://github.com/test/release",
+            "body": "",
+            "assets": [
+                {"name": "update-9.9.9.zip", "browser_download_url": "https://x/update.zip"},
+                {"name": "iOSPrintServer-Setup-9.9.9.exe", "browser_download_url": "https://x/setup.exe"},
+            ],
+        })
+        info = check_latest_version()
+        assert info is not None
+        assert info.download_url == "https://x/update.zip"
+        assert info.download_type == "incremental"
 
     @patch("app.updater.urlopen")
     def test_same_version_no_asset(self, mock_urlopen):
@@ -108,6 +125,7 @@ class TestCheckLatestVersion:
         info = check_latest_version()
         assert info is not None
         assert info.download_url == "https://x/setup.exe"
+        assert info.download_type == "full"
 
 
 class TestDownloadInstaller:

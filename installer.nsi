@@ -1,6 +1,7 @@
 !define PRODUCT_NAME "iOS 云打印服务器"
 !define PRODUCT_VERSION "1.6.0"
 !define PRODUCT_EXE "iOSPrintServer.exe"
+!define UPDATE_SERVICE_EXE "update_service.exe"
 !define SOURCE_DIR "dist\iOSPrintServer"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
 
@@ -13,7 +14,7 @@ RequestExecutionLevel admin
 Section "Install"
   SetOutPath "$INSTDIR"
 
-  # 递归复制整个程序目录（exe + _internal/ + 资源文件）
+  # 递归复制整个程序目录
   File /r "${SOURCE_DIR}\*.*"
 
   # Start menu shortcut
@@ -25,7 +26,10 @@ Section "Install"
   # Registry autostart
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PRODUCT_NAME}" "$INSTDIR\${PRODUCT_EXE}"
 
-  # Uninstall registration（添加或删除程序）
+  # Register update service
+  ExecWait '"$INSTDIR\${UPDATE_SERVICE_EXE}" --install'
+
+  # Uninstall registration
   WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayName" "${PRODUCT_NAME}"
   WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayVersion" "${PRODUCT_VERSION}"
   WriteRegStr HKLM "${UNINSTALL_KEY}" "Publisher" "Developer"
@@ -45,5 +49,9 @@ Section "Uninstall"
   Delete "$DESKTOP\${PRODUCT_NAME}.lnk"
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PRODUCT_NAME}"
   DeleteRegKey HKLM "${UNINSTALL_KEY}"
+
+  # Unregister update service
+  ExecWait '"$INSTDIR\${UPDATE_SERVICE_EXE}" --uninstall'
+
   RMDir /r "$INSTDIR"
 SectionEnd

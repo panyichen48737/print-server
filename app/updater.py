@@ -22,6 +22,7 @@ _CHUNK_SIZE = 8192
 class UpdateInfo:
     latest_version: str
     download_url: str | None
+    download_type: str | None  # "incremental" | "full" | None
     release_url: str
     release_notes: str
     is_newer: bool
@@ -52,15 +53,30 @@ def check_latest_version() -> UpdateInfo | None:
         if not latest:
             return None
 
-        download_url = next(
+        # Prefer incremental update zip, fall back to full installer
+        incremental_url = next(
+            (a["browser_download_url"] for a in data.get("assets", [])
+             if a["name"].startswith("update-") and a["name"].endswith(".zip")),
+            None,
+        )
+        full_url = next(
             (a["browser_download_url"] for a in data.get("assets", [])
              if a["name"].startswith("iOSPrintServer-Setup-") and a["name"].endswith(".exe")),
             None,
         )
+
+        if incremental_url:
+            download_url = incremental_url
+            download_type = "incremental"
+        else:
+            download_url = full_url
+            download_type = "full" if full_url else None
+
         is_newer = _version_greater(latest, __version__)
         return UpdateInfo(
             latest_version=latest,
             download_url=download_url,
+            download_type=download_type,
             release_url=data.get("html_url", ""),
             release_notes=data.get("body", ""),
             is_newer=is_newer,

@@ -26,8 +26,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
       - uses: astral-sh/setup-uv@v8
       - name: Install dependencies
         run: uv pip install --system ruff mypy
@@ -51,8 +49,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
       - uses: astral-sh/setup-uv@v8
       - name: Cache Python packages
         id: cache-pip
@@ -86,8 +82,6 @@ jobs:
         with:
           fetch-depth: 1
       - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
       - uses: astral-sh/setup-uv@v8
       - name: Restore Python packages cache
         id: cache-pip
@@ -118,6 +112,28 @@ jobs:
         env:
           RELEASE_VERSION: ${{ github.ref_name }}
           PYTHONIOENCODING: utf-8
+      - uses: actions/setup-go@v6
+      - name: Build update service
+        run: python scripts/build_service.py
+      - name: Build incremental update zip
+        shell: pwsh
+        run: |
+          python -c "
+import zipfile, pathlib
+dist = pathlib.Path('dist/iOSPrintServer')
+internal = dist / '_internal'
+ver = '${{ github.ref_name }}'.lstrip('v')
+with zipfile.ZipFile(f'dist/update-{ver}.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
+    for f in internal.rglob('*'):
+        if f.is_file():
+            zf.write(f, f.relative_to(dist))
+"
+      - name: Generate update zip SHA256
+        shell: pwsh
+        run: |
+          $ver = "${{ github.ref_name }}" -replace '^v', ''
+          $zip = "dist/update-$ver.zip"
+          (certutil -hashfile $zip SHA256 | Select-String -NotMatch "SHA256|CertUtil").Trim() | Out-File -Encoding utf8 "dist/update-$ver.zip.sha256"
       - name: Install NSIS
         shell: pwsh
         run: choco install nsis --no-progress -y
@@ -166,6 +182,8 @@ jobs:
           path: |
             dist/iOSPrintServer-Setup-*.exe
             dist/iOSPrintServer-Setup.sha256
+            dist/update-*.zip
+            dist/update-*.zip.sha256
             dist/version_info.json
 
   release:
