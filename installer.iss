@@ -41,8 +41,6 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 
 [Files]
 Source: "dist\iOSPrintServer\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-; 确保服务 exe 存在，否则静默跳过
-Source: "dist\iOSPrintServer\{#MyUpdateServiceExe}"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
