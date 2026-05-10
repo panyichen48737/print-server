@@ -482,9 +482,8 @@ class JobManagerPage(QWidget):
             settings.setValue(
                 'sort_column', self.history_table.horizontalHeader().sortIndicatorSection()
             )
-            settings.setValue(
-                'sort_order', int(self.history_table.horizontalHeader().sortIndicatorOrder())
-            )
+            order = self.history_table.horizontalHeader().sortIndicatorOrder()
+            settings.setValue('sort_order', int(order.value) if hasattr(order, 'value') else int(order))
         settings.endGroup()
 
     def _restore_table_state(self):
@@ -495,9 +494,13 @@ class JobManagerPage(QWidget):
             if w:
                 self.history_table.setColumnWidth(col, w)
         sort_col = settings.value('sort_column', type=int)
-        sort_order = settings.value('sort_order', type=int)
+        sort_order = settings.value('sort_order')
         if sort_col is not None:
-            self.history_table.sortByColumn(sort_col, Qt.SortOrder(sort_order or 0))
+            header = self.history_table.horizontalHeader()
+            if sort_order is not None:
+                self.history_table.sortByColumn(sort_col, Qt.SortOrder(int(sort_order)))
+            else:
+                self.history_table.sortByColumn(sort_col)
         settings.endGroup()
 
     def _highlight_row(self, row: int):
