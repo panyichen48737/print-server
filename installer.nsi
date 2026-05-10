@@ -1,5 +1,5 @@
 !define PRODUCT_NAME "iOS 云打印服务器"
-!define PRODUCT_VERSION "1.6.0"
+!define PRODUCT_VERSION "2.3.0"
 !define PRODUCT_EXE "iOSPrintServer.exe"
 !define UPDATE_SERVICE_EXE "update_service.exe"
 !define SOURCE_DIR "dist\iOSPrintServer"
