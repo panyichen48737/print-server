@@ -287,7 +287,7 @@ def build(version: str):
         '--exclude-module',
         'pip',
         # 入口
-        str(PROJECT_ROOT / 'console_app.py'),
+        str(PROJECT_ROOT / 'gui_main.py'),
     ]
 
     subprocess.run(args, cwd=PROJECT_ROOT, check=True, env=env)

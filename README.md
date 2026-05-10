@@ -35,7 +35,7 @@ pip install -r requirements.txt
 
 ```bash
 # 启动 TUI 控制台（推荐）
-python console_app.py
+python gui_main.py
 
 # 或直接启动后台守护进程
 python -m app.server_daemon
@@ -141,11 +141,11 @@ curl -N http://localhost:5000/api/events
 ## TUI 控制台命令
 
 ```bash
-python console_app.py              # 启动 TUI（自动启动后台服务）
-python console_app.py --start      # 仅启动后台服务（无界面）
-python console_app.py --stop       # 停止后台服务
-python console_app.py --restart    # 重启后台服务
-python console_app.py --status     # 查看后台服务状态
+python gui_main.py              # 启动 TUI（自动启动后台服务）
+python gui_main.py --start      # 仅启动后台服务（无界面）
+python gui_main.py --stop       # 停止后台服务
+python gui_main.py --restart    # 重启后台服务
+python gui_main.py --status     # 查看后台服务状态
 ```
 
 ### TUI 快捷键

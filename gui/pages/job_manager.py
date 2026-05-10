@@ -483,7 +483,7 @@ class JobManagerPage(QWidget):
                 'sort_column', self.history_table.horizontalHeader().sortIndicatorSection()
             )
             order = self.history_table.horizontalHeader().sortIndicatorOrder()
-            settings.setValue('sort_order', int(order.value) if hasattr(order, 'value') else int(order))
+            settings.setValue('sort_order', order.value)
         settings.endGroup()
 
     def _restore_table_state(self):
