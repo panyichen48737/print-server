@@ -154,7 +154,7 @@ def get_installed_version_from_registry() -> str | None:
 
         key = winreg.OpenKey(  # type: ignore[attr-defined]
             winreg.HKEY_LOCAL_MACHINE,  # type: ignore[attr-defined]
-            r'Software\Microsoft\Windows\CurrentVersion\Uninstall\iOS 云打印服务器',
+            r'Software\Microsoft\Windows\CurrentVersion\Uninstall\iOSPrintServer',
         )
         version, _ = winreg.QueryValueEx(key, 'DisplayVersion')  # type: ignore[attr-defined]
         winreg.CloseKey(key)  # type: ignore[attr-defined]

@@ -76,7 +76,7 @@ class AboutPage(QWidget):
         layout.setSpacing(8)
 
         # ── Header ──
-        title = QLabel('iOS 云打印服务器')
+        title = QLabel('iOSPrintServer')
         title.setObjectName('pageTitle')
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)

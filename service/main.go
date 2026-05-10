@@ -11,7 +11,7 @@ import (
 )
 
 const svcName = "iOSPrintServerUpdateSvc"
-const svcDisplayName = "iOS 云打印服务器更新服务"
+const svcDisplayName = "iOSPrintServer Update Service"
 
 func main() {
 	exe, _ := os.Executable()
