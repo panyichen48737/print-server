@@ -57,6 +57,12 @@ class JobExecutor:
             job_id, 'printing', filename=filename, source=job.get('source', 'api')
         )
 
+        # Re-check cancel AFTER status update (closes the race window)
+        if self._is_cancelled(job_id):
+            self._repo.update_status(job_id, 'failed', '用户取消')
+            self._update_and_broadcast(job_id, 'failed', '用户取消', filename, job.get('source', 'api'))
+            return True, None
+
         original_path = job['filepath']
         temp_path = None
         try:
