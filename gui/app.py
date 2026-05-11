@@ -454,4 +454,7 @@ def run_gui(app, config, server_handle: ServerHandle):
     theme.apply(saved_theme, qapp)
     window = MainWindow(app, config, server_handle)
     qapp.aboutToQuit.connect(window._bridge.stop)
+    # --tray: auto-start (registry), only show tray icon
+    if '--tray' not in sys.argv:
+        window.show()
     qapp.exec()
