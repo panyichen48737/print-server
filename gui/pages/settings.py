@@ -404,7 +404,8 @@ class SettingsPage(QWidget):
             if needs_restart:
                 self.restart_label.setVisible(True)
                 if self._show_restart_dialog():
-                    self._mw._on_restart()
+                    self._mw._server.stop()
+                self._mw._server.start(self._mw._app, self._mw._config)
         except Exception as e:
             self.save_btn.set_error()
             self.status_label.setText(f'保存失败: {e}')

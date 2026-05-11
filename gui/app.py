@@ -144,25 +144,6 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.status_text)
 
         layout.addStretch()
-
-        self.start_btn = QPushButton('启动')
-        self.start_btn.setObjectName('statusPillSuccess')
-        self.stop_btn = QPushButton('停止')
-        self.stop_btn.setObjectName('statusPill')
-        self.restart_btn = QPushButton('重启')
-        self.restart_btn.setObjectName('statusPill')
-        self.start_btn.clicked.connect(self._on_start)
-        self.stop_btn.clicked.connect(self._on_stop)
-        self.restart_btn.clicked.connect(self._on_restart)
-
-        pills = QWidget()
-        pill_lo = QHBoxLayout(pills)
-        pill_lo.setContentsMargins(0, 0, 0, 0)
-        pill_lo.setSpacing(6)
-        pill_lo.addWidget(self.start_btn)
-        pill_lo.addWidget(self.stop_btn)
-        pill_lo.addWidget(self.restart_btn)
-        layout.addWidget(pills)
         return bar
 
     def _setup_tray(self):
@@ -180,11 +161,6 @@ class MainWindow(QMainWindow):
         menu = QMenu()
         show_action = menu.addAction('显示窗口')
         show_action.triggered.connect(self.show)
-        menu.addSeparator()
-        start_action = menu.addAction('启动服务器')
-        start_action.triggered.connect(self._on_start)
-        stop_action = menu.addAction('停止服务器')
-        stop_action.triggered.connect(self._on_stop)
         menu.addSeparator()
         self.theme_action = menu.addAction('深色主题')
         self.theme_action.triggered.connect(self._toggle_theme)
@@ -208,19 +184,6 @@ class MainWindow(QMainWindow):
         if self._server:
             self._server.stop()
         QApplication.quit()
-
-    def _on_start(self):
-        if self._server:
-            self._server.start(self._app, self._config)
-
-    def _on_stop(self):
-        if self._server:
-            self._server.stop()
-
-    def _on_restart(self):
-        if self._server:
-            self._server.stop()
-            self._server.start(self._app, self._config)
 
     # ── Auto-update ──
 
@@ -334,10 +297,6 @@ class MainWindow(QMainWindow):
         if self._server and self._server.is_running:
             self.status_dot.setStyleSheet('background-color: #6B8F6B; border-radius: 4px;')
             self.status_text.setText(f'运行中 · 端口 {self._server.port}')
-            self.start_btn.setVisible(True)
-            self.stop_btn.setVisible(True)
-            self.start_btn.setEnabled(False)
-            self.stop_btn.setEnabled(True)
             self.sidebar.set_server_status(True, self._server.port)
         elif self._server:
             # Re-check port liveness — the initial startup check may have
@@ -349,10 +308,6 @@ class MainWindow(QMainWindow):
                     return
             self.status_dot.setStyleSheet('background-color: #C53A3A; border-radius: 4px;')
             self.status_text.setText('已停止')
-            self.start_btn.setVisible(True)
-            self.stop_btn.setVisible(True)
-            self.start_btn.setEnabled(True)
-            self.stop_btn.setEnabled(False)
             self.sidebar.set_server_status(False)
         else:
             self.status_dot.setStyleSheet('background-color: #B0A89F; border-radius: 4px;')
