@@ -54,12 +54,7 @@ Filename: "taskkill"; Parameters: "/F /IM {#MyUpdateServiceExe}"; Flags: runhidd
 ; 注册更新服务
 Filename: "{app}\{#MyUpdateServiceExe}"; Parameters: "--install"; Flags: runhidden
 ; 安装完成后启动
-Filename: "{app}\{#MyAppExeName}"; Description: "启动 {#MyAppName}"; Flags: postinstall nowait skipifsilent
-
-[UninstallRun]
-Filename: "taskkill"; Parameters: "/F /IM {#MyAppExeName}"; Flags: runhidden skipifdoesntexist
-Filename: "taskkill"; Parameters: "/F /IM {#MyUpdateServiceExe}"; Flags: runhidden skipifdoesntexist
-Filename: "{app}\{#MyUpdateServiceExe}"; Parameters: "--uninstall"; Flags: runhidden
+Filename: "{app}\{#MyAppExeName}"; WorkingDir: {app}; Description: "启动 {#MyAppName}"; Flags: postinstall nowait skipifsilent
 
 [Code]
 
@@ -75,8 +70,16 @@ begin
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ResultCode: Integer;
 begin
   if CurUninstallStep = usUninstall then
+  begin
+    Exec('taskkill', '/F /IM iOSPrintServer.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('taskkill', '/F /IM update_service.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec(ExpandConstant('{app}\update_service.exe'), '--uninstall', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  end;
+  if CurUninstallStep = usPostUninstall then
   begin
     if MsgBox('是否同时删除用户数据（配置文件、数据库、日志等）？', mbConfirmation, MB_YESNO) = mrYes then
     begin
