@@ -16,12 +16,19 @@ type request struct {
 	ZipPath string `json:"zip_path,omitempty"`
 	ExePath string `json:"exe_path,omitempty"`
 	AppDir  string `json:"app_dir,omitempty"`
+	Port    int    `json:"port,omitempty"`
 }
 
 type response struct {
 	Status  string `json:"status"`
 	Message string `json:"message,omitempty"`
 	Data    string `json:"data,omitempty"`
+}
+
+var watchdog *Watchdog
+
+func setWatchdog(w *Watchdog) {
+	watchdog = w
 }
 
 func servePipe(stopCh chan struct{}) {
@@ -77,6 +84,31 @@ func handleConn(conn net.Conn) {
 	case "CHECK":
 		go triggerCheck(req.AppDir)
 		writeJSON(conn, response{Status: "ok", Message: "check triggered"})
+	case "REGISTER":
+		if watchdog != nil {
+			watchdog.Register(req.Port)
+			writeJSON(conn, response{Status: "ok", Message: "registered"})
+		} else {
+			writeJSON(conn, response{Status: "error", Message: "watchdog not available"})
+		}
+	case "SHUTDOWN":
+		if watchdog != nil {
+			watchdog.Unregister()
+			writeJSON(conn, response{Status: "ok", Message: "unregistered"})
+		} else {
+			writeJSON(conn, response{Status: "error", Message: "watchdog not available"})
+		}
+	case "HEALTH":
+		if watchdog != nil {
+			alive := watchdog.BackendHealth()
+			msg := "alive"
+			if !alive {
+				msg = "dead"
+			}
+			writeJSON(conn, response{Status: "ok", Message: msg})
+		} else {
+			writeJSON(conn, response{Status: "error", Message: "watchdog not available"})
+		}
 	default:
 		writeJSON(conn, response{Status: "error", Message: "unknown cmd: " + req.Cmd})
 	}

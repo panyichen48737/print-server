@@ -47,6 +47,21 @@ def service_status() -> ServiceResponse | None:
     return _send_request({'cmd': 'STATUS'})
 
 
+def health() -> ServiceResponse | None:
+    """Check backend health via watchdog."""
+    return _send_request({'cmd': 'HEALTH'})
+
+
+def register(port: int) -> ServiceResponse | None:
+    """Register GUI with watchdog for crash recovery."""
+    return _send_request({'cmd': 'REGISTER', 'port': port})
+
+
+def shutdown() -> ServiceResponse | None:
+    """Notify watchdog that GUI is shutting down intentionally."""
+    return _send_request({'cmd': 'SHUTDOWN'})
+
+
 def pending_update() -> PendingUpdate | None:
     """Check if service has a pre-downloaded update ready to apply."""
     resp = _send_request({'cmd': 'PENDING_UPDATE'})

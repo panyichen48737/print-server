@@ -118,6 +118,9 @@ class MainWindow(QMainWindow):
         # Position notification stack bottom-right
         self._notifications.raise_()
 
+        # Register with watchdog for crash recovery
+        QTimer.singleShot(3000, self._register_watchdog)
+
         # Auto-update check (deferred to avoid delaying startup)
         auto_enabled = self._config.get('auto_update_check', True) if self._config else True
         if auto_enabled:
@@ -181,9 +184,19 @@ class MainWindow(QMainWindow):
             self.raise_()
 
     def _on_quit(self):
+        from gui.pipe_client import shutdown as wd_shutdown
+
+        wd_shutdown()
         if self._server:
             self._server.stop()
         QApplication.quit()
+
+    def _register_watchdog(self):
+        """Register with watchdog service for crash recovery."""
+        port = self._server.port if self._server else 5000
+        from gui.pipe_client import register as wd_register
+
+        wd_register(port)
 
     # ── Auto-update ──
 
@@ -294,18 +307,13 @@ class MainWindow(QMainWindow):
             self._config.save()
 
     def _refresh_status(self):
-        if self._server and self._server.is_running:
+        from gui.pipe_client import health as wd_health
+        h = wd_health()
+        if h is not None and h.message == 'alive':
             self.status_dot.setStyleSheet('background-color: #6B8F6B; border-radius: 4px;')
             self.status_text.setText(f'运行中 · 端口 {self._server.port}')
             self.sidebar.set_server_status(True, self._server.port)
         elif self._server:
-            # Re-check port liveness — the initial startup check may have
-            # timed out even though uvicorn eventually started
-            if hasattr(self._server, '_port') and self._server._port:
-                from launcher._server import _port_listening
-                if _port_listening('127.0.0.1', self._server._port):
-                    self._server._started.set()
-                    return
             self.status_dot.setStyleSheet('background-color: #C53A3A; border-radius: 4px;')
             self.status_text.setText('已停止')
             self.sidebar.set_server_status(False)
