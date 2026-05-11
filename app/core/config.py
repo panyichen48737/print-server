@@ -161,6 +161,8 @@ class Config(BaseSettings):
             with open(self._config_path, encoding='utf-8') as f:
                 file_data = json.load(f)
         except FileNotFoundError:
+            # 首次启动：生成默认配置文件
+            self.save()
             return
         except json.JSONDecodeError as e:
             self._errors.append(str(e))
@@ -191,6 +193,7 @@ class Config(BaseSettings):
                 object.__setattr__(self, key, val)
 
     def save(self) -> None:
+        self._config_path.parent.mkdir(parents=True, exist_ok=True)
         data = self.model_dump_json(indent=4, ensure_ascii=False)
         with open(self._config_path, 'w', encoding='utf-8') as f:
             f.write(data)
