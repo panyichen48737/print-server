@@ -1,5 +1,6 @@
 """FastAPI 应用工厂"""
 
+import sys
 import urllib.request
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -24,6 +25,15 @@ def _ensure_scalar_js(static_dir: Path) -> None:
     target = static_dir / _SCALAR_FILE
     if target.is_file():
         return
+    # Frozen mode: static files are at sys.executable.parent/app/static/
+    if getattr(sys, 'frozen', False):
+        alt = Path(sys.executable).parent / 'app' / 'static' / _SCALAR_FILE
+        if alt.is_file():
+            static_dir.mkdir(parents=True, exist_ok=True)
+            import shutil
+            shutil.copy2(alt, target)
+            logger.info(f'Scalar JS found at {alt} ({target.stat().st_size / 1024:.0f} KB)')
+            return
     try:
         logger.info('Downloading Scalar API Reference JS …')
         urllib.request.urlretrieve(_SCALAR_URL, target)

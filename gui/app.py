@@ -340,6 +340,13 @@ class MainWindow(QMainWindow):
             self.stop_btn.setEnabled(True)
             self.sidebar.set_server_status(True, self._server.port)
         elif self._server:
+            # Re-check port liveness — the initial startup check may have
+            # timed out even though uvicorn eventually started
+            if hasattr(self._server, '_port') and self._server._port:
+                from launcher._server import _port_listening
+                if _port_listening('127.0.0.1', self._server._port):
+                    self._server._started.set()
+                    return
             self.status_dot.setStyleSheet('background-color: #C53A3A; border-radius: 4px;')
             self.status_text.setText('已停止')
             self.start_btn.setVisible(True)

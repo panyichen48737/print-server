@@ -107,10 +107,11 @@ class ServerHandle:
         )
         self._thread.start()
 
-        # 通过端口连接检测服务器就绪
-        for _ in range(150):
+        # 通过端口连接检测服务器就绪（最长 30 秒）
+        for _ in range(300):
             if _port_listening('127.0.0.1', self._port):
                 self._started.set()
+                logger.info(f'服务器就绪（端口 {self._port}）')
                 break
             time.sleep(0.1)
 

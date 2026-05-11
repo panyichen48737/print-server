@@ -27,18 +27,18 @@ class SkeletonCard(QFrame):
         self._forward = True
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._pulse_step)
-        self._timer.start(30)
+        self._timer.start(50)
 
     def _pulse_step(self):
         if self._forward:
             self._pulse += 1
-            if self._pulse >= 20:
+            if self._pulse >= 10:
                 self._forward = False
         else:
             self._pulse -= 1
             if self._pulse <= 0:
                 self._forward = True
-        alpha = 180 + self._pulse * 3  # 180-240 range
+        alpha = 180 + self._pulse * 6  # 180-240 range
         self.setStyleSheet(f"""
             QFrame#statCard {{
                 background-color: rgba(200, 195, 185, {alpha});
