@@ -22,8 +22,6 @@ SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 DisableProgramGroupPage=yes
-CloseApplications=yes
-RestartApplications=no
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName}
 
@@ -64,6 +62,17 @@ Filename: "taskkill"; Parameters: "/F /IM {#MyUpdateServiceExe}"; Flags: runhidd
 Filename: "{app}\{#MyUpdateServiceExe}"; Parameters: "--uninstall"; Flags: runhidden
 
 [Code]
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+begin
+  if CurStep = ssInstall then
+  begin
+    Exec('taskkill', '/F /IM iOSPrintServer.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Exec('taskkill', '/F /IM update_service.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  end;
+end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
