@@ -69,7 +69,7 @@ def handle_file_upload(
 
     actual_job_id = queue_mgr.add_job(
         filename,
-        save_path,
+        str(save_path),
         len(file_bytes),
         ext,
         duplex=int(duplex) if duplex in ('0', '1') else None,

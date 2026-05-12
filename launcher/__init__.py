@@ -229,7 +229,7 @@ def _show_setup_wizard(config, printer_monitor) -> bool:
     """首次启动时显示配置向导，返回 True 表示用户完成了配置"""
     from PySide6.QtWidgets import QApplication
 
-    qapp = QApplication.instance() or QApplication([])
+    QApplication.instance() or QApplication([])
     from gui.components.setup_wizard import SetupWizard
 
     wizard = SetupWizard(config, printer_monitor=printer_monitor)

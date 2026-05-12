@@ -162,8 +162,8 @@ class JobExecutor:
         try:
             import win32print
 
-            DC_COLORDEVICE = 23
-            color_raw = win32print.DeviceCapabilities(printer, None, DC_COLORDEVICE, None)
+            dc_colordevice = 23
+            color_raw = win32print.DeviceCapabilities(printer, None, dc_colordevice, None)
             if color_raw and color_raw[0] == 0 and print_params['color']:
                 # 打印机不支持彩色，回退到黑白
                 print_params['color'] = False

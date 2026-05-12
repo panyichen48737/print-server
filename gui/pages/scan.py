@@ -175,7 +175,9 @@ class ScanPage(QWidget):
         cfg = self._mw._config
         self._copies_spin.setValue(cfg.get('default_copies', 1) if cfg else 1)
         self._copies_spin.setToolTip('设置打印份数，最大不超过打印机支持上限')
-        self._duplex_cb = LabeledToggle('双面', checked=cfg.get('default_duplex', False) if cfg else False)
+        self._duplex_cb = LabeledToggle(
+            '双面', checked=cfg.get('default_duplex', False) if cfg else False
+        )
         self._duplex_cb.setToolTip('开启后打印机将双面打印（需打印机支持）')
         self._color_combo = QComboBox()
         self._color_combo.addItems(['彩色', '黑白'])
@@ -612,7 +614,9 @@ class ScanPage(QWidget):
             printer = params.get('printer', '') if params else self._printer_combo.currentText()
             copies = params.get('copies', 1) if params else self._copies_spin.value()
             duplex = params.get('duplex', True) if params else self._duplex_cb.isChecked()
-            color = params.get('color', True) if params else self._color_combo.currentText() == '彩色'
+            color = (
+                params.get('color', True) if params else self._color_combo.currentText() == '彩色'
+            )
             paper_size = (
                 params.get('paper_size', 'A4') if params else self._paper_combo.currentText()
             )

@@ -61,9 +61,7 @@ class SetupWizard(QDialog):
             lbl.setObjectName('navItem')
             lbl.setCursor(Qt.CursorShape.PointingHandCursor)
             lbl.mousePressEvent = lambda _, idx=i: self._go_to(idx)
-            lbl.setStyleSheet(
-                'padding: 8px 12px; border-radius: 6px; font-size: 13px;'
-            )
+            lbl.setStyleSheet('padding: 8px 12px; border-radius: 6px; font-size: 13px;')
             self._step_labels.append(lbl)
             step_layout.addWidget(lbl)
 
@@ -156,7 +154,10 @@ class SetupWizard(QDialog):
     def _build_api_key(self):
         lo = self._page()
         self._heading(lo, 'API Key')
-        self._desc(lo, 'API Key 用于客户端认证，请设置一个安全的密钥。iOS Scriptable 端需要配置相同的 Key 才能连接。')
+        self._desc(
+            lo,
+            'API Key 用于客户端认证，请设置一个安全的密钥。iOS Scriptable 端需要配置相同的 Key 才能连接。',
+        )
 
         self.api_key_input = QLineEdit()
         self.api_key_input.setPlaceholderText('输入或生成 API Key')
@@ -197,7 +198,9 @@ class SetupWizard(QDialog):
     def _build_quark(self):
         lo = self._page()
         self._heading(lo, '夸克扫描 API（可选）')
-        self._desc(lo, '配置夸克扫描 API 后可使用文档扫描和图片文字识别功能。如不需要可跳过此步骤。')
+        self._desc(
+            lo, '配置夸克扫描 API 后可使用文档扫描和图片文字识别功能。如不需要可跳过此步骤。'
+        )
 
         lo.addSpacing(8)
         form_row1 = QHBoxLayout()
@@ -255,14 +258,18 @@ class SetupWizard(QDialog):
         copies_row.addStretch()
         lo.addLayout(copies_row)
 
-        self.duplex_toggle = LabeledToggle('双面打印', checked=self._config.get('default_duplex', False))
+        self.duplex_toggle = LabeledToggle(
+            '双面打印', checked=self._config.get('default_duplex', False)
+        )
         lo.addWidget(self.duplex_toggle)
         color_row = QHBoxLayout()
         color_row.setSpacing(8)
         color_row.addWidget(QLabel('默认颜色:'))
         self.color_combo = QComboBox()
         self.color_combo.addItems(['彩色', '黑白'])
-        self.color_combo.setCurrentText('彩色' if self._config.get('default_color', True) else '黑白')
+        self.color_combo.setCurrentText(
+            '彩色' if self._config.get('default_color', True) else '黑白'
+        )
         color_row.addWidget(self.color_combo)
         color_row.addStretch()
         lo.addLayout(color_row)
@@ -363,6 +370,7 @@ class SetupWizard(QDialog):
 
     def clipboard(self):
         from PySide6.QtGui import QGuiApplication
+
         return QGuiApplication.clipboard()
 
     # ── Navigation ──

@@ -19,6 +19,8 @@ certifi==2026.4.22
     # via
     #   httpcore
     #   httpx
+cfgv==3.5.0
+    # via pre-commit
 click==8.3.3
     # via uvicorn
 colorama==0.4.6
@@ -29,8 +31,16 @@ colorama==0.4.6
     #   uvicorn
 coverage==7.13.5
     # via pytest-cov
+distlib==0.4.0
+    # via virtualenv
+execnet==2.1.2
+    # via pytest-xdist
 fastapi==0.136.1
     # via ios-print-server (pyproject.toml)
+filelock==3.29.0
+    # via
+    #   python-discovery
+    #   virtualenv
 h11==0.16.0
     # via
     #   httpcore
@@ -45,6 +55,8 @@ httpx==0.28.1
     #   ios-print-server (pyproject.toml:dev)
 hypothesis==6.152.4
     # via ios-print-server (pyproject.toml:dev)
+identify==2.6.19
+    # via pre-commit
 idna==3.13
     # via
     #   anyio
@@ -61,6 +73,8 @@ mypy==2.0.0
     # via ios-print-server (pyproject.toml:dev)
 mypy-extensions==1.1.0
     # via mypy
+nodeenv==1.10.0
+    # via pre-commit
 packaging==26.2
     # via
     #   pyinstaller
@@ -72,10 +86,16 @@ pefile==2024.8.26
     # via pyinstaller
 pillow==12.2.0
     # via ios-print-server (pyproject.toml)
+platformdirs==4.9.6
+    # via
+    #   python-discovery
+    #   virtualenv
 pluggy==1.6.0
     # via
     #   pytest
     #   pytest-cov
+pre-commit==4.6.0
+    # via ios-print-server (pyproject.toml:dev)
 pydantic==2.13.4
     # via
     #   ios-print-server (pyproject.toml)
@@ -104,10 +124,15 @@ pytest==9.0.3
     #   ios-print-server (pyproject.toml:dev)
     #   pytest-asyncio
     #   pytest-cov
+    #   pytest-xdist
 pytest-asyncio==1.3.0
     # via ios-print-server (pyproject.toml:dev)
 pytest-cov==7.1.0
     # via ios-print-server (pyproject.toml:dev)
+pytest-xdist==3.8.0
+    # via ios-print-server (pyproject.toml:dev)
+python-discovery==1.3.0
+    # via virtualenv
 python-dotenv==1.2.2
     # via
     #   pydantic-settings
@@ -119,7 +144,9 @@ pywin32==311
 pywin32-ctypes==0.2.3
     # via pyinstaller
 pyyaml==6.0.3
-    # via uvicorn
+    # via
+    #   pre-commit
+    #   uvicorn
 ruff==0.15.12
     # via ios-print-server (pyproject.toml:dev)
 setuptools==82.0.1
@@ -152,6 +179,8 @@ typing-inspection==0.4.2
     #   pydantic-settings
 uvicorn==0.46.0
     # via ios-print-server (pyproject.toml)
+virtualenv==21.3.2
+    # via pre-commit
 watchfiles==1.1.1
     # via
     #   ios-print-server (pyproject.toml)

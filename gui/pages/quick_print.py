@@ -156,7 +156,9 @@ class QuickPrintPage(QWidget):
         self.copies_spin.setRange(1, 99)
         cfg = self._mw._config
         self.copies_spin.setValue(cfg.get('default_copies', 1) if cfg else 1)
-        self.duplex_cb = LabeledToggle('双面', checked=cfg.get('default_duplex', False) if cfg else False)
+        self.duplex_cb = LabeledToggle(
+            '双面', checked=cfg.get('default_duplex', False) if cfg else False
+        )
         self.color_combo = QComboBox()
         self.color_combo.addItems(['彩色', '黑白'])
         default_color = cfg.get('default_color', True) if cfg else True
@@ -255,7 +257,9 @@ class QuickPrintPage(QWidget):
         if caps.supports_color:
             self.color_combo.addItems(['彩色', '黑白'])
             # 优先使用默认配置值
-            default_color = self._mw._config.get('default_color', True) if self._mw._config else True
+            default_color = (
+                self._mw._config.get('default_color', True) if self._mw._config else True
+            )
             self.color_combo.setCurrentText('彩色' if default_color else '黑白')
         else:
             self.color_combo.addItems(['黑白'])

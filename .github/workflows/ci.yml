@@ -15,6 +15,12 @@ on:
       - 'launcher/**'
       - '*.md'
       - '.gitignore'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '构建版本号（如 v3.9.0）'
+        required: true
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -29,18 +35,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
       - uses: actions/setup-python@v6
         with:
           python-version: '3.14.4'
-      - uses: astral-sh/setup-uv@v8.1.0
-      - name: Install dependencies
-        run: uv pip install --system ruff mypy
-      - name: ruff check
-        run: ruff check --output-format=github .
-      - name: ruff format
-        run: ruff format --check .
-      - name: mypy
-        run: mypy app/
+      - name: Check if Python files changed
+        id: pycheck
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CHANGED=$(git diff --name-only HEAD~1 -- '*.py' '*.pyi' '.pre-commit-config.yaml' 'pyproject.toml' 'requirements*.txt')
+          else
+            CHANGED=$(git diff --name-only HEAD~1 -- '*.py' '*.pyi' '.pre-commit-config.yaml' 'pyproject.toml' 'requirements*.txt' 2>/dev/null || echo "unknown")
+          fi
+          if [ -z "$CHANGED" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "No Python files changed, skipping lint"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Cache pre-commit environments
+        if: steps.pycheck.outputs.skip != 'true'
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pre-commit
+          key: precommit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+      - uses: pre-commit/action@v3.0.1
+        if: steps.pycheck.outputs.skip != 'true'
 
   test:
     runs-on: windows-latest
@@ -50,19 +72,16 @@ jobs:
         with:
           python-version: '3.14.4'
       - uses: astral-sh/setup-uv@v8.1.0
-      - name: Cache Python packages
-        id: cache-pip
-        uses: actions/cache@v5
         with:
-          path: ${{ env.pythonLocation }}
-          key: uv-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('requirements-dev.txt') }}
+          enable-cache: true
+          cache-suffix: test
       - name: Install dependencies
-        if: steps.cache-pip.outputs.cache-hit != 'true'
         run: |
           uv pip install --system -r requirements-dev.txt
           uv pip install --system -e . --no-deps
+          uv pip install --system pytest-xdist
       - name: Run tests with coverage
-        run: pytest tests/ -v --tb=short -m "not integration" --cov=app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=65
+        run: pytest tests/ -n auto --durations=10 --tb=short -m "not integration" --cov=app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=70
         env:
           PYTHONIOENCODING: utf-8
           PYTHONUTF8: '1'
@@ -75,7 +94,7 @@ jobs:
 
   build:
     needs: test
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != '')
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
@@ -85,14 +104,10 @@ jobs:
         with:
           python-version: '3.14.4'
       - uses: astral-sh/setup-uv@v8.1.0
-      - name: Restore Python packages cache
-        id: cache-pip
-        uses: actions/cache@v5
         with:
-          path: ${{ env.pythonLocation }}
-          key: uv-${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('requirements-dev.txt') }}
+          enable-cache: true
+          cache-suffix: build
       - name: Install dependencies
-        if: steps.cache-pip.outputs.cache-hit != 'true'
         run: |
           uv pip install --system -r requirements-dev.txt
           uv pip install --system -e . --no-deps
@@ -115,26 +130,13 @@ jobs:
       - name: Build with PyInstaller
         run: python scripts/build.py --release
         env:
-          RELEASE_VERSION: ${{ github.ref_name }}
+          RELEASE_VERSION: ${{ github.ref_name || inputs.version }}
       - uses: actions/setup-go@v6
         with:
           go-version-file: service/go.mod
+          cache: true
       - name: Build update service
         run: python scripts/build_service.py
-      - name: Build incremental update zip
-        shell: pwsh
-        run: |
-          python -c "
-          import zipfile, pathlib, os
-          dist = pathlib.Path('dist/iOSPrintServer')
-          ver = '${{ github.ref_name }}'.lstrip('v')
-          skip = {'__pycache__'}
-          with zipfile.ZipFile(f'dist/update-{ver}.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
-              for f in dist.rglob('*'):
-                  if not f.is_file(): continue
-                  if any(p in f.parts for p in skip): continue
-                  zf.write(f, f.relative_to(dist))
-          "
       - name: Generate update zip SHA256
         shell: pwsh
         run: |
@@ -154,37 +156,11 @@ jobs:
         run: |
           $installer = Get-ChildItem dist\iOSPrintServer-Setup-*.exe | Select-Object -First 1
           (certutil -hashfile $installer.FullName SHA256 | Select-String -NotMatch "SHA256|CertUtil" | ForEach-Object { $_.Line.Trim() }) | Out-File -Encoding utf8 dist\iOSPrintServer-Setup.sha256
-      - name: Generate build manifest
-        shell: pwsh
-        run: |
-          $info = @{
-            app_version       = "${{ github.ref_name }}"
-            build_date        = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
-            commit_sha        = "${{ github.sha }}"
-            github = @{
-              run_id      = "${{ github.run_id }}"
-              repo        = "${{ github.repository }}"
-              server_url  = "${{ github.server_url }}"
-            }
-            runner_os         = "${{ runner.os }}"
-            python_version    = (python --version 2>&1).ToString().Trim()
-            uv_version        = (uv --version 2>&1).ToString().Trim()
-            pyinstaller_ver   = (python -c "from importlib.metadata import version; print(version('pyinstaller'))" 2>&1).ToString().Trim()
-            pip_packages      = (uv pip list --format=json 2>$null | ConvertFrom-Json | ForEach-Object { "$($_.name)==$($_.version)" }) -join "; "
-            scalar_js_size_kb = [math]::Round((Get-Item "app/static/scalar.standalone.min.js" -ErrorAction SilentlyContinue).Length / 1024, 0)
-            actions_checkout  = "v6"
-            actions_setup_python = "v6"
-            astral_setup_uv   = "v8"
-            actions_cache     = "v5"
-            actions_upload_artifact = "v7"
-            actions_download_artifact = "v8"
-            softprops_gh_release = "v3"
-          }
-          $info | ConvertTo-Json | Out-File -Encoding utf8 dist/version_info.json
       - name: Archive build artifacts
         uses: actions/upload-artifact@v7
         with:
           name: iOSPrintServer-Setup-${{ github.ref_name }}
+          retention-days: 7
           path: |
             dist/iOSPrintServer-Setup-*.exe
             dist/iOSPrintServer-Setup.sha256
@@ -194,6 +170,7 @@ jobs:
 
   release:
     needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write

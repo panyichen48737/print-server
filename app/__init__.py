@@ -7,7 +7,6 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from loguru import logger
 
 from app.core._paths import ensure_dir, persistent_dir
 from app.core.exceptions import AuthError, FileTypeError, PrintServerError
