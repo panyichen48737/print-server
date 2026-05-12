@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor
@@ -224,11 +227,7 @@ class LogsPage(QWidget):
             source = m.group(2)
         item.setForeground(_source_color(source, dark))
         # Bold for ERROR/WARNING
-        if '[ERROR]' in text:
-            font = item.font()
-            font.setBold(True)
-            item.setFont(font)
-        elif '[WARNING]' in text:
+        if '[ERROR]' in text or '[WARNING]' in text:
             font = item.font()
             font.setBold(True)
             item.setFont(font)

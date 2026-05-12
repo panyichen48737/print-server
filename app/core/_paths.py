@@ -65,7 +65,7 @@ def log_dir() -> Path:
     dev 模式：persistent_dir()/logs/
     """
     if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
-        program_data = os.environ.get('ProgramData', 'C:\\ProgramData')
+        program_data = os.environ.get('PROGRAMDATA', 'C:\\ProgramData')
         return Path(program_data) / 'iOSPrintServer' / 'logs'
     return persistent_dir() / 'logs'
 
