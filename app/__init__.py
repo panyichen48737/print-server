@@ -31,6 +31,7 @@ def _ensure_scalar_js(static_dir: Path) -> None:
         if alt.is_file():
             static_dir.mkdir(parents=True, exist_ok=True)
             import shutil
+
             shutil.copy2(alt, target)
             logger.info(f'Scalar JS found at {alt} ({target.stat().st_size / 1024:.0f} KB)')
             return

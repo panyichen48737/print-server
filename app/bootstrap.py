@@ -42,7 +42,9 @@ def bootstrap(config: Config, lifespan=None):
     from app.services.log_broadcaster import LogBroadcaster
 
     broadcaster = app.state.sse
-    logger.add(LogBroadcaster(broadcaster), format='[{extra[source]}] [{level}] {message}', level='INFO')
+    logger.add(
+        LogBroadcaster(broadcaster), format='[{extra[source]}] [{level}] {message}', level='INFO'
+    )
 
     # COM 互斥锁 — 确保 Office COM 组件串行访问
     word_lock = threading.Lock()

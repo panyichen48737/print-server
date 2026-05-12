@@ -37,6 +37,7 @@ def _setup_exception_hooks() -> None:
     def _show_dialog(title, msg, detail=''):
         try:
             from PySide6.QtWidgets import QMessageBox
+
             box = QMessageBox()
             box.setIcon(QMessageBox.Icon.Critical)
             box.setWindowTitle(title)
@@ -75,6 +76,7 @@ def _setup_exception_hooks() -> None:
         qInstallMessageHandler(_qt_msg_handler)
     except Exception:
         pass
+
 
 # ── PID 文件管理 ──
 
@@ -208,6 +210,7 @@ def _gui_main() -> int:
 
     # Rebind logger to GUI source for GUI-process logging
     import sys as _sys
+
     _sys.modules[__name__].logger = logger.bind(source='GUI')
 
     server_handle = ServerHandle()

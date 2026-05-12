@@ -165,11 +165,21 @@ class LogsPage(QWidget):
         # Fallback: try timestamp + level without [source]
         m2 = re.match(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s+(.*)', line)
         if m2:
-            return {'timestamp': m2.group(1), 'level': m2.group(2).upper(), 'source': default_source, 'message': m2.group(3)}
+            return {
+                'timestamp': m2.group(1),
+                'level': m2.group(2).upper(),
+                'source': default_source,
+                'message': m2.group(3),
+            }
         # Go service plain log lines
         m3 = re.match(r'^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})\s+(.*)', line)
         if m3:
-            return {'timestamp': m3.group(1).replace('/', '-'), 'level': 'INFO', 'source': default_source, 'message': m3.group(2)}
+            return {
+                'timestamp': m3.group(1).replace('/', '-'),
+                'level': 'INFO',
+                'source': default_source,
+                'message': m3.group(2),
+            }
         return {'timestamp': '', 'level': 'INFO', 'source': default_source, 'message': line}
 
     def _load_history(self):

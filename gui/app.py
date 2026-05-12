@@ -307,6 +307,7 @@ class MainWindow(QMainWindow):
 
     def _refresh_status(self):
         from gui.pipe_client import health as wd_health
+
         h = wd_health()
         if h is not None and h.message == 'alive':
             self.status_dot.setStyleSheet('background-color: #6B8F6B; border-radius: 4px;')
