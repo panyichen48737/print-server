@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.core._paths import config_dir, persistent_dir
+from app.core._paths import config_dir
 from app.core.version import (
     __build_date__,
     __pyinstaller_version__,
@@ -227,6 +227,7 @@ class AboutPage(QWidget):
 
     def _open_log_folder(self):
         from app.core._paths import log_dir
+
         ld = log_dir()
         if ld.exists():
             subprocess.Popen(['explorer', str(ld)], shell=True)
