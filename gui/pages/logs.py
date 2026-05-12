@@ -151,8 +151,7 @@ class LogsPage(QWidget):
         """Return list of (path, source_label) for all log files."""
         ld = log_dir()
         return [
-            (ld / 'print_server.log', 'Server'),
-            (ld / 'gui.log', 'GUI'),
+            (ld / 'app.log', 'Server'),
             (ld / 'update_service.log', 'Update'),
             (ld / 'watchdog.log', 'Watchdog'),
         ]

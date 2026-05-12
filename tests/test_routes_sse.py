@@ -149,9 +149,9 @@ class TestLogsEndpoint:
         """Per-test: isolate log file in temp directory."""
         log_dir = tmp_path / 'logs'
         log_dir.mkdir(parents=True, exist_ok=True)
-        self._tmp_log = log_dir / 'print_server.log'
-        monkeypatch.setattr('app.core._paths.persistent_dir', lambda: tmp_path)
-        monkeypatch.setattr('app.routes.system.persistent_dir', lambda: tmp_path)
+        self._tmp_log = log_dir / 'app.log'
+        monkeypatch.setattr('app.core._paths.log_dir', lambda: log_dir)
+        monkeypatch.setattr('app.routes.system.log_dir', lambda: log_dir)
 
     def _ensure_log(self, lines):
         with open(self._tmp_log, 'w', encoding='utf-8') as f:

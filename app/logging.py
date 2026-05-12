@@ -1,18 +1,16 @@
-"""日志配置 — loguru 文件 + stderr
+"""日志配置 — loguru 单文件（含来源标记，GUI 查看器按来源过滤）
 
-三文件分流：
-  print_server.log  — 后端日志（[Server] 前缀）
-  gui.log           — 前端日志（[GUI] 前缀）
-  update_service.log — Go 守护服务日志（外部程序写入，不做处理）
-
-GUI 日志查看器合并读取所有文件。"""
+单一文件：
+  app.log  — 所有日志（[Server]/[GUI] 前缀区分来源）
+  watchdog.log — Go 看守服务（外部程序写入）
+  update_service.log — Go 更新服务（外部程序写入）"""
 
 import sys
 from pathlib import Path
 
 
 def setup_logging(log_dir_path: str | Path | None = None, level: str = 'INFO'):
-    """配置 loguru 日志：后端/前端分流"""
+    """配置 loguru 日志：单文件，来源标记"""
     import loguru
 
     from app.core._paths import log_dir
@@ -27,20 +25,8 @@ def setup_logging(log_dir_path: str | Path | None = None, level: str = 'INFO'):
 
     _fmt = '{time:YYYY-MM-DD HH:mm:ss} [{level}] [{extra[source]}] {message}'
 
-    # 后端日志
     loguru.logger.add(
-        log_dir_path / 'print_server.log',
-        rotation='00:00',
-        retention=7,
-        encoding='utf-8',
-        format=_fmt,
-        level=level,
-        filter=lambda record: record.get('extra', {}).get('source') != 'GUI',
-    )
-
-    # 前端日志（也包含后端日志副本，方便 GUI 查看器合并展示）
-    loguru.logger.add(
-        log_dir_path / 'gui.log',
+        log_dir_path / 'app.log',
         rotation='00:00',
         retention=7,
         encoding='utf-8',

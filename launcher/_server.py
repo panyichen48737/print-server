@@ -150,12 +150,22 @@ class ServerHandle:
     def _run_uvicorn(self, cert_file: str | None, key_file: str | None) -> None:
         import uvicorn
 
+        # uvicorn 默认日志配置在 sys.stderr=None 时崩溃（PyInstaller）
+        # 我们已用 loguru 接管日志，完全禁用 uvicorn 的日志配置
+        log_config = {
+            'version': 1,
+            'disable_existing_loggers': True,
+            'handlers': {},
+            'loggers': {},
+        }
+
         uvicorn_config = uvicorn.Config(
             self._app,
             host='0.0.0.0',
             port=self._port,
             log_level='info',
             access_log=False,
+            log_config=log_config,
         )
         uvicorn_config.timeout_graceful_shutdown = 5
         if cert_file and key_file and self._config.get('ssl_enabled', False):

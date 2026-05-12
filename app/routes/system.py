@@ -9,7 +9,7 @@ import msgspec
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
-from app.core._paths import persistent_dir
+from app.core._paths import log_dir, persistent_dir
 from app.core.version import __build_date__, __pyinstaller_version__, __version__
 
 system_router = APIRouter()
@@ -43,7 +43,7 @@ async def api_version():
 
 @system_router.get('/logs')
 async def api_logs(_request: Request, lines: int = 50):
-    log_file = Path(persistent_dir()) / 'logs' / 'print_server.log'
+    log_file = log_dir() / 'app.log'
     try:
         with open(log_file, encoding='utf-8') as f:
             last_lines = deque(f, maxlen=lines)
