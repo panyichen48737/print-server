@@ -1,7 +1,6 @@
 """FastAPI 应用工厂"""
 
 import sys
-import urllib.request
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -14,33 +13,14 @@ from app.core._paths import ensure_dir, persistent_dir
 from app.core.exceptions import AuthError, FileTypeError, PrintServerError
 from app.core.version import __version__
 
-_SCALAR_URL = (
-    'https://cdn.jsdelivr.net/npm/@scalar/api-reference@latest/dist/browser/standalone.min.js'
-)
 _SCALAR_FILE = 'scalar.standalone.min.js'
 
 
-def _ensure_scalar_js(static_dir: Path) -> None:
-    """Download Scalar API Reference JS if not present."""
-    target = static_dir / _SCALAR_FILE
-    if target.is_file():
-        return
-    # Frozen mode: static files are at sys.executable.parent/app/static/
+def _static_dir() -> Path:
+    """返回 static 文件目录。frozen 模式下静态文件在 exe 同级 app/static/。"""
     if getattr(sys, 'frozen', False):
-        alt = Path(sys.executable).parent / 'app' / 'static' / _SCALAR_FILE
-        if alt.is_file():
-            static_dir.mkdir(parents=True, exist_ok=True)
-            import shutil
-
-            shutil.copy2(alt, target)
-            logger.info(f'Scalar JS found at {alt} ({target.stat().st_size / 1024:.0f} KB)')
-            return
-    try:
-        logger.info('Downloading Scalar API Reference JS …')
-        urllib.request.urlretrieve(_SCALAR_URL, target)
-        logger.info(f'Scalar JS saved ({target.stat().st_size / 1024:.0f} KB)')
-    except Exception as exc:
-        logger.warning(f'Failed to download Scalar JS: {exc}')
+        return Path(sys.executable).parent / 'app' / 'static'
+    return Path(__file__).resolve().parent / 'static'
 
 
 @asynccontextmanager
@@ -73,9 +53,8 @@ def create_app(lifespan=_default_lifespan) -> FastAPI:
     async def _print_server_handler(_request, exc):
         return JSONResponse(status_code=500, content={'error': str(exc)})
 
-    static_dir = Path(__file__).resolve().parent / 'static'
+    static_dir = _static_dir()
     static_dir.mkdir(parents=True, exist_ok=True)
-    _ensure_scalar_js(static_dir)
     app.mount('/static', StaticFiles(directory=str(static_dir)), name='static')
 
     @app.get('/scalar', include_in_schema=False)

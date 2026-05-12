@@ -315,7 +315,7 @@ def build(version: str):
             shutil.copytree(str(gui_res_src), str(gui_res_dst), dirs_exist_ok=True)
             print(f'[build] GUI 资源已复制到 {gui_res_dst}')
 
-        # 复制 app/static/（Scalar JS，运行时动态下载，目录不存在则跳过）
+        # 复制 app/static/（Scalar JS，供 frozen 模式使用，目录不存在则跳过）
         static_src = PROJECT_ROOT / 'app' / 'static'
         if static_src.is_dir():
             static_dst = dist_dir / 'app' / 'static'
