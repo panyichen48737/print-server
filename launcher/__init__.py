@@ -36,15 +36,19 @@ def _setup_exception_hooks() -> None:
 
     def _show_dialog(title, msg, detail=''):
         try:
-            from PySide6.QtWidgets import QMessageBox
+            from PySide6.QtWidgets import QApplication, QMessageBox
 
-            box = QMessageBox()
-            box.setIcon(QMessageBox.Icon.Critical)
-            box.setWindowTitle(title)
-            box.setText(msg)
-            if detail:
-                box.setDetailedText(detail)
-            box.exec()
+            if QApplication.instance() is not None:
+                box = QMessageBox()
+                box.setIcon(QMessageBox.Icon.Critical)
+                box.setWindowTitle(title)
+                box.setText(msg)
+                if detail:
+                    box.setDetailedText(detail)
+                box.exec()
+            else:
+                # QApplication 尚未创建，用原生 MessageBoxW 兜底
+                ctypes.windll.user32.MessageBoxW(None, f'{msg}\n\n{detail}' if detail else msg, title, 0x10)
         except Exception:
             pass
 
