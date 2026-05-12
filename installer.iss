@@ -2,7 +2,7 @@
 ; 使用 Inno Setup 6.x + VCL Style 皮肤
 
 #define MyAppName "iOSPrintServer"
-#define MyAppVersion "2.6.5"
+#define MyAppVersion "2.7.0"
 #define MyAppExeName "iOSPrintServer.exe"
 #define MyUpdateServiceExe "update_service.exe"
 #define MyAppPublisher "TechFlow Solutions Inc."
