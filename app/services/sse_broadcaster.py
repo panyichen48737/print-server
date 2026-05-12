@@ -6,6 +6,7 @@ SSEBroadcaster: subscribe/unsubscribe/publish    — SSE/WS 远程推送
 """
 
 import queue
+import re
 import threading
 import time
 import uuid
@@ -15,6 +16,7 @@ from typing import Any
 from loguru import logger
 
 _STALE_LIMIT = 3
+_LOG_PATTERN = re.compile(r'^\[([^\]]+)\]\s+\[([^\]]+)\]\s+(.*)')
 
 
 class EventBus:
@@ -145,18 +147,26 @@ def init_app(app: Any, maxsize: int = 100) -> SSEBroadcaster:
 
 
 class LogBroadcaster:
-    """loguru sink — 将日志推送到 SSE"""
+    """loguru sink — 将日志推送到 SSE，消息格式需包含 [{extra[source]}] [{level}] 前缀"""
 
     def __init__(self, broadcaster=None):
         self._broadcaster = broadcaster
 
     def write(self, message):
         if message.strip() and self._broadcaster:
+            msg = message.strip()
+            source = 'Server'
+            level = 'INFO'
+            m = _LOG_PATTERN.match(msg)
+            if m:
+                source = m.group(1)
+                level = m.group(2)
+                msg = m.group(3)
             self._broadcaster.publish(
                 'log',
                 {
-                    'message': message.strip(),
-                    'level': 'INFO',
-                    'name': 'print_server',
+                    'message': msg,
+                    'level': level,
+                    'source': source,
                 },
             )

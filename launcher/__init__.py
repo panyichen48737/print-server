@@ -24,6 +24,58 @@ from app.logging import setup_logging
 
 from ._server import ServerHandle
 
+
+def _setup_exception_hooks() -> None:
+    """全局异常钩子：未捕获异常写入日志 + 弹窗提示"""
+    import traceback
+
+    def _write_log(exc_type, exc_value, exc_tb):
+        tb_str = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))
+        logger.error(f'未捕获异常:\n{tb_str}')
+        return tb_str
+
+    def _show_dialog(title, msg, detail=''):
+        try:
+            from PySide6.QtWidgets import QMessageBox
+            box = QMessageBox()
+            box.setIcon(QMessageBox.Icon.Critical)
+            box.setWindowTitle(title)
+            box.setText(msg)
+            if detail:
+                box.setDetailedText(detail)
+            box.exec()
+        except Exception:
+            pass
+
+    def _excepthook(exc_type, exc_value, exc_tb):
+        tb_str = _write_log(exc_type, exc_value, exc_tb)
+        _show_dialog('程序错误', f'{exc_type.__name__}: {exc_value}', tb_str)
+
+    sys.excepthook = _excepthook
+
+    # 线程异常（后端 daemon 线程崩溃时捕获）
+    def _thread_excepthook(args):
+        tb_str = _write_log(args.exc_type, args.exc_value, args.exc_traceback)
+        _show_dialog('线程错误', f'{args.exc_type.__name__}: {args.exc_value}', tb_str)
+
+    threading.excepthook = _thread_excepthook
+
+    try:
+        from PySide6.QtCore import QtMsgType, qInstallMessageHandler
+
+        def _qt_msg_handler(msg_type, context, message):
+            if msg_type == QtMsgType.QtFatalMsg:
+                logger.error(f'Qt Fatal: {message}')
+                _excepthook(RuntimeError, RuntimeError(f'Qt: {message}'), None)
+            elif msg_type >= QtMsgType.QtCriticalMsg:
+                logger.error(f'Qt Critical: {message}')
+            elif msg_type >= QtMsgType.QtWarningMsg:
+                logger.warning(f'Qt Warning: {message}')
+
+        qInstallMessageHandler(_qt_msg_handler)
+    except Exception:
+        pass
+
 # ── PID 文件管理 ──
 
 _PID_PATH: Path | None = None
@@ -153,6 +205,11 @@ def _gui_main() -> int:
     from gui.app import run_gui
 
     app, config, _, printer_monitor, _ = _bootstrap_server()
+
+    # Rebind logger to GUI source for GUI-process logging
+    import sys as _sys
+    _sys.modules[__name__].logger = logger.bind(source='GUI')
+
     server_handle = ServerHandle()
 
     # 后台启动服务器
@@ -173,6 +230,7 @@ def _gui_main() -> int:
 
 def main() -> int | None:
     """入口 — 直接启动 PySide6 GUI（pyproject.toml scripts 指向此函数）"""
+    _setup_exception_hooks()
     # 隐藏控制台窗口（Windows GUI 模式）
     with contextlib.suppress(Exception):
         ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)

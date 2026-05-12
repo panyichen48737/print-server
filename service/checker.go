@@ -39,7 +39,7 @@ var (
 )
 
 func startUpdateChecker(stopCh chan struct{}, appDir string) {
-	updateDir = filepath.Join(appDir, "update_cache")
+	updateDir = filepath.Join(dataDir(), "update_cache")
 	os.MkdirAll(updateDir, 0755)
 
 	// Resume pending update if previously downloaded
@@ -74,7 +74,7 @@ func triggerCheck(appDir string) {
 }
 
 func resumePending(appDir string) {
-	cacheDir := filepath.Join(appDir, "update_cache")
+	cacheDir := filepath.Join(dataDir(), "update_cache")
 	entries, err := os.ReadDir(cacheDir)
 	if err != nil {
 		return

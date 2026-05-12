@@ -338,3 +338,7 @@ class JobRepository:
             fut.result(timeout=5)
         with contextlib.suppress(Exception):
             self._loop.call_soon_threadsafe(self._loop.stop)
+        with contextlib.suppress(Exception):
+            self._thread.join(timeout=5)
+        with contextlib.suppress(Exception):
+            self._loop.close()

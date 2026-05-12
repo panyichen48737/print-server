@@ -384,6 +384,29 @@ class MainWindow(QMainWindow):
         current = self.stack.currentWidget()
         if hasattr(current, 'on_printer_status'):
             current.on_printer_status(data)
+        overall = data.get('overall', '')
+        name = data.get('name', '未知')
+        if overall == 'error':
+            self.tray.showMessage(
+                '打印机错误',
+                f'{name} 异常，请检查打印机状态',
+                QSystemTrayIcon.MessageIcon.Critical,
+                5000,
+            )
+        elif overall == 'offline':
+            self.tray.showMessage(
+                '打印机离线',
+                f'{name} 已断开连接',
+                QSystemTrayIcon.MessageIcon.Critical,
+                5000,
+            )
+        elif overall == 'warning':
+            self.tray.showMessage(
+                '打印机警告',
+                f'{name} 状态异常',
+                QSystemTrayIcon.MessageIcon.Information,
+                3000,
+            )
 
     def _on_health_status(self, data: dict):
         queue_size = data.get('queue_size', 0)

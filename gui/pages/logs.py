@@ -1,7 +1,8 @@
-"""Real-time log viewer with level filter and pause."""
+"""Real-time log viewer with level filter, source filter, and pause."""
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
@@ -20,23 +21,29 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.core._paths import persistent_dir
+from app.core._paths import log_dir
+
+_LOG_PATTERN = re.compile(
+    r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s+\[([^\]]+)\]\s+(.*)'
+)
+
+_SOURCE_COLORS_LIGHT = {
+    'Server': QColor('#6B8F6B'),
+    'GUI': QColor('#5B7FAF'),
+    'Watchdog': QColor('#B8956A'),
+    'Update': QColor('#8B7355'),
+}
+_SOURCE_COLORS_DARK = {
+    'Server': QColor('#6B8F6B'),
+    'GUI': QColor('#60A5FA'),
+    'Watchdog': QColor('#FBBF24'),
+    'Update': QColor('#94A3B8'),
+}
 
 
-def get_log_colors(dark: bool = False) -> dict[str, QColor]:
-    if dark:
-        return {
-            'ERROR': QColor('#F87171'),
-            'WARNING': QColor('#FBBF24'),
-            'INFO': QColor('#60A5FA'),
-            'DEBUG': QColor('#94A3B8'),
-        }
-    return {
-        'ERROR': QColor('#C53A3A'),
-        'WARNING': QColor('#B8956A'),
-        'INFO': QColor('#8B7355'),
-        'DEBUG': QColor('#8A8178'),
-    }
+def _source_color(source: str, dark: bool) -> QColor:
+    colors = _SOURCE_COLORS_DARK if dark else _SOURCE_COLORS_LIGHT
+    return colors.get(source, QColor('#8A8178'))
 
 
 class LogsPage(QWidget):
@@ -64,6 +71,8 @@ class LogsPage(QWidget):
         controls = QHBoxLayout()
         self.level_filter = QComboBox()
         self.level_filter.addItems(['全部', '错误', '警告', '信息', '调试'])
+        self.source_filter = QComboBox()
+        self.source_filter.addItems(['全部来源', 'Server', 'GUI', 'Watchdog', 'Update'])
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText('搜索...')
         self.pause_btn = QPushButton('暂停')
@@ -76,6 +85,8 @@ class LogsPage(QWidget):
         self.auto_scroll_cb.setChecked(True)
         controls.addWidget(QLabel('级别:'))
         controls.addWidget(self.level_filter)
+        controls.addWidget(QLabel('来源:'))
+        controls.addWidget(self.source_filter)
         controls.addWidget(self.search_input)
         controls.addWidget(self.pause_btn)
         controls.addWidget(self.clear_btn)
@@ -116,10 +127,12 @@ class LogsPage(QWidget):
         self._paused = False
         self._buffer: list[str] = []
         self._max_lines = 1000
+        self._dark = False
 
         self.pause_btn.clicked.connect(self._toggle_pause)
         self.clear_btn.clicked.connect(self.log_list.clear)
         self.level_filter.currentTextChanged.connect(self._apply_filters)
+        self.source_filter.currentTextChanged.connect(self._apply_filters)
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
         self._search_timer.setInterval(300)
@@ -131,29 +144,56 @@ class LogsPage(QWidget):
 
         self._load_history()
 
+    def _log_files(self) -> list[tuple[Path, str]]:
+        """Return list of (path, source_label) for all log files."""
+        ld = log_dir()
+        return [
+            (ld / 'print_server.log', 'Server'),
+            (ld / 'gui.log', 'GUI'),
+            (ld / 'update_service.log', 'Update'),
+            (ld / 'watchdog.log', 'Watchdog'),
+        ]
+
+    def _parse_line(self, line: str, default_source: str) -> dict | None:
+        m = _LOG_PATTERN.match(line)
+        if m:
+            ts, level, source, msg = m.groups()
+            return {'timestamp': ts, 'level': level.upper(), 'source': source, 'message': msg}
+        # Fallback: try timestamp + level without [source]
+        m2 = re.match(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s+(.*)', line)
+        if m2:
+            return {'timestamp': m2.group(1), 'level': m2.group(2).upper(), 'source': default_source, 'message': m2.group(3)}
+        # Go service plain log lines
+        m3 = re.match(r'^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})\s+(.*)', line)
+        if m3:
+            return {'timestamp': m3.group(1).replace('/', '-'), 'level': 'INFO', 'source': default_source, 'message': m3.group(2)}
+        return {'timestamp': '', 'level': 'INFO', 'source': default_source, 'message': line}
+
     def _load_history(self):
         self.loading_label.setVisible(True)
-        log_path = Path(persistent_dir()) / 'logs' / 'print_server.log'
-        if not log_path.exists():
-            self.loading_label.setVisible(False)
-            return
-        try:
-            with log_path.open('r', encoding='utf-8', errors='replace') as f:
-                lines = f.readlines()[-200:]
-        except OSError:
-            self.loading_label.setVisible(False)
-            return
-        self.loading_label.setVisible(False)
-        for line in lines:
-            line = line.rstrip('\n')
-            if not line:
+        entries: list[dict] = []
+
+        for file_path, src in self._log_files():
+            if not file_path.exists():
                 continue
-            level = 'INFO'
-            for lv in ('ERROR', 'WARNING', 'INFO', 'DEBUG'):
-                if lv in line:
-                    level = lv
-                    break
-            self.on_log({'timestamp': '', 'level': level, 'message': line})
+            try:
+                with file_path.open('r', encoding='utf-8', errors='replace') as f:
+                    for raw in f.readlines()[-200:]:
+                        raw = raw.rstrip('\n')
+                        if not raw:
+                            continue
+                        parsed = self._parse_line(raw, src)
+                        if parsed:
+                            entries.append(parsed)
+            except OSError:
+                continue
+
+        # Merge-sort by timestamp, newest last
+        entries.sort(key=lambda e: (e['timestamp'] or '', e['message'] or ''))
+
+        self.loading_label.setVisible(False)
+        for entry in entries:
+            self.on_log(entry)
 
     def _toggle_pause(self):
         self._paused = not self._paused
@@ -164,16 +204,34 @@ class LogsPage(QWidget):
             self._buffer.clear()
             self.pause_banner.setVisible(False)
 
+    def _format_item(self, data: dict) -> str:
+        ts = data.get('timestamp', '')
+        level = data.get('level', 'INFO')
+        source = data.get('source', '')
+        msg = data.get('message', '')
+        return f'{ts}  [{level}]  [{source}]  {msg}'
+
     def _append_line(self, text: str):
+        """Append a formatted line to the list."""
         item = QListWidgetItem(text)
         from gui.theme import ThemeEngine
 
         theme = ThemeEngine.instance()
-        colors = get_log_colors(theme.mode == 'dark')
-        for level, color in colors.items():
-            if level in text:
-                item.setForeground(color)
-                break
+        dark = theme.mode == 'dark'
+        source = ''
+        m = re.search(r'\[([^\]]+)\]  \[([^\]]+)\]', text)
+        if m:
+            source = m.group(2)
+        item.setForeground(_source_color(source, dark))
+        # Bold for ERROR/WARNING
+        if '[ERROR]' in text:
+            font = item.font()
+            font.setBold(True)
+            item.setFont(font)
+        elif '[WARNING]' in text:
+            font = item.font()
+            font.setBold(True)
+            item.setFont(font)
         self.log_list.addItem(item)
         if self.log_list.count() > self._max_lines:
             self.log_list.takeItem(0)
@@ -183,7 +241,7 @@ class LogsPage(QWidget):
     def on_log(self, data: dict):
         self.log_empty_label.setVisible(False)
         self.log_list.setVisible(True)
-        msg = f'{data.get("timestamp", "")}  {data.get("level", "INFO")}  {data.get("message", "")}'
+        msg = self._format_item(data)
         if self._paused:
             self._buffer.append(msg)
             self.pause_banner.setText(f'⏸ 已暂停 (+{len(self._buffer)} 条)')
@@ -193,6 +251,7 @@ class LogsPage(QWidget):
 
     def _apply_filters(self):
         level = self.level_filter.currentText()
+        source = self.source_filter.currentText()
         search = self.search_input.text().lower()
         for i in range(self.log_list.count()):
             item = self.log_list.item(i)
@@ -204,6 +263,10 @@ class LogsPage(QWidget):
                 level_map = {'错误': 'ERROR', '警告': 'WARNING', '信息': 'INFO', '调试': 'DEBUG'}
                 if level_map.get(level, '') not in text:
                     visible = False
+            if source != '全部来源':
+                src_tag = f'[{source}]'
+                if src_tag not in text:
+                    visible = False
             if search and search not in text.lower():
                 visible = False
             item.setHidden(not visible)
@@ -211,6 +274,6 @@ class LogsPage(QWidget):
     def _open_log_folder(self):
         import subprocess
 
-        log_dir = Path(persistent_dir() / 'logs')
-        if log_dir.exists():
-            subprocess.Popen(['explorer', str(log_dir)], shell=True)
+        ld = log_dir()
+        if ld.exists():
+            subprocess.Popen(['explorer', str(ld)], shell=True)

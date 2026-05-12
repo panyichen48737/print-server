@@ -27,7 +27,9 @@ def db_path():
 @pytest.fixture
 def repo(db_path):
     """创建 JobRepository 实例"""
-    return JobRepository(db_path)
+    r = JobRepository(db_path)
+    yield r
+    r.close()
 
 
 class TestJobRepository:

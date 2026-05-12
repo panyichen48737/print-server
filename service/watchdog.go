@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sync"
@@ -14,13 +16,31 @@ type Watchdog struct {
 	registered  bool
 	port        int
 	stopCh      chan struct{}
+	stopOnce    sync.Once
 	lastRestart time.Time
+	logFile     *os.File
 }
 
 func NewWatchdog() *Watchdog {
 	return &Watchdog{
 		stopCh:      make(chan struct{}),
 		lastRestart: time.Now().Add(-30 * time.Second), // allow immediate first check
+	}
+}
+
+func (w *Watchdog) SetLogFile(path string) {
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Printf("Watchdog: failed to open log file %s: %v", path, err)
+		return
+	}
+	w.logFile = f
+}
+
+func (w *Watchdog) logf(format string, args ...interface{}) {
+	msg := fmt.Sprintf(time.Now().Format("2006-01-02 15:04:05")+" [INFO] [Watchdog] "+format, args...)
+	if w.logFile != nil {
+		w.logFile.WriteString(msg + "\n")
 	}
 }
 
@@ -37,11 +57,16 @@ func (w *Watchdog) Start(appDir string) {
 			}
 		}
 	}()
-	log.Println("Watchdog started (5s interval)")
+	w.logf("started (5s interval)")
 }
 
 func (w *Watchdog) Stop() {
-	close(w.stopCh)
+	w.stopOnce.Do(func() {
+		close(w.stopCh)
+		if w.logFile != nil {
+			w.logFile.Close()
+		}
+	})
 }
 
 func (w *Watchdog) Register(port int) {
@@ -49,14 +74,14 @@ func (w *Watchdog) Register(port int) {
 	defer w.mu.Unlock()
 	w.registered = true
 	w.port = port
-	log.Printf("Watchdog: registered (port %d)", port)
+	w.logf("registered (port %d)", port)
 }
 
 func (w *Watchdog) Unregister() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.registered = false
-	log.Println("Watchdog: unregistered")
+	w.logf("unregistered")
 }
 
 func (w *Watchdog) BackendHealth() bool {
@@ -82,14 +107,14 @@ func (w *Watchdog) check(appDir string) {
 	}
 
 	if !isProcessRunning("iOSPrintServer.exe") {
-		log.Println("Watchdog: iOSPrintServer.exe crashed, restarting...")
+		w.logf("iOSPrintServer.exe crashed, restarting...")
 		w.restartApp(appDir)
 		return
 	}
 
 	// Process is alive but backend port is down — kill & restart
 	if port > 0 && !w.backendListening(port) {
-		log.Println("Watchdog: backend unreachable, killing and restarting...")
+		w.logf("backend unreachable, killing and restarting...")
 		exec.Command("taskkill", "/F", "/IM", "iOSPrintServer.exe").Run()
 		time.Sleep(2 * time.Second)
 		w.restartApp(appDir)
@@ -110,12 +135,12 @@ func (w *Watchdog) restartApp(appDir string) {
 	cmd := exec.Command(exePath, "--tray")
 	cmd.Dir = appDir
 	if err := cmd.Start(); err != nil {
-		log.Printf("Watchdog: restart failed: %v", err)
+		w.logf("restart failed: %v", err)
 	} else {
 		w.mu.Lock()
 		w.lastRestart = time.Now()
 		w.mu.Unlock()
-		log.Println("Watchdog: restart initiated")
+		w.logf("restart initiated")
 	}
 }
 

@@ -58,6 +58,18 @@ def persistent_dir() -> Path:
     return app_root()
 
 
+def log_dir() -> Path:
+    """日志目录
+
+    frozen 模式：%ProgramData%/iOSPrintServer/logs/（与 Go 服务共享）
+    dev 模式：persistent_dir()/logs/
+    """
+    if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
+        program_data = os.environ.get('ProgramData', 'C:\\ProgramData')
+        return Path(program_data) / 'iOSPrintServer' / 'logs'
+    return persistent_dir() / 'logs'
+
+
 def ensure_dir(*parts: str | Path) -> Path:
     path = Path(parts[0])
     for p in parts[1:]:

@@ -22,7 +22,20 @@ class TestLogBroadcaster:
             {
                 'message': 'hello world',
                 'level': 'INFO',
-                'name': 'print_server',
+                'source': 'Server',
+            },
+        )
+
+    def test_write_parses_source_and_level(self):
+        broadcaster = MagicMock()
+        lb = LogBroadcaster(broadcaster)
+        lb.write('[GUI] [WARNING] some qt warning')
+        broadcaster.publish.assert_called_once_with(
+            'log',
+            {
+                'message': 'some qt warning',
+                'level': 'WARNING',
+                'source': 'GUI',
             },
         )
 

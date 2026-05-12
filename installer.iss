@@ -2,7 +2,7 @@
 ; 使用 Inno Setup 6.x + VCL Style 皮肤
 
 #define MyAppName "iOSPrintServer"
-#define MyAppVersion "2.5.1"
+#define MyAppVersion "2.6.5"
 #define MyAppExeName "iOSPrintServer.exe"
 #define MyUpdateServiceExe "update_service.exe"
 #define MyAppPublisher "TechFlow Solutions Inc."
@@ -85,6 +85,7 @@ begin
     begin
       DelTree(ExpandConstant('{userappdata}\iOSPrintServer'), True, True, True);
       DelTree(ExpandConstant('{localappdata}\iOSPrintServer'), True, True, True);
+      DelTree(ExpandConstant('{commonappdata}\iOSPrintServer'), True, True, True);
     end;
   end;
 end;
