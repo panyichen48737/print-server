@@ -34,15 +34,11 @@ UninstallDisplayName={#MyAppName}
 Name: "chinesesimplified"; MessagesFile: "installer_ChineseSimplified.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
-[Tasks]
-Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "快捷方式:"; Flags: checkedonce
-
 [Files]
 Source: "dist\iOSPrintServer\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: "{app}\{#MyAppExeName} --tray"; Flags: uninsdeletevalue
@@ -53,10 +49,23 @@ Filename: "taskkill"; Parameters: "/F /IM {#MyAppExeName}"; Flags: runhidden ski
 Filename: "taskkill"; Parameters: "/F /IM {#MyUpdateServiceExe}"; Flags: runhidden skipifdoesntexist
 ; 注册更新服务
 Filename: "{app}\{#MyUpdateServiceExe}"; Parameters: "--install"; Flags: runhidden
-; 安装完成后启动
-Filename: "{app}\{#MyAppExeName}"; WorkingDir: {app}; Description: "启动 {#MyAppName}"; Flags: postinstall nowait skipifsilent
+; 安装完成后启动（以原始用户身份运行，确保 GUI 显示在用户桌面）
+Filename: "{app}\{#MyAppExeName}"; WorkingDir: {app}; Description: "启动 {#MyAppName}"; Flags: postinstall nowait skipifsilent runasoriginaluser
 
 [Code]
+
+var
+  DeleteUserData: Boolean;
+
+// 卸载开始时最先执行，返回值 True 继续卸载，False 取消卸载
+function InitializeUninstall: Boolean;
+begin
+  Result := True;
+  DeleteUserData := MsgBox('是否同时删除用户数据？' + #13#10
+    + #13#10 + '包括：配置文件、数据库、日志、上传文件等' + #13#10
+    + #13#10 + '建议保留：重新安装后无需重新配置',
+    mbConfirmation, MB_YESNO) = mrYes;
+end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
@@ -81,7 +90,7 @@ begin
   end;
   if CurUninstallStep = usPostUninstall then
   begin
-    if MsgBox('是否同时删除用户数据（配置文件、数据库、日志等）？', mbConfirmation, MB_YESNO) = mrYes then
+    if DeleteUserData then
     begin
       DelTree(ExpandConstant('{userappdata}\iOSPrintServer'), True, True, True);
       DelTree(ExpandConstant('{localappdata}\iOSPrintServer'), True, True, True);

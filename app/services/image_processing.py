@@ -26,13 +26,13 @@ class QuarkEnhancer:
             self._client.close()
 
     def enhance(self, filepath: str) -> bytes | None:
-        try:
-            client_id = self.config.get('quark_api_key_id', '')
-            client_secret = self.config.get('quark_api_key', '')
-            if not client_id or not client_secret:
-                logger.warning('Quark API 未配置，跳过图片增强')
-                return None
+        client_id = self.config.get('quark_api_key_id', '')
+        client_secret = self.config.get('quark_api_key', '')
+        if not client_id or not client_secret:
+            logger.error('Quark API 未配置，无法处理图片')
+            raise ValueError('Quark API 未配置，请在设置中配置 API 密钥')
 
+        try:
             ext = Path(filepath).suffix.lower()
             max_api_size = 10 * 1024 * 1024
 

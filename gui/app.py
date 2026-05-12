@@ -128,6 +128,9 @@ class MainWindow(QMainWindow):
         # Check if service already has a pre-downloaded update
         QTimer.singleShot(10000, self._check_service_pending)
 
+        # Check Quark API configuration on startup
+        QTimer.singleShot(2000, self._check_quark_config)
+
     def show_notification(self, text: str, color: str = '#8B7355'):
         self._notifications.show_notification(text, color)
 
@@ -239,6 +242,21 @@ class MainWindow(QMainWindow):
             self._idle_timer = QTimer(self)
             self._idle_timer.timeout.connect(self._check_idle_and_apply)
             self._idle_timer.start(5000)
+
+    def _check_quark_config(self):
+        """Check Quark API config on startup and warn if missing."""
+        if not self._config:
+            return
+        key_id = self._config.get('quark_api_key_id', '')
+        key_secret = self._config.get('quark_api_key', '')
+        if not key_id or not key_secret:
+            self.tray.showMessage(
+                '夸克 API 未配置',
+                '图片打印和文档扫描需要 API 密钥，请前往设置页面配置',
+                QSystemTrayIcon.MessageIcon.Warning,
+                8000,
+            )
+            self.show_notification('夸克 API 未配置 - 图片打印和文档扫描将无法使用', '#C53A3A')
 
     def _check_idle_and_apply(self):
         """Auto-apply update when server is idle (no active jobs)."""

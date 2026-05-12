@@ -35,6 +35,13 @@ def _setup_exception_hooks() -> None:
         return tb_str
 
     def _show_dialog(title, msg, detail=''):
+        """弹窗提示。非主线程用原生 MessageBoxW（避免 Qt 死锁）。"""
+        is_main = threading.current_thread() is threading.main_thread()
+        if not is_main:
+            ctypes.windll.user32.MessageBoxW(
+                None, f'{msg}\n\n{detail}' if detail else msg, title, 0x10
+            )
+            return
         try:
             from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -47,8 +54,9 @@ def _setup_exception_hooks() -> None:
                     box.setDetailedText(detail)
                 box.exec()
             else:
-                # QApplication 尚未创建，用原生 MessageBoxW 兜底
-                ctypes.windll.user32.MessageBoxW(None, f'{msg}\n\n{detail}' if detail else msg, title, 0x10)
+                ctypes.windll.user32.MessageBoxW(
+                    None, f'{msg}\n\n{detail}' if detail else msg, title, 0x10
+                )
         except Exception:
             pass
 

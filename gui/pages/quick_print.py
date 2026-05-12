@@ -313,6 +313,18 @@ class QuickPrintPage(QWidget):
         paths = self._get_current_paths()
         if not paths:
             return
+
+        # Check Quark API keys if any image files are included
+        has_images = any(Path(p).suffix.lower() in IMAGE_EXTS for p in paths)
+        if has_images:
+            config = self._mw._config
+            if config:
+                key_id = config.get('quark_api_key_id', '')
+                key_secret = config.get('quark_api_key', '')
+                if not key_id or not key_secret:
+                    self._show_quark_missing_dialog()
+                    return
+
         self.submit_btn.set_loading()
         self.progress.setVisible(True)
         self.cancel_btn.setVisible(True)
@@ -353,6 +365,21 @@ class QuickPrintPage(QWidget):
             self.cancel_btn.setVisible(False)
             self.error_label.setText('文件上传失败，请检查文件是否存在或格式是否支持')
             self.error_label.setVisible(True)
+
+    def _show_quark_missing_dialog(self):
+        from PySide6.QtWidgets import QMessageBox, QPushButton
+
+        msg = '夸克 API 未配置，图片打印需要 API 密钥。\n请在设置页面中配置「夸克 API Key ID」和「夸克 API Key」。'
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Critical)
+        box.setWindowTitle('夸克 API 未配置')
+        box.setText(msg)
+        settings_btn = QPushButton('前往设置')
+        box.addButton(settings_btn, QMessageBox.ButtonRole.ActionRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.exec()
+        if box.clickedButton() is settings_btn:
+            self._mw.sidebar.setCurrentRow(self._mw.NAV_ITEMS.index('设置'))
 
     def _cancel_print(self):
         if not self._tracking_job_ids:

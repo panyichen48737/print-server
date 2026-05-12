@@ -302,6 +302,16 @@ class ScanPage(QWidget):
         paths = self._get_current_paths()
         if not paths:
             return
+
+        # Check Quark API keys before starting
+        config = self._mw._config
+        if config:
+            key_id = config.get('quark_api_key_id', '')
+            key_secret = config.get('quark_api_key', '')
+            if not key_id or not key_secret:
+                self._show_quark_missing_dialog()
+                return
+
         self.generate_btn.set_loading()
         self.generate_btn.setVisible(False)
         self.cancel_btn.setVisible(True)
@@ -321,6 +331,22 @@ class ScanPage(QWidget):
         self._worker.finished.connect(self._on_scan_finished)
         self._worker.error.connect(self._on_scan_error)
         self._worker.start()
+
+    def _show_quark_missing_dialog(self):
+        """Show error dialog when Quark API keys are missing, with button to navigate to Settings."""
+        from PySide6.QtWidgets import QMessageBox, QPushButton
+
+        msg = '夸克 API 未配置，文档扫描功能需要 API 密钥。\n请在设置页面中配置「夸克 API Key ID」和「夸克 API Key」。'
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Critical)
+        box.setWindowTitle('夸克 API 未配置')
+        box.setText(msg)
+        settings_btn = QPushButton('前往设置')
+        box.addButton(settings_btn, QMessageBox.ButtonRole.ActionRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.exec()
+        if box.clickedButton() is settings_btn:
+            self._mw.sidebar.setCurrentRow(self._mw.NAV_ITEMS.index('设置'))
 
     def _cancel_generation(self):
         if self._worker:
@@ -362,6 +388,7 @@ class ScanPage(QWidget):
             self._status_label.setText('扫描失败，请检查 Quark API 配置')
             self._status_label.setStyleSheet('color: #C53A3A;')
             self.generate_btn.set_error()
+            self._show_quark_missing_dialog()
             return
 
         # Generate output

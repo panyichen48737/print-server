@@ -49,19 +49,17 @@ class TestEnsureDir:
 
 
 class TestConfigDir:
-    @patch('app.core._paths.sys.frozen', False, create=True)
-    def test_dev_mode_equals_app_root(self):
-        assert config_dir() == app_root()
+    @patch('app.core._paths.os.environ', {'APPDATA': r'C:\Users\test\AppData\Roaming'})
+    def test_dev_mode_uses_appdata(self):
+        assert config_dir() == Path(r'C:\Users\test\AppData\Roaming\iOSPrintServer')
 
-    @patch('app.core._paths.sys.frozen', True, create=True)
     @patch('app.core._paths.os.environ', {'APPDATA': r'C:\Users\test\AppData\Roaming'})
     def test_frozen_mode_uses_appdata(self):
         assert config_dir() == Path(r'C:\Users\test\AppData\Roaming\iOSPrintServer')
 
-    @patch('app.core._paths.sys.frozen', True, create=True)
     @patch('app.core._paths.os.environ', {})
     @patch('app.core._paths.Path.home', return_value=Path(r'C:\Users\test'))
-    def test_frozen_mode_fallback_to_home(self, mock_home):
+    def test_fallback_to_home(self, mock_home):
         from app.core._paths import config_dir
 
         result = config_dir()
@@ -69,19 +67,17 @@ class TestConfigDir:
 
 
 class TestPersistentDir:
-    @patch('app.core._paths.sys.frozen', False, create=True)
-    def test_dev_mode_equals_app_root(self):
-        assert persistent_dir() == app_root()
+    @patch('app.core._paths.os.environ', {'LOCALAPPDATA': r'C:\Users\test\AppData\Local'})
+    def test_dev_mode_uses_localappdata(self):
+        assert persistent_dir() == Path(r'C:\Users\test\AppData\Local\iOSPrintServer')
 
-    @patch('app.core._paths.sys.frozen', True, create=True)
     @patch('app.core._paths.os.environ', {'LOCALAPPDATA': r'C:\Users\test\AppData\Local'})
     def test_frozen_mode_uses_localappdata(self):
         assert persistent_dir() == Path(r'C:\Users\test\AppData\Local\iOSPrintServer')
 
-    @patch('app.core._paths.sys.frozen', True, create=True)
     @patch('app.core._paths.os.environ', {})
     @patch('app.core._paths.Path.home', return_value=Path(r'C:\Users\test'))
-    def test_frozen_mode_fallback_to_home(self, mock_home):
+    def test_fallback_to_home(self, mock_home):
         from app.core._paths import persistent_dir
 
         result = persistent_dir()
@@ -89,16 +85,10 @@ class TestPersistentDir:
 
 
 class TestLogDir:
-    @patch('app.core._paths.sys.frozen', False, create=True)
-    def test_dev_mode_equals_persistent_dir_logs(self):
-        assert log_dir() == persistent_dir() / 'logs'
-
-    @patch('app.core._paths.sys.frozen', True, create=True)
-    @patch('app.core._paths.os.environ', {'ProgramData': r'C:\ProgramData'})
-    def test_frozen_mode_uses_programdata(self):
+    @patch('app.core._paths.os.environ', {'PROGRAMDATA': r'C:\ProgramData'})
+    def test_log_dir_uses_programdata(self):
         assert log_dir() == Path(r'C:\ProgramData\iOSPrintServer\logs')
 
-    @patch('app.core._paths.sys.frozen', True, create=True)
     @patch('app.core._paths.os.environ', {})
-    def test_frozen_mode_fallback_to_c_programdata(self):
+    def test_log_dir_fallback_to_default(self):
         assert log_dir() == Path(r'C:\ProgramData\iOSPrintServer\logs')

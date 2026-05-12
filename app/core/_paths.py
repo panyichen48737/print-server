@@ -33,41 +33,32 @@ def data_root() -> Path:
 def config_dir() -> Path:
     """用户配置目录（漫游），存储 config.json
 
-    frozen 模式：%%APPDATA%%/iOSPrintServer
-    dev 模式：app_root()（与项目文件放在一起）
+    使用 %%APPDATA%%/iOSPrintServer（所有模式）
     """
-    if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
-        appdata = os.environ.get('APPDATA')
-        if appdata:
-            return Path(appdata) / 'iOSPrintServer'
-        return Path.home() / 'iOSPrintServer'
-    return app_root()
+    appdata = os.environ.get('APPDATA')
+    if appdata:
+        return Path(appdata) / 'iOSPrintServer'
+    return Path.home() / 'iOSPrintServer'
 
 
 def persistent_dir() -> Path:
     """可写数据目录（本机），存储 DB/日志/上传文件
 
-    frozen 模式：%%LOCALAPPDATA%%/iOSPrintServer
-    dev 模式：app_root()（与项目文件放在一起）
+    使用 %%LOCALAPPDATA%%/iOSPrintServer（所有模式）
     """
-    if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
-        local = os.environ.get('LOCALAPPDATA')
-        if local:
-            return Path(local) / 'iOSPrintServer'
-        return Path.home() / 'iOSPrintServer'
-    return app_root()
+    local = os.environ.get('LOCALAPPDATA')
+    if local:
+        return Path(local) / 'iOSPrintServer'
+    return Path.home() / 'iOSPrintServer'
 
 
 def log_dir() -> Path:
-    """日志目录
+    """日志目录 — 所有服务（Python + Go）统一写入
 
-    frozen 模式：%ProgramData%/iOSPrintServer/logs/（与 Go 服务共享）
-    dev 模式：persistent_dir()/logs/
+    使用 %%PROGRAMDATA%%/iOSPrintServer/logs/
     """
-    if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
-        program_data = os.environ.get('PROGRAMDATA', 'C:\\ProgramData')
-        return Path(program_data) / 'iOSPrintServer' / 'logs'
-    return persistent_dir() / 'logs'
+    program_data = os.environ.get('PROGRAMDATA', 'C:\\ProgramData')
+    return Path(program_data) / 'iOSPrintServer' / 'logs'
 
 
 def ensure_dir(*parts: str | Path) -> Path:

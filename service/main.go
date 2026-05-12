@@ -46,8 +46,7 @@ func main() {
 			return
 		case "--uninstall":
 			uninstallService()
-			// Clean up service data
-			os.RemoveAll(dataDir())
+			// 数据清理由安装器负责（尊重用户选择）
 			return
 		}
 	}

@@ -43,8 +43,7 @@ class ImageBackend(PrinterBackend):
         print_params = print_params or {}
         try:
             processed = self._quark.enhance(filepath)
-
-            img = Image.open(io.BytesIO(processed)) if processed else Image.open(filepath)
+            img = Image.open(io.BytesIO(processed))
 
             if self.config.get('auto_rotate', True):
                 with contextlib.suppress(Exception):

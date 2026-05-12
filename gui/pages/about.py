@@ -226,9 +226,10 @@ class AboutPage(QWidget):
         parent_layout.addWidget(section)
 
     def _open_log_folder(self):
-        log_dir = Path(persistent_dir()) / 'logs'
-        if log_dir.exists():
-            subprocess.Popen(['explorer', str(log_dir)], shell=True)
+        from app.core._paths import log_dir
+        ld = log_dir()
+        if ld.exists():
+            subprocess.Popen(['explorer', str(ld)], shell=True)
 
     def _open_config_folder(self):
         cfg_dir = Path(config_dir())
