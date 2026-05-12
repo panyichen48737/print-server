@@ -2,7 +2,7 @@
 ; 使用 Inno Setup 6.x + VCL Style 皮肤
 
 #define MyAppName "iOSPrintServer"
-#define MyAppVersion "2.8.5"
+#define MyAppVersion "3.9.0"
 #define MyAppExeName "iOSPrintServer.exe"
 #define MyUpdateServiceExe "update_service.exe"
 #define MyAppPublisher "TechFlow Solutions Inc."
@@ -92,6 +92,8 @@ begin
   end;
   if CurUninstallStep = usPostUninstall then
   begin
+    // 清理运行时下载的文件（不在安装清单中）
+    DeleteFile(ExpandConstant('{app}\_internal\app\static\scalar.standalone.min.js'));
     if DeleteUserData then
     begin
       DelTree(ExpandConstant('{userappdata}\iOSPrintServer'), True, True, True);
