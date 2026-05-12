@@ -101,7 +101,7 @@ QLabel#brandSub {
 
 QLabel#brandTitle {
     font-family: "Newsreader", "EB Garamond", Georgia, "Times New Roman", serif;
-    font-size: 14px;
+    font-size: 18px;
     font-weight: 600;
     letter-spacing: 0.5px;
 }

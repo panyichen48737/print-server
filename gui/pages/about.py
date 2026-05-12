@@ -93,7 +93,7 @@ class AboutPage(QWidget):
         desc.setMaximumWidth(400)
         desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
         desc.setStyleSheet('font-size: 13px; color: #8A8178;')
-        layout.addWidget(desc)
+        layout.addWidget(desc, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # ── GitHub link ──
         links = QHBoxLayout()

@@ -95,10 +95,16 @@ class JobExecutor:
         print_params = {
             'printer_name': job.get('printer_name') or self.config.get('default_printer', ''),
             'copies': job.get('copies') or self.config.get('default_copies', 1),
-            'duplex': job.get('duplex') if job.get('duplex') is not None else self.config.get('default_duplex', False),
-            'color': job.get('color') if job.get('color') is not None else self.config.get('default_color', True),
+            'duplex': job.get('duplex')
+            if job.get('duplex') is not None
+            else self.config.get('default_duplex', False),
+            'color': job.get('color')
+            if job.get('color') is not None
+            else self.config.get('default_color', True),
             'paper_size': job.get('paper_size') or self.config.get('paper_size', 'A4'),
         }
+        # 校验颜色与打印机能力匹配，不匹配时自动回退
+        self._validate_color_capability(print_params)
         timeout = self.config.get('job_timeout', 300)
         deadline = time.monotonic() + timeout
         try:
@@ -147,6 +153,23 @@ class JobExecutor:
         safe_remove(original_path, '上传文件')
 
         return True, None
+
+    def _validate_color_capability(self, print_params: dict) -> None:
+        """检查打印机颜色能力，不匹配时自动回退到支持的模式"""
+        printer = print_params.get('printer_name', '')
+        if not printer or print_params.get('color') is None:
+            return
+        try:
+            import win32print
+
+            DC_COLORDEVICE = 23
+            color_raw = win32print.DeviceCapabilities(printer, None, DC_COLORDEVICE, None)
+            if color_raw and color_raw[0] == 0 and print_params['color']:
+                # 打印机不支持彩色，回退到黑白
+                print_params['color'] = False
+                logger.info(f'打印机 [{printer}] 不支持彩色，已自动切换为黑白')
+        except Exception:
+            pass
 
 
 class JobWorker:

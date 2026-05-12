@@ -20,7 +20,7 @@ from gui.components.toggle_switch import LabeledToggle
 
 
 class PrintDialog(QDialog):
-    def __init__(self, printers: list[str], parent=None):
+    def __init__(self, printers: list[str], parent=None, config=None):
         super().__init__(parent)
         self.setWindowTitle('打印设置')
         self.setMinimumWidth(420)
@@ -28,6 +28,7 @@ class PrintDialog(QDialog):
 
         self._caps: PrinterCapabilities = PrinterCapabilities()
         self._result: dict | None = None
+        self._config = config
 
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
@@ -46,7 +47,8 @@ class PrintDialog(QDialog):
         copies_row.addWidget(QLabel('份数:'))
         self.copies_spin = QSpinBox()
         self.copies_spin.setRange(1, 99)
-        self.copies_spin.setValue(1)
+        default_copies = self._config.get('default_copies', 1) if self._config else 1
+        self.copies_spin.setValue(default_copies)
         copies_row.addWidget(self.copies_spin)
         copies_row.addStretch()
         layout.addLayout(copies_row)
@@ -61,7 +63,8 @@ class PrintDialog(QDialog):
         layout.addLayout(color_row)
 
         # Duplex
-        self.duplex_cb = LabeledToggle('双面', checked=True)
+        default_duplex = self._config.get('default_duplex', False) if self._config else False
+        self.duplex_cb = LabeledToggle('双面', checked=default_duplex)
         layout.addWidget(self.duplex_cb)
 
         # Paper
@@ -97,12 +100,18 @@ class PrintDialog(QDialog):
         self.color_combo.clear()
         if self._caps.supports_color:
             self.color_combo.addItems(['彩色', '黑白'])
+            default_color = self._config.get('default_color', True) if self._config else True
+            self.color_combo.setCurrentText('彩色' if default_color else '黑白')
         else:
             self.color_combo.addItems(['黑白'])
 
         # Duplex
         self.duplex_cb.setVisible(self._caps.supports_duplex)
-        self.duplex_cb.setChecked(self._caps.supports_duplex)
+        if not self._caps.supports_duplex:
+            self.duplex_cb.setChecked(False)
+        else:
+            default_duplex = self._config.get('default_duplex', False) if self._config else False
+            self.duplex_cb.setChecked(default_duplex)
 
         # Paper
         self.paper_combo.clear()

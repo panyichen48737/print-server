@@ -149,8 +149,9 @@ class SettingsPage(QWidget):
         print_opts_form.addRow('默认份数:', self.default_copies_spin)
         self.default_duplex_cb = LabeledToggle('双面')
         print_opts_form.addRow('', self.default_duplex_cb)
-        self.default_color_cb = LabeledToggle('彩色')
-        print_opts_form.addRow('', self.default_color_cb)
+        self.default_color_combo = QComboBox()
+        self.default_color_combo.addItems(['彩色', '黑白'])
+        print_opts_form.addRow('默认颜色:', self.default_color_combo)
         self.paper_size_combo = QComboBox()
         self.paper_size_combo.addItems(['A4', 'Letter', 'A3'])
         print_opts_form.addRow('默认纸张:', self.paper_size_combo)
@@ -295,7 +296,7 @@ class SettingsPage(QWidget):
 
         self.default_copies_spin.setValue(c.get('default_copies', 1))
         self.default_duplex_cb.setChecked(c.get('default_duplex', False))
-        self.default_color_cb.setChecked(c.get('default_color', True))
+        self.default_color_combo.setCurrentText('彩色' if c.get('default_color', True) else '黑白')
         self.paper_size_combo.setCurrentText(c.get('paper_size', 'A4'))
         self.worker_count_spin.setValue(c.get('worker_count', 2))
         self.max_file_size_spin.setValue(c.get('max_file_size_mb', 50))
@@ -374,7 +375,7 @@ class SettingsPage(QWidget):
                 'notify_channel': channel,
                 'default_copies': self.default_copies_spin.value(),
                 'default_duplex': self.default_duplex_cb.isChecked(),
-                'default_color': self.default_color_cb.isChecked(),
+                'default_color': self.default_color_combo.currentText() == '彩色',
                 'paper_size': self.paper_size_combo.currentText(),
                 'worker_count': self.worker_count_spin.value(),
                 'max_file_size_mb': self.max_file_size_spin.value(),

@@ -13,7 +13,6 @@ class EventBridge(QObject):
     job_status = Signal(dict)
     printer_status = Signal(dict)
     log = Signal(dict)
-    health_status = Signal(dict)
 
     def __init__(self, event_bus: EventBus | None, parent: QObject | None = None):
         super().__init__(parent)

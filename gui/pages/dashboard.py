@@ -297,16 +297,23 @@ class DashboardPage(QWidget):
         main_layout.addWidget(self.empty_state)
         self.empty_state.setVisible(False)
 
-        # ===== Refresh Timer =====
+        # ===== Refresh Timer (delayed, stopped when page hidden) =====
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._refresh)
-        self._timer.start(3000)
 
         # Show skeleton on init
         self._show_skeleton()
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._timer.start(3000)
+        self._refresh()
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self._timer.stop()
+
     def _show_skeleton(self):
-        """Replace stat cards with skeleton pulse placeholders."""
         for card in self._stats.values():
             card.setVisible(False)
         for sk in self._skeleton_cards:

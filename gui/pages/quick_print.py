@@ -5,6 +5,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from loguru import logger
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QComboBox,
@@ -153,12 +154,17 @@ class QuickPrintPage(QWidget):
         self.printer_combo.setPlaceholderText('选择打印机')
         self.copies_spin = QSpinBox()
         self.copies_spin.setRange(1, 99)
-        self.copies_spin.setValue(1)
-        self.duplex_cb = LabeledToggle('双面', checked=True)
+        cfg = self._mw._config
+        self.copies_spin.setValue(cfg.get('default_copies', 1) if cfg else 1)
+        self.duplex_cb = LabeledToggle('双面', checked=cfg.get('default_duplex', False) if cfg else False)
         self.color_combo = QComboBox()
         self.color_combo.addItems(['彩色', '黑白'])
+        default_color = cfg.get('default_color', True) if cfg else True
+        self.color_combo.setCurrentText('彩色' if default_color else '黑白')
         self.paper_combo = QComboBox()
         self.paper_combo.addItems(['A4', 'Letter', 'A3'])
+        if cfg:
+            self.paper_combo.setCurrentText(cfg.get('paper_size', 'A4'))
         options_row.addWidget(QLabel('打印机:'))
         options_row.addWidget(self.printer_combo)
         options_row.addWidget(QLabel('份数:'))
@@ -248,13 +254,18 @@ class QuickPrintPage(QWidget):
         self.color_combo.clear()
         if caps.supports_color:
             self.color_combo.addItems(['彩色', '黑白'])
-            self.color_combo.setCurrentText('彩色')
+            # 优先使用默认配置值
+            default_color = self._mw._config.get('default_color', True) if self._mw._config else True
+            self.color_combo.setCurrentText('彩色' if default_color else '黑白')
         else:
             self.color_combo.addItems(['黑白'])
 
         self.duplex_cb.setVisible(caps.supports_duplex)
         if not caps.supports_duplex:
             self.duplex_cb.setChecked(False)
+        else:
+            cfg = self._mw._config
+            self.duplex_cb.setChecked(cfg.get('default_duplex', False) if cfg else False)
 
         self.paper_combo.clear()
         self.paper_combo.addItems(caps.paper_names)
@@ -332,26 +343,36 @@ class QuickPrintPage(QWidget):
         self._progress.set_indeterminate()
         self._tracking_job_ids.clear()
 
-        from app.printing.job_queue import get_queue
-        from app.services.upload import save_upload
-
-        queue = get_queue()
+        queue = self._mw._app.state.job_queue
+        config = self._mw._config
         total = len(paths)
         submitted = 0
 
         for path in paths:
-            file_obj = save_upload(Path(path))
-            if file_obj:
-                job = queue.enqueue(
-                    str(file_obj.path),
+            p = Path(path)
+            try:
+                file_bytes = p.read_bytes()
+                from app.services.upload import handle_file_upload
+
+                result = handle_file_upload(
+                    p.name,
+                    file_bytes,
+                    config,
+                    queue,
+                    source='gui',
                     printer=self.printer_combo.currentText(),
-                    copies=self.copies_spin.value(),
-                    duplex=self.duplex_cb.isChecked(),
-                    color=self.color_combo.currentText() == '彩色',
+                    copies=str(self.copies_spin.value()),
+                    duplex='1' if self.duplex_cb.isChecked() else '0',
+                    color='1' if self.color_combo.currentText() == '彩色' else '0',
                     paper_size=self.paper_combo.currentText(),
                 )
-                self._tracking_job_ids.append(job.id)
-                submitted += 1
+                if result.success:
+                    self._tracking_job_ids.append(result.job_id)
+                    submitted += 1
+                else:
+                    logger.warning(f'文件上传失败: {p.name} - {result.error}')
+            except Exception as e:
+                logger.error(f'文件上传异常: {p.name} - {e}')
 
         if submitted:
             self.tracking_label.setText(f'已提交 {submitted}/{total} 个任务，等待处理...')
@@ -384,9 +405,8 @@ class QuickPrintPage(QWidget):
     def _cancel_print(self):
         if not self._tracking_job_ids:
             return
-        from app.printing.job_queue import get_queue
 
-        queue = get_queue()
+        queue = self._mw._app.state.job_queue
         for jid in self._tracking_job_ids:
             queue.cancel_job(jid)
         self._clear_all()

@@ -95,9 +95,15 @@ class SidebarWidget(QFrame):
         self.setCurrentRow(index)
 
     def setCurrentRow(self, index: int):
+        old = self._current_row
         self._current_row = index
-        for i, btn in enumerate(self._buttons):
-            btn.setProperty('active', i == index)
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
+        for i in (old, index):
+            if i < len(self._buttons):
+                btn = self._buttons[i]
+                btn.setProperty('active', i == index)
+                btn.style().unpolish(btn)
+                btn.style().polish(btn)
         self.currentRowChanged.emit(index)
+
+    def currentRow(self) -> int:
+        return self._current_row

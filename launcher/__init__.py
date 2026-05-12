@@ -120,13 +120,17 @@ def _cleanup_pid() -> None:
 
 
 def _ensure_single_instance() -> None:
-    """Windows 命名互斥体 + PID 文件双重检测防止多实例"""
-    # Windows 命名互斥体（最可靠方式）
+    """Windows 命名互斥体防止多实例。若已有实例：
+    - 带 --tray 时静默退出（开机自启/看守服务）
+    - 无 --tray 时将已有窗口前置到前台
+    """
     with contextlib.suppress(Exception):
         kernel32 = ctypes.windll.kernel32
+        user32 = ctypes.windll.user32
         mutex = kernel32.CreateMutexW(None, False, 'PrintServerLauncher')
         if mutex and kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
-            print('服务器已在运行')
+            if '--tray' not in sys.argv:
+                _bring_existing_window_to_front(user32)
             sys.exit(0)
 
     # PID 文件兜底
@@ -137,11 +141,20 @@ def _ensure_single_instance() -> None:
             handle = kernel32.OpenProcess(0x0400, False, pid)  # PROCESS_QUERY_INFORMATION
             if handle:
                 kernel32.CloseHandle(handle)
-                print(f'服务器已在运行 (PID: {pid})')
+                if '--tray' not in sys.argv:
+                    _bring_existing_window_to_front(user32)
                 sys.exit(0)
         except (ValueError, OSError):
             pass
     _write_pid()
+
+
+def _bring_existing_window_to_front(user32) -> None:
+    """查找现有主窗口并前置到前台"""
+    hwnd = user32.FindWindowW(None, 'iOS 云打印服务器')
+    if hwnd:
+        user32.ShowWindow(hwnd, 1)  # SW_SHOWNORMAL
+        user32.SetForegroundWindow(hwnd)
 
 
 @dataclass
@@ -212,6 +225,22 @@ def _start_server_background(server_handle: ServerHandle, app, config, printer_m
         logger.error('服务器启动超时')
 
 
+def _show_setup_wizard(config, printer_monitor) -> bool:
+    """首次启动时显示配置向导，返回 True 表示用户完成了配置"""
+    from PySide6.QtWidgets import QApplication
+
+    qapp = QApplication.instance() or QApplication([])
+    from gui.components.setup_wizard import SetupWizard
+
+    wizard = SetupWizard(config, printer_monitor=printer_monitor)
+    result = wizard.exec()
+    if result:
+        logger.info('首次配置已完成')
+    else:
+        logger.info('用户跳过了首次配置')
+    return bool(result)
+
+
 def _gui_main() -> int:
     """启动 PySide6 GUI（自动启动后台服务器 + 打印机监控）"""
     _ensure_single_instance()  # ← 最先检查，避免冗余初始化
@@ -219,6 +248,11 @@ def _gui_main() -> int:
     from gui.app import run_gui
 
     app, config, _, printer_monitor, _ = _bootstrap_server()
+
+    # 首次启动：显示配置向导
+    is_default_key = config.get('api_key') == 'print-server-key-2026'
+    if is_default_key:
+        _show_setup_wizard(config, printer_monitor)
 
     # Rebind logger to GUI source for GUI-process logging
     import sys as _sys

@@ -18,6 +18,7 @@ class FakeMainWindow:
         state = State()
 
     _app = _App()
+    _config = None
 
 
 def test_scan_page_initial_state(qapp):

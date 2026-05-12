@@ -39,6 +39,7 @@ def bootstrap(config: Config, lifespan=None):
         notifier = bark
 
     # 日志实时推送 — 格式含 [{extra[source]}] 供 LogBroadcaster 解析
+    logger.configure(extra={'source': 'Server'})
     from app.services.log_broadcaster import LogBroadcaster
 
     broadcaster = app.state.sse

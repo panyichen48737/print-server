@@ -1,16 +1,15 @@
-"""MainWindow: SidebarWidget + QStackedWidget + bottom status bar + system tray."""
+"""MainWindow: SidebarWidget + QStackedWidget + system tray."""
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QPropertyAnimation, QTimer
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
-    QLabel,
     QMainWindow,
     QMenu,
     QStackedWidget,
@@ -36,14 +35,12 @@ class MainWindow(QMainWindow):
         self._event_bus = app.state.event_bus
         self._pending_update = None
         self._service_pending_update = None
-        self._last_queue_size = 0
         self._idle_timer = None
 
         # EventBridge — thread-safe EventBus to Qt signal bridge
         self._bridge = EventBridge(self._event_bus, self)
         self._bridge.job_status.connect(self._on_job_status)
         self._bridge.printer_status.connect(self._on_printer_status)
-        self._bridge.health_status.connect(self._on_health_status)
         self._bridge.log.connect(self._on_log)
 
         # Notification stack (bottom-right toasts)
@@ -93,17 +90,12 @@ class MainWindow(QMainWindow):
         body.addWidget(self.stack, 1)
         main_layout.addLayout(body, 1)
 
-        # Status bar (bottom)
-        self.status_bar = self._build_status_bar()
-        main_layout.addWidget(self.status_bar)
-
         # System tray
         self._setup_tray()
 
-        # Health timer
+        # Health timer (started on first show, stopped when hidden)
         self._health_timer = QTimer(self)
         self._health_timer.timeout.connect(self._refresh_status)
-        self._health_timer.start(3000)
 
         # Window state persistence
         from gui.settings_store import WindowStateManager
@@ -133,23 +125,6 @@ class MainWindow(QMainWindow):
 
     def show_notification(self, text: str, color: str = '#8B7355'):
         self._notifications.show_notification(text, color)
-
-    def _build_status_bar(self) -> QWidget:
-        bar = QWidget()
-        bar.setObjectName('statusBar')
-        bar.setFixedHeight(44)
-        layout = QHBoxLayout(bar)
-        layout.setContentsMargins(24, 0, 24, 0)
-        self.status_dot = QLabel()
-        self.status_dot.setFixedSize(8, 8)
-        self.status_dot.setStyleSheet('background-color: #6B8F6B; border-radius: 4px;')
-        self.status_text = QLabel('启动中...')
-        self.status_text.setObjectName('statusText')
-        layout.addWidget(self.status_dot)
-        layout.addWidget(self.status_text)
-
-        layout.addStretch()
-        return bar
 
     def _setup_tray(self):
         if getattr(sys, 'frozen', False):
@@ -241,7 +216,7 @@ class MainWindow(QMainWindow):
         if not hasattr(self, '_idle_timer') or not self._idle_timer:
             self._idle_timer = QTimer(self)
             self._idle_timer.timeout.connect(self._check_idle_and_apply)
-            self._idle_timer.start(5000)
+            self._idle_timer.start(15000)
 
     def _check_quark_config(self):
         """Check Quark API config on startup and warn if missing."""
@@ -264,8 +239,10 @@ class MainWindow(QMainWindow):
             return
         if not getattr(self, '_service_pending_update', None):
             return
-        # Check queue_size from health status — 0 means idle
-        if getattr(self, '_last_queue_size', None) != 0:
+        # Check queue is empty
+        repo = getattr(self._app.state, 'job_repo', None)
+        stats = repo.get_stats() if repo else {}
+        if stats.get('queued', 0) > 0 or stats.get('printing', 0) > 0:
             return
         # Also avoid applying while user is actively using the GUI
         if self.isVisible() and self.isActiveWindow():
@@ -324,20 +301,11 @@ class MainWindow(QMainWindow):
             self._config.save()
 
     def _refresh_status(self):
-        from gui.pipe_client import health as wd_health
-
-        h = wd_health()
-        if h is not None and h.message == 'alive':
-            self.status_dot.setStyleSheet('background-color: #6B8F6B; border-radius: 4px;')
-            self.status_text.setText(f'运行中 · 端口 {self._server.port}')
+        running = self._server and self._server.is_running
+        if running:
             self.sidebar.set_server_status(True, self._server.port)
-        elif self._server:
-            self.status_dot.setStyleSheet('background-color: #C53A3A; border-radius: 4px;')
-            self.status_text.setText('已停止')
-            self.sidebar.set_server_status(False)
         else:
-            self.status_dot.setStyleSheet('background-color: #B0A89F; border-radius: 4px;')
-            self.status_text.setText('未初始化')
+            self.sidebar.set_server_status(False)
 
     def _on_nav_changed(self, index: int):
         current = self.stack.currentWidget()
@@ -361,13 +329,6 @@ class MainWindow(QMainWindow):
                 current._clear_all()
 
         self.stack.setCurrentIndex(index)
-        w = self.stack.currentWidget()
-        if w:
-            anim = QPropertyAnimation(w, b'windowOpacity')
-            anim.setDuration(200)
-            anim.setStartValue(0.7)
-            anim.setEndValue(1.0)
-            anim.start()
 
     def _on_log(self, data: dict):
         current = self.stack.currentWidget()
@@ -426,15 +387,6 @@ class MainWindow(QMainWindow):
                 3000,
             )
 
-    def _on_health_status(self, data: dict):
-        queue_size = data.get('queue_size', 0)
-        workers = data.get('workers', 0)
-        self._last_queue_size = queue_size
-        if self._server and self._server.is_running:
-            self.status_text.setText(
-                f'运行中 · 端口 {self._server.port} · 队列 {queue_size} · 工作进程 {workers}'
-            )
-
     def closeEvent(self, event):
         self._state_manager.save()
         current_page = self.stack.currentWidget()
@@ -444,6 +396,16 @@ class MainWindow(QMainWindow):
             current_page.cleanup()
         event.ignore()
         self.hide()
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self._health_timer.stop()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self._health_timer.isActive():
+            self._health_timer.start(3000)
+            self._refresh_status()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

@@ -172,19 +172,26 @@ class ScanPage(QWidget):
         self._printer_combo.setPlaceholderText('选择打印机')
         self._copies_spin = QSpinBox()
         self._copies_spin.setRange(1, 99)
-        self._copies_spin.setValue(1)
+        cfg = self._mw._config
+        self._copies_spin.setValue(cfg.get('default_copies', 1) if cfg else 1)
         self._copies_spin.setToolTip('设置打印份数，最大不超过打印机支持上限')
-        self._duplex_cb = LabeledToggle('双面', checked=True)
+        self._duplex_cb = LabeledToggle('双面', checked=cfg.get('default_duplex', False) if cfg else False)
         self._duplex_cb.setToolTip('开启后打印机将双面打印（需打印机支持）')
-        self._color_cb = LabeledToggle('彩色', checked=True)
+        self._color_combo = QComboBox()
+        self._color_combo.addItems(['彩色', '黑白'])
+        if cfg:
+            self._color_combo.setCurrentText('彩色' if cfg.get('default_color', True) else '黑白')
         self._paper_combo = QComboBox()
         self._paper_combo.addItems(['A4', 'Letter', 'A3'])
+        if cfg:
+            self._paper_combo.setCurrentText(cfg.get('paper_size', 'A4'))
         print_lo.addWidget(QLabel('打印机:'))
         print_lo.addWidget(self._printer_combo)
         print_lo.addWidget(QLabel('份数:'))
         print_lo.addWidget(self._copies_spin)
         print_lo.addWidget(self._duplex_cb)
-        print_lo.addWidget(self._color_cb)
+        print_lo.addWidget(QLabel('颜色:'))
+        print_lo.addWidget(self._color_combo)
         print_lo.addWidget(QLabel('纸张:'))
         print_lo.addWidget(self._paper_combo)
         submit_print_btn = QPushButton('确认打印')
@@ -233,6 +240,27 @@ class ScanPage(QWidget):
         caps = query_capabilities(name)
         self._copies_spin.setRange(1, caps.copies_max)
         self._copies_spin.setToolTip(f'最大复印数: {caps.copies_max}')
+
+        self._color_combo.clear()
+        if caps.supports_color:
+            self._color_combo.addItems(['彩色', '黑白'])
+            self._color_combo.setCurrentText(
+                '彩色' if self._mw._config.get('default_color', True) else '黑白'
+            )
+        else:
+            self._color_combo.addItems(['黑白'])
+
+        self._duplex_cb.setVisible(caps.supports_duplex)
+        if not caps.supports_duplex:
+            self._duplex_cb.setChecked(False)
+        else:
+            cfg = self._mw._config
+            self._duplex_cb.setChecked(cfg.get('default_duplex', False) if cfg else False)
+
+        self._paper_combo.clear()
+        self._paper_combo.addItems(caps.paper_names)
+        if 'A4' in caps.paper_names:
+            self._paper_combo.setCurrentText('A4')
 
     def _confirm_clear(self):
         from PySide6.QtWidgets import QMessageBox
@@ -565,7 +593,7 @@ class ScanPage(QWidget):
 
         from gui.components.print_dialog import PrintDialog
 
-        dlg = PrintDialog(printers, self)
+        dlg = PrintDialog(printers, self, config=self._mw._config)
         if dlg.exec() == PrintDialog.DialogCode.Accepted:
             params = dlg.get_result()
             if params:
@@ -577,16 +605,14 @@ class ScanPage(QWidget):
         try:
             import tempfile
 
-            from app.printing.job_queue import get_queue
-
-            queue = get_queue()
+            queue = self._mw._app.state.job_queue
             data_list = [self._generated_pdf] if self._generated_pdf else self._generated_images
             ext = '.pdf' if self._generated_pdf else '.jpg'
 
             printer = params.get('printer', '') if params else self._printer_combo.currentText()
             copies = params.get('copies', 1) if params else self._copies_spin.value()
             duplex = params.get('duplex', True) if params else self._duplex_cb.isChecked()
-            color = params.get('color', True) if params else self._color_cb.isChecked()
+            color = params.get('color', True) if params else self._color_combo.currentText() == '彩色'
             paper_size = (
                 params.get('paper_size', 'A4') if params else self._paper_combo.currentText()
             )
@@ -596,13 +622,15 @@ class ScanPage(QWidget):
                 with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as f:
                     f.write(data)
                     tmp_path = f.name
-                queue.enqueue(
+                queue.add_job(
+                    f'scan_result{ext}',
                     tmp_path,
-                    printer=printer,
+                    printer_name=printer,
                     copies=copies,
                     duplex=duplex,
                     color=color,
                     paper_size=paper_size,
+                    source='gui',
                 )
                 submitted += 1
 

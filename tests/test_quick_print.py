@@ -19,6 +19,7 @@ class FakeMainWindow:
         state = State()
 
     _app = _App()
+    _config = None
 
 
 def test_quick_print_initial_state(qapp):
