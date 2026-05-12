@@ -36,6 +36,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
 Source: "dist\iOSPrintServer\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "certs\cert.pem"; DestDir: "{app}\certs"; Flags: ignoreversion
+Source: "certs\key.pem"; DestDir: "{app}\certs"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
