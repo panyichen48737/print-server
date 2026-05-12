@@ -93,11 +93,11 @@ class JobExecutor:
 
     def _execute_print(self, temp_path, job, job_id):
         print_params = {
-            'printer_name': job.get('printer_name') or '',
-            'copies': job.get('copies') or 1,
-            'duplex': job.get('duplex'),
-            'color': job.get('color'),
-            'paper_size': job.get('paper_size') or '',
+            'printer_name': job.get('printer_name') or self.config.get('default_printer', ''),
+            'copies': job.get('copies') or self.config.get('default_copies', 1),
+            'duplex': job.get('duplex') if job.get('duplex') is not None else self.config.get('default_duplex', False),
+            'color': job.get('color') if job.get('color') is not None else self.config.get('default_color', True),
+            'paper_size': job.get('paper_size') or self.config.get('paper_size', 'A4'),
         }
         timeout = self.config.get('job_timeout', 300)
         deadline = time.monotonic() + timeout
