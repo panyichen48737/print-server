@@ -91,10 +91,8 @@ class ToggleSwitch(QSlider):
 
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
-            self._checked = not self._checked
-            self._animate_toggle(1 if self._checked else 0)
-            self._refresh_qss()
-            self.toggled.emit(self._checked)
+            target = 0 if self._checked else 1
+            self._animate_toggle(target)
             return
         super().mousePressEvent(event)
 
