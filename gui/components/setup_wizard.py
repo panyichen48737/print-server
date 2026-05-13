@@ -333,10 +333,8 @@ class SetupWizard(QDialog):
             slo.addLayout(row)
 
         port = self.port_input.text() if hasattr(self, 'port_input') else '5000'
-        color_label = '彩色' if self.color_combo.currentText() == '彩色' else '黑白'
         _info_row('服务器地址', f'http://{ip}:{port}')
         _info_row('API Key', self.api_key_input.text() if hasattr(self, 'api_key_input') else '')
-        _info_row('默认颜色', color_label)
         lo.addWidget(summary)
 
         lo.addSpacing(16)
