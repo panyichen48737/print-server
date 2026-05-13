@@ -25,8 +25,9 @@ QComboBox QAbstractItemView::item {
 }
 
 QComboBox::down-arrow {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 7px;
+    image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAHCAYAAAAxrNxjAAAAL0lEQVR4nGNsaar4z0AEYCqp62AkSiExiuAKCZkKkoebiEsxTBzFanTFyHyi3QgAv1QM8Ewq5HgAAAAASUVORK5CYII=);
 }
 
 QComboBox::drop-down {
