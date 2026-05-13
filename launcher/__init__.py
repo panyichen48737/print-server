@@ -280,6 +280,14 @@ def _gui_main() -> int:
 
     app, config, _, printer_monitor, _ = _bootstrap_server()
 
+    # 提前应用主题，使配置向导获得 QSS 样式
+    from gui.theme import ThemeEngine
+
+    saved_theme = config.get('theme_mode', 'light')
+    if saved_theme not in ('light', 'dark'):
+        saved_theme = 'light'
+    ThemeEngine.instance().apply(saved_theme, QApplication.instance())
+
     # 首次启动：显示配置向导
     is_default_key = config.get('api_key') == 'print-server-key-2026'
     if is_default_key:

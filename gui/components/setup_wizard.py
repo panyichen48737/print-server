@@ -142,12 +142,12 @@ class SetupWizard(QDialog):
 
     def _heading(self, parent, text: str):
         h = QLabel(text)
-        h.setStyleSheet('font-size: 20px; font-weight: 600;')
+        h.setObjectName('pageTitle')
         parent.addWidget(h)
 
     def _desc(self, parent, text: str, wrap=True):
         d = QLabel(text)
-        d.setStyleSheet('font-size: 13px;')
+        d.setObjectName('pageSub')
         d.setWordWrap(wrap)
         parent.addWidget(d)
 
@@ -163,7 +163,6 @@ class SetupWizard(QDialog):
             '• 实时任务监控和管理\n'
             '• 文档扫描（需夸克 API）'
         )
-        features.setStyleSheet('font-size: 14px; line-height: 1.6;')
         lo.addWidget(features)
 
     def _build_api_key(self):
@@ -236,7 +235,6 @@ class SetupWizard(QDialog):
         lo.addLayout(form_row2)
 
         note = QLabel('提示：可在设置页面随时修改这些配置。')
-        note.setStyleSheet('font-size: 12px;')
         lo.addWidget(note)
 
     def _build_printer(self):
@@ -276,7 +274,7 @@ class SetupWizard(QDialog):
         lo.addLayout(copies_row)
 
         self.duplex_toggle = LabeledToggle(
-            '双面打印', checked=self._config.get('default_duplex', False), label_first=True
+            '双面', checked=self._config.get('default_duplex', False), label_first=True
         )
         lo.addWidget(self.duplex_toggle)
         color_row = QHBoxLayout()
