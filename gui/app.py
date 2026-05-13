@@ -416,6 +416,7 @@ class MainWindow(QMainWindow):
 
 
 def run_gui(app, config, server_handle: ServerHandle):
+    qapp = QApplication.instance()
     from gui.theme import ThemeEngine
 
     theme = ThemeEngine.instance()
