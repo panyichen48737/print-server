@@ -11,11 +11,12 @@ QSlider {{
     min-height: 30px; max-height: 30px;
 }}
 QSlider::groove:horizontal {{
-    background: {color};
+    background: {off};
     height: 30px; border-radius: 15px; border: none;
 }}
 QSlider::sub-page:horizontal {{
-    background: transparent; height: 30px; border-radius: 15px;
+    background: {on};
+    height: 30px; border-radius: 15px;
 }}
 QSlider::add-page:horizontal {{
     background: transparent; height: 30px; border-radius: 15px;
@@ -51,20 +52,17 @@ class ToggleSwitch(QSlider):
         anim.finished.connect(lambda: setattr(self, '_animating', False))
         anim.start()
 
-    def _track_color(self) -> str:
-        if self._checked:
-            return '#8B7355'  # light on
-        return '#D0C8BE'  # light off
-
-    def _knob_color(self) -> str:
-        return '#FFFFFF'
-
     def _refresh_qss(self):
         opacity = '0.4' if not self.isEnabled() else '1.0'
+        on_color = '#8B7355'
+        off_color = '#D0C8BE'
+        if not self.isEnabled():
+            on_color = off_color
         self.setStyleSheet(
             TRACK_QSS.format(
-                color=self._track_color(),
-                knob=self._knob_color(),
+                on=on_color,
+                off=off_color,
+                knob='#FFFFFF',
             )
             + f'QSlider {{ opacity: {opacity}; }}'
         )
