@@ -127,12 +127,12 @@ class SetupWizard(QDialog):
 
     def _heading(self, parent, text: str):
         h = QLabel(text)
-        h.setStyleSheet('font-size: 20px; font-weight: 600; color: #E8E5E0;')
+        h.setStyleSheet('font-size: 20px; font-weight: 600;')
         parent.addWidget(h)
 
     def _desc(self, parent, text: str, wrap=True):
         d = QLabel(text)
-        d.setStyleSheet('font-size: 13px; color: #8A8178;')
+        d.setStyleSheet('font-size: 13px;')
         d.setWordWrap(wrap)
         parent.addWidget(d)
 
@@ -148,7 +148,7 @@ class SetupWizard(QDialog):
             '• 实时任务监控和管理\n'
             '• 文档扫描（需夸克 API）'
         )
-        features.setStyleSheet('font-size: 14px; color: #B0A89F; line-height: 1.6;')
+        features.setStyleSheet('font-size: 14px; line-height: 1.6;')
         lo.addWidget(features)
 
     def _build_api_key(self):
@@ -219,7 +219,7 @@ class SetupWizard(QDialog):
         lo.addLayout(form_row2)
 
         note = QLabel('提示：可在设置页面随时修改这些配置。')
-        note.setStyleSheet('font-size: 12px; color: #8A8178;')
+        note.setStyleSheet('font-size: 12px;')
         lo.addWidget(note)
 
     def _build_printer(self):
@@ -303,7 +303,7 @@ class SetupWizard(QDialog):
             row = QHBoxLayout()
             row.setSpacing(8)
             lbl = QLabel(label)
-            lbl.setStyleSheet('font-size: 13px; color: #9A928A; font-weight: 500;')
+            lbl.setStyleSheet('font-size: 13px; font-weight: 500;')
             val = QLabel(value)
             val.setStyleSheet(
                 'font-size: 13px; color: #B8956A; font-family: Consolas, monospace; padding: 4px 8px;'
@@ -338,7 +338,7 @@ class SetupWizard(QDialog):
             '4. 即可从 iOS 提交打印任务'
         )
         guide.setStyleSheet(
-            'font-size: 13px; color: #B0A89F; line-height: 1.7; padding: 12px;'
+            'font-size: 13px; line-height: 1.7; padding: 12px;'
             'background: rgba(0,0,0,0.03); border-radius: 8px;'
         )
         lo.addWidget(guide)
@@ -423,8 +423,9 @@ class SetupWizard(QDialog):
 
         for i, lbl in enumerate(self._step_labels):
             bg = '#B8956A' if i == self._current_step else 'transparent'
-            tc = '#1C1917' if i == self._current_step else '#9A928A'
+            extra = f'background: {bg}; color: #1C1917;' if i == self._current_step else ''
             lbl.setStyleSheet(
                 f'padding: 8px 12px; border-radius: 6px; font-size: 13px;'
-                f'background: {bg}; color: {tc}; font-weight: {"600" if i <= self._current_step else "400"};'
+                f'{extra}'
+                f'font-weight: {"600" if i <= self._current_step else "400"};'
             )
