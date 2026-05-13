@@ -275,6 +275,7 @@ def _gui_main() -> int:
     # 首次启动：显示配置向导
     is_default_key = config.get('api_key') == 'print-server-key-2026'
     if is_default_key:
+        printer_monitor.start()
         _show_setup_wizard(config, printer_monitor)
 
     # Rebind logger to GUI source for GUI-process logging
