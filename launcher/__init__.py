@@ -233,11 +233,17 @@ def _install_qt_translator() -> None:
     app = QApplication.instance()
     if app is None:
         return
-    path = QLibraryInfo.path(QLibraryInfo.TranslationsPath)
-    for qm in ('qt_zh_CN', 'qtbase_zh_CN'):
-        translator = QTranslator()
-        if translator.load(qm, path):
-            app.installTranslator(translator)
+
+    search_paths: list[str] = []
+    if getattr(sys, 'frozen', False):
+        search_paths.append(str(Path(sys.executable).parent / 'translations'))
+    search_paths.append(QLibraryInfo.path(QLibraryInfo.TranslationsPath))
+
+    for path in search_paths:
+        for qm in ('qt_zh_CN', 'qtbase_zh_CN'):
+            translator = QTranslator()
+            if translator.load(qm, path):
+                app.installTranslator(translator)
 
 
 def _show_setup_wizard(config, printer_monitor) -> bool:
