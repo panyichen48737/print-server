@@ -417,6 +417,9 @@ class MainWindow(QMainWindow):
 
 def run_gui(app, config, server_handle: ServerHandle):
     qapp = QApplication(sys.argv)
+    from launcher import _install_qt_translator
+
+    _install_qt_translator()
     from gui.theme import ThemeEngine
 
     theme = ThemeEngine.instance()

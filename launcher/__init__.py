@@ -225,11 +225,27 @@ def _start_server_background(server_handle: ServerHandle, app, config, printer_m
         logger.error('服务器启动超时')
 
 
+def _install_qt_translator() -> None:
+    """加载 Qt 内置 widget 的中文翻译（右键菜单等）。"""
+    from PySide6.QtCore import QLibraryInfo, QTranslator
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    if app is None:
+        return
+    path = QLibraryInfo.path(QLibraryInfo.TranslationsPath)
+    for qm in ('qt_zh_CN', 'qtbase_zh_CN'):
+        translator = QTranslator()
+        if translator.load(qm, path):
+            app.installTranslator(translator)
+
+
 def _show_setup_wizard(config, printer_monitor) -> bool:
     """首次启动时显示配置向导，返回 True 表示用户完成了配置"""
     from PySide6.QtWidgets import QApplication
 
     QApplication.instance() or QApplication([])
+    _install_qt_translator()
     from gui.components.setup_wizard import SetupWizard
 
     wizard = SetupWizard(config, printer_monitor=printer_monitor)
