@@ -135,6 +135,7 @@ jobs:
         with:
           go-version-file: service/go.mod
           cache: true
+          cache-dependency-path: service/go.sum
       - name: Build update service
         run: python scripts/build_service.py
       - name: Generate update zip SHA256
