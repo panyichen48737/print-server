@@ -116,7 +116,7 @@ jobs:
         with:
           path: |
             build/
-            %LOCALAPPDATA%\pyinstaller
+            ~\AppData\Local\pyinstaller
           key: pyinstaller-${{ runner.os }}-${{ hashFiles('pyproject.toml', 'scripts/build.py') }}
           restore-keys: |
             pyinstaller-${{ runner.os }}-
