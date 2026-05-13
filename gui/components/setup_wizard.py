@@ -12,6 +12,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -37,7 +38,7 @@ class SetupWizard(QDialog):
         self._printer_monitor = printer_monitor
         self._current_step = 0
         self._page_widgets: list[QWidget] = []
-        self._step_labels: list[QLabel] = []
+        self._step_labels: list[QPushButton] = []
 
         self.setWindowTitle('首次配置向导')
         self.setMinimumSize(720, 520)
@@ -53,7 +54,7 @@ class SetupWizard(QDialog):
         body.setSpacing(0)
 
         # ── Left: Step indicator ──
-        step_panel = QWidget()
+        step_panel = QFrame()
         step_panel.setFixedWidth(160)
         step_panel.setObjectName('sidebar')
         step_layout = QVBoxLayout(step_panel)
@@ -61,13 +62,12 @@ class SetupWizard(QDialog):
         step_layout.setSpacing(4)
 
         for i, name in enumerate(self.STEPS):
-            lbl = QLabel(f'{i + 1}. {name}')
-            lbl.setObjectName('navItem')
-            lbl.setCursor(Qt.CursorShape.PointingHandCursor)
-            lbl.mousePressEvent = lambda _, idx=i: self._go_to(idx)
-            lbl.setStyleSheet('padding: 8px 12px; border-radius: 6px; font-size: 13px;')
-            self._step_labels.append(lbl)
-            step_layout.addWidget(lbl)
+            btn = QPushButton(f'{i + 1}. {name}')
+            btn.setObjectName('navItem')
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda _, idx=i: self._go_to(idx))
+            self._step_labels.append(btn)
+            step_layout.addWidget(btn)
 
         step_layout.addStretch()
         body.addWidget(step_panel)
@@ -315,12 +315,9 @@ class SetupWizard(QDialog):
             row = QHBoxLayout()
             row.setSpacing(8)
             lbl = QLabel(label)
-            lbl.setStyleSheet('font-size: 13px; font-weight: 500;')
+            lbl.setObjectName('muted')
             val = QLabel(value)
-            val.setStyleSheet(
-                'font-size: 13px; color: #B8956A; font-family: Consolas, monospace; padding: 4px 8px;'
-                'background: rgba(0,0,0,0.05); border-radius: 4px;'
-            )
+            val.setObjectName('data')
             val.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             row.addWidget(lbl)
             row.addWidget(val, 1)
@@ -347,10 +344,7 @@ class SetupWizard(QDialog):
             f'3. 设置 apiKey = "{self.api_key_input.text()[:16]}…"\n'
             '4. 即可从 iOS 提交打印任务'
         )
-        guide.setStyleSheet(
-            'font-size: 13px; line-height: 1.7; padding: 12px;'
-            'background: rgba(0,0,0,0.03); border-radius: 8px;'
-        )
+        guide.setObjectName('statCard')
         lo.addWidget(guide)
 
     # ── Helpers ──
@@ -431,11 +425,8 @@ class SetupWizard(QDialog):
         self.finish_btn.setVisible(is_last)
         self.skip_btn.setVisible(not is_last)
 
-        for i, lbl in enumerate(self._step_labels):
-            bg = '#B8956A' if i == self._current_step else 'transparent'
-            extra = f'background: {bg}; color: #1C1917;' if i == self._current_step else ''
-            lbl.setStyleSheet(
-                f'padding: 8px 12px; border-radius: 6px; font-size: 13px;'
-                f'{extra}'
-                f'font-weight: {"600" if i <= self._current_step else "400"};'
-            )
+        for i, btn in enumerate(self._step_labels):
+            active = i == self._current_step
+            btn.setProperty('active', active)
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)

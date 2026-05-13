@@ -225,6 +225,10 @@ def _start_server_background(server_handle: ServerHandle, app, config, printer_m
         logger.error('服务器启动超时')
 
 
+# 保留引用，防止 QTranslator 被垃圾回收
+_qt_translators: list = []
+
+
 def _install_qt_translator() -> None:
     """加载 Qt 内置 widget 的中文翻译（右键菜单等）。"""
     from PySide6.QtCore import QLibraryInfo, QTranslator
@@ -234,6 +238,9 @@ def _install_qt_translator() -> None:
     if app is None:
         return
 
+    global _qt_translators
+    _qt_translators.clear()
+
     search_paths: list[str] = []
     if getattr(sys, 'frozen', False):
         search_paths.append(str(Path(sys.executable).parent / 'translations'))
@@ -242,8 +249,9 @@ def _install_qt_translator() -> None:
     for path in search_paths:
         for qm in ('qt_zh_CN', 'qtbase_zh_CN'):
             translator = QTranslator()
-            if translator.load(qm, path):
+            if translator.load(qm, str(path)):
                 app.installTranslator(translator)
+                _qt_translators.append(translator)
 
 
 def _show_setup_wizard(config, printer_monitor) -> bool:
