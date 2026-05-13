@@ -157,7 +157,7 @@ class QuickPrintPage(QWidget):
         cfg = self._mw._config
         self.copies_spin.setValue(cfg.get('default_copies', 1) if cfg else 1)
         self.duplex_cb = LabeledToggle(
-            '双面', checked=cfg.get('default_duplex', False) if cfg else False
+            '双面', checked=cfg.get('default_duplex', False) if cfg else False, label_first=True
         )
         self.color_combo = QComboBox()
         self.color_combo.addItems(['彩色', '黑白'])
@@ -172,6 +172,7 @@ class QuickPrintPage(QWidget):
         options_row.addWidget(QLabel('份数:'))
         options_row.addWidget(self.copies_spin)
         options_row.addWidget(self.duplex_cb)
+        options_row.addWidget(QLabel('颜色:'))
         options_row.addWidget(self.color_combo)
         options_row.addWidget(QLabel('纸张:'))
         options_row.addWidget(self.paper_combo)

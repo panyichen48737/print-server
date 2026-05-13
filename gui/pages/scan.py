@@ -105,7 +105,7 @@ class ScanPage(QWidget):
         self.output_combo.addItems(['PDF', '图片'])
         self.output_combo.setToolTip('选择输出为 PDF 文档或独立图片文件')
         self.output_combo.currentTextChanged.connect(self._on_output_format_changed)
-        self.merge_cb = LabeledToggle('合并为一个文件', checked=False)
+        self.merge_cb = LabeledToggle('合并为一个文件', checked=False, label_first=True)
         self.merge_cb.setToolTip('多张图片合并为一个 PDF 文件')
         self.merge_cb.setVisible(False)
         options_row.addWidget(QLabel('输出格式:'))
@@ -176,7 +176,7 @@ class ScanPage(QWidget):
         self._copies_spin.setValue(cfg.get('default_copies', 1) if cfg else 1)
         self._copies_spin.setToolTip('设置打印份数，最大不超过打印机支持上限')
         self._duplex_cb = LabeledToggle(
-            '双面', checked=cfg.get('default_duplex', False) if cfg else False
+            '双面', checked=cfg.get('default_duplex', False) if cfg else False, label_first=True
         )
         self._duplex_cb.setToolTip('开启后打印机将双面打印（需打印机支持）')
         self._color_combo = QComboBox()

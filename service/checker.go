@@ -183,12 +183,16 @@ func fetchLatestRelease() (*githubRelease, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GitHub API returned HTTP %d", resp.StatusCode)
+	}
+
 	var release githubRelease
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
 		return nil, err
 	}
 	if release.TagName == "" {
-		return nil, fmt.Errorf("empty tag_name")
+		return nil, fmt.Errorf("empty tag_name (API %s)", githubAPI)
 	}
 	return &release, nil
 }

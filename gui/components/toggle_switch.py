@@ -95,15 +95,21 @@ class LabeledToggle(QWidget):
 
     toggled = Signal(bool)
 
-    def __init__(self, text: str = '', checked: bool = False, parent=None):
+    def __init__(
+        self, text: str = '', checked: bool = False, parent=None, label_first: bool = False
+    ):
         super().__init__(parent)
         lo = QHBoxLayout(self)
         lo.setContentsMargins(0, 0, 0, 0)
         lo.setSpacing(10)
         self._toggle = ToggleSwitch(checked)
         self._label = QLabel(text)
-        lo.addWidget(self._toggle)
-        lo.addWidget(self._label)
+        if label_first:
+            lo.addWidget(self._label)
+            lo.addWidget(self._toggle)
+        else:
+            lo.addWidget(self._toggle)
+            lo.addWidget(self._label)
         lo.addStretch()
         self.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
 

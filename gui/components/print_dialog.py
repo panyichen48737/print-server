@@ -64,7 +64,7 @@ class PrintDialog(QDialog):
 
         # Duplex
         default_duplex = self._config.get('default_duplex', False) if self._config else False
-        self.duplex_cb = LabeledToggle('双面', checked=default_duplex)
+        self.duplex_cb = LabeledToggle('双面', checked=default_duplex, label_first=True)
         layout.addWidget(self.duplex_cb)
 
         # Paper

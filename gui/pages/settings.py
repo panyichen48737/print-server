@@ -111,7 +111,7 @@ class SettingsPage(QWidget):
         self.port_input = QLineEdit()
         self.port_input.setValidator(PortValidator(self))
         server_form.addRow('端口:', self.port_input)
-        self.ssl_cb = LabeledToggle('启用 SSL', checked=True)
+        self.ssl_cb = LabeledToggle('启用 SSL', checked=True, label_first=True)
         server_form.addRow('', self.ssl_cb)
         self._content_layout.addWidget(server_group)
 
@@ -147,7 +147,7 @@ class SettingsPage(QWidget):
         self.default_copies_spin = QSpinBox()
         self.default_copies_spin.setRange(1, 99)
         print_opts_form.addRow('默认份数:', self.default_copies_spin)
-        self.default_duplex_cb = LabeledToggle('双面')
+        self.default_duplex_cb = LabeledToggle('双面', label_first=True)
         print_opts_form.addRow('', self.default_duplex_cb)
         self.default_color_combo = QComboBox()
         self.default_color_combo.addItems(['彩色', '黑白'])

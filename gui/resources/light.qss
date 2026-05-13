@@ -521,3 +521,13 @@ QWidget#statusBar {
 QWidget#statusBar QLabel#statusText {
     color: #8A8178;
 }
+
+/* Setup wizard */
+QDialog#setupWizard {
+    background-color: #F2F0EB;
+}
+
+QFrame#wizardNav {
+    background-color: #FFFFFF;
+    border-top: 1px solid #E5DDD5;
+}

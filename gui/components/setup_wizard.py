@@ -43,6 +43,7 @@ class SetupWizard(QDialog):
         self.setWindowTitle('首次配置向导')
         self.setMinimumSize(720, 520)
         self.setModal(True)
+        self.setObjectName('setupWizard')
         self._set_window_icon()
 
         main_layout = QVBoxLayout(self)
@@ -77,8 +78,10 @@ class SetupWizard(QDialog):
         body.addWidget(self.stack, 1)
         main_layout.addLayout(body, 1)
 
-        # ── Bottom: Navigation ──
-        nav = QHBoxLayout()
+        # ── Bottom: Navigation bar ──
+        nav_bar = QFrame()
+        nav_bar.setObjectName('wizardNav')
+        nav = QHBoxLayout(nav_bar)
         nav.setContentsMargins(20, 12, 20, 16)
         nav.setSpacing(8)
 
@@ -104,7 +107,7 @@ class SetupWizard(QDialog):
         nav.addWidget(self.skip_btn)
         nav.addWidget(self.next_btn)
         nav.addWidget(self.finish_btn)
-        main_layout.addLayout(nav)
+        main_layout.addWidget(nav_bar)
 
         # Build pages
         self._build_welcome()
@@ -204,7 +207,9 @@ class SetupWizard(QDialog):
         port_row.addStretch()
         lo.addLayout(port_row)
 
-        self.ssl_toggle = LabeledToggle('启用 SSL', checked=self._config.get('ssl_enabled', True))
+        self.ssl_toggle = LabeledToggle(
+            '启用 SSL', checked=self._config.get('ssl_enabled', True), label_first=True
+        )
         lo.addWidget(self.ssl_toggle)
 
     def _build_quark(self):
@@ -271,7 +276,7 @@ class SetupWizard(QDialog):
         lo.addLayout(copies_row)
 
         self.duplex_toggle = LabeledToggle(
-            '双面打印', checked=self._config.get('default_duplex', False)
+            '双面打印', checked=self._config.get('default_duplex', False), label_first=True
         )
         lo.addWidget(self.duplex_toggle)
         color_row = QHBoxLayout()

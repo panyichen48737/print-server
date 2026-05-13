@@ -6,7 +6,6 @@ from PySide6.QtCore import QAbstractTableModel, QEvent, QSettings, Qt, QVariantA
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QComboBox,
-    QDateEdit,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -161,17 +160,6 @@ class JobManagerPage(QWidget):
         filter_row.addWidget(self.status_filter)
         filter_row.addWidget(self.search_input)
         filter_row.addWidget(self.clear_filter_btn)
-        self.date_from = QDateEdit()
-        self.date_from.setCalendarPopup(True)
-        self.date_from.setSpecialValueText('开始日期')
-        self.date_from.setDate(self.date_from.minimumDate())
-        self.date_to = QDateEdit()
-        self.date_to.setCalendarPopup(True)
-        self.date_to.setSpecialValueText('结束日期')
-        self.date_to.setDate(self.date_to.maximumDate())
-        filter_row.addWidget(QLabel('日期:'))
-        filter_row.addWidget(self.date_from)
-        filter_row.addWidget(self.date_to)
         filter_row.addStretch()
         layout.addLayout(filter_row)
 
@@ -234,8 +222,6 @@ class JobManagerPage(QWidget):
 
         self.status_filter.currentTextChanged.connect(self._on_filter_changed)
         self.search_input.textChanged.connect(self._on_filter_changed)
-        self.date_from.dateChanged.connect(self._on_filter_changed)
-        self.date_to.dateChanged.connect(self._on_filter_changed)
 
         # Hover delegate
         self._queue_delegate = HoverHighlightDelegate(self)
