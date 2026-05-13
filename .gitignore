@@ -34,7 +34,7 @@ memory/
 .mcp.json
 .superpowers/
 app/static/scalar.standalone.min.js
-docs/superpowers/
+docs/
 design_demos/
 _debug_out.txt
 _debug_out2.txt
