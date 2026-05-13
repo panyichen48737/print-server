@@ -8,7 +8,7 @@ venv/
 .venv/
 build/
 dist/
-certs/
+# certs/  # 取消注释以忽略证书文件
 .claude/
 .pytest_cache/
 .coverage
