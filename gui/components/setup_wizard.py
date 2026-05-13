@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import secrets
 import socket
+import sys
+from pathlib import Path
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -39,6 +42,7 @@ class SetupWizard(QDialog):
         self.setWindowTitle('首次配置向导')
         self.setMinimumSize(720, 520)
         self.setModal(True)
+        self._set_window_icon()
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -111,6 +115,14 @@ class SetupWizard(QDialog):
         self._build_complete()
 
         self._update_nav()
+
+    def _set_window_icon(self):
+        if getattr(sys, 'frozen', False):
+            icon_path = Path(sys.executable).parent / 'gui' / 'resources' / 'icon_256.png'
+        else:
+            icon_path = Path(__file__).parent.parent / 'resources' / 'icon_256.png'
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
 
     # ── Page builders ──
 
