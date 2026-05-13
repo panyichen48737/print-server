@@ -248,10 +248,6 @@ def _install_qt_translator() -> None:
 
 def _show_setup_wizard(config, printer_monitor) -> bool:
     """首次启动时显示配置向导，返回 True 表示用户完成了配置"""
-    from PySide6.QtWidgets import QApplication
-
-    QApplication.instance() or QApplication([])
-    _install_qt_translator()
     from gui.components.setup_wizard import SetupWizard
 
     wizard = SetupWizard(config, printer_monitor=printer_monitor)
@@ -266,6 +262,11 @@ def _show_setup_wizard(config, printer_monitor) -> bool:
 def _gui_main() -> int:
     """启动 PySide6 GUI（自动启动后台服务器 + 打印机监控）"""
     _ensure_single_instance()  # ← 最先检查，避免冗余初始化
+
+    from PySide6.QtWidgets import QApplication
+
+    _ = QApplication.instance() or QApplication(sys.argv)
+    _install_qt_translator()
 
     from gui.app import run_gui
 
