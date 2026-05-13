@@ -329,14 +329,17 @@ def build(version: str):
             shutil.copytree(str(certs_src), str(certs_dst), dirs_exist_ok=True)
             print(f'[build] 证书已复制到 {certs_dst}')
 
-        # 复制 PySide6 翻译文件（右键菜单等）
+        # 复制 PySide6 翻译文件（中文右键菜单等）
         try:
             from PySide6.QtCore import QLibraryInfo
 
             qm_src = Path(QLibraryInfo.path(QLibraryInfo.TranslationsPath))
             qm_dst = dist_dir / 'translations'
             if qm_src.exists():
-                shutil.copytree(str(qm_src), str(qm_dst), dirs_exist_ok=True)
+                qm_dst.mkdir(parents=True, exist_ok=True)
+                for qm_file in qm_src.glob('*.qm'):
+                    if 'zh_' in qm_file.stem:
+                        shutil.copy2(str(qm_file), str(qm_dst / qm_file.name))
                 qm_count = len(list(qm_dst.glob('*.qm')))
                 print(f'[build] 翻译文件已复制到 {qm_dst} ({qm_count} 个)')
         except Exception as e:
