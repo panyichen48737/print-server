@@ -2,7 +2,7 @@
 ; 使用 Inno Setup 6.x + VCL Style 皮肤
 
 #define MyAppName "iOSPrintServer"
-#define MyAppVersion "3.9.5"
+#define MyAppVersion "3.9.6"
 #define MyAppExeName "iOSPrintServer.exe"
 #define MyUpdateServiceExe "update_service.exe"
 #define MyAppPublisher "TechFlow Solutions Inc."
@@ -24,11 +24,6 @@ PrivilegesRequired=admin
 DisableProgramGroupPage=yes
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName}
-
-; VCL Style 皮肤（可选，自动使用 if installed）
-; 从 https://github.com/VclStyles/Inno-Setup-VCL-Style 获取
-; #define VCLStyle "Dark"
-; #include "VCLStyles.iss"
 
 [Languages]
 Name: "chinesesimplified"; MessagesFile: "installer_ChineseSimplified.isl"
@@ -98,5 +93,6 @@ begin
       DelTree(ExpandConstant('{localappdata}\iOSPrintServer'), True, True, True);
       DelTree(ExpandConstant('{commonappdata}\iOSPrintServer'), True, True, True);
     end;
+    DelTree(ExpandConstant('{app}'), True, True, True);
   end;
 end;
