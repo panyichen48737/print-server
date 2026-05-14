@@ -212,12 +212,9 @@ jobs:
           files: |
             iOSPrintServer-Setup-*.exe
             iOSPrintServer-Setup.sha256
+            update-*.zip
+            update-*.sha256
             version_info.json
-      - name: Upload incremental update zip
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release upload "${{ github.ref_name }}" update-*.zip update-*.sha256 --clobber
       - name: Cleanup old caches
         env:
           GH_TOKEN: ${{ github.token }}
@@ -236,4 +233,4 @@ jobs:
           publish_dir: ./gh-pages-deploy
           keep_files: false
           publish_branch: gh-pages
-          enable_jekyll: true
+          enable_jekyll: false
