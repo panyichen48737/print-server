@@ -220,9 +220,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           echo "Cleaning up old Actions caches to free storage..."
-          gh api repos/panyichen48737/print-server/actions/caches \
-            --jq '.actions_caches[] | select(.ref | startswith("refs/heads/refs/tags/") and (.ref != "${{ github.ref }}")) | .id' \
-            | xargs -r -I {} sh -c 'gh api -X DELETE "repos/panyichen48737/print-server/actions/caches/{}" --silent && echo "  deleted cache {}"'
+          gh cache list --json id,ref --jq '.[] | select(.ref | startswith("refs/tags/") and (.ref != "refs/tags/${{ github.ref_name }}")) | .id' \
+            | xargs -r -I {} sh -c 'gh cache delete {} && echo "  deleted cache {}"'
       - name: Deploy update manifest to GitHub Pages
         run: |
           mkdir -p gh-pages-deploy
