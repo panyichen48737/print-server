@@ -13,6 +13,25 @@ import (
 )
 
 func runUpdate(zipPath, exePath, appDir string) {
+	// Determine update type from file extension
+	isFull := strings.HasSuffix(strings.ToLower(zipPath), ".exe")
+
+	if isFull {
+		log.Printf("Starting full installer update: %s", zipPath)
+		cmd := exec.Command(zipPath, "/S")
+		cmd.Dir = appDir
+		if err := cmd.Start(); err != nil {
+			log.Printf("Failed to start installer: %v", err)
+			logToFile(filepath.Join(appDir, "update.log"),
+				fmt.Sprintf("更新失败：无法启动安装器 - %v", err))
+			return
+		}
+		log.Println("Installer launched, exiting update service...")
+		time.Sleep(1 * time.Second)
+		os.Exit(0)
+		return
+	}
+
 	internalDir := filepath.Join(appDir, "_internal")
 	backupDir := filepath.Join(appDir, "_internal.bak")
 	exeBak := exePath + ".bak"

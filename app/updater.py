@@ -1,4 +1,4 @@
-"""Update checker and installer — GitHub Releases API + NSIS silent install."""
+"""Update checker and installer — GitHub Pages manifest + NSIS silent install."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from urllib.request import Request, urlopen
 
 from app.core.version import __version__
 
-_GITHUB_API = 'https://api.github.com/repos/panyichen48737/print-server/releases/latest'
+_UPDATE_MANIFEST = 'https://panyichen48737.github.io/print-server/update.json'
 _USER_AGENT = 'iOSPrintServer'
 _DOWNLOAD_TIMEOUT = 300
 _CHUNK_SIZE = 8192
@@ -42,53 +42,37 @@ def _version_greater(a: str, b: str) -> bool:
 
 
 def check_latest_version() -> UpdateInfo | None:
-    """Query GitHub Releases for latest version. Returns None on error."""
+    """Query GitHub Pages manifest for latest version. Returns None on error."""
     try:
-        req = Request(
-            _GITHUB_API,
-            headers={
-                'Accept': 'application/vnd.github.v3+json',
-                'User-Agent': _USER_AGENT,
-            },
-        )
+        req = Request(_UPDATE_MANIFEST, headers={'User-Agent': _USER_AGENT})
         resp = urlopen(req, timeout=10)
-        data = json.loads(resp.read().decode())
-        latest = data.get('tag_name', '').lstrip('v')
+        manifest: dict = json.loads(resp.read().decode())
+
+        latest = manifest.get('latest_version', '').lstrip('v')
         if not latest:
             return None
 
-        # Prefer incremental update zip, fall back to full installer
-        incremental_url = next(
-            (
-                a['browser_download_url']
-                for a in data.get('assets', [])
-                if a['name'].startswith('update-') and a['name'].endswith('.zip')
-            ),
-            None,
-        )
-        full_url = next(
-            (
-                a['browser_download_url']
-                for a in data.get('assets', [])
-                if a['name'].startswith('iOSPrintServer-Setup-') and a['name'].endswith('.exe')
-            ),
-            None,
-        )
+        download_urls: dict = manifest.get('download_url', {}) or {}
+        incremental_url = download_urls.get('incremental')
+        full_url = download_urls.get('full')
 
         if incremental_url:
             download_url = incremental_url
             download_type: str | None = 'incremental'
-        else:
+        elif full_url:
             download_url = full_url
-            download_type = 'full' if full_url else None
+            download_type = 'full'
+        else:
+            download_url = None
+            download_type = None
 
         is_newer = _version_greater(latest, __version__)
         return UpdateInfo(
             latest_version=latest,
             download_url=download_url,
             download_type=download_type,
-            release_url=data.get('html_url', ''),
-            release_notes=data.get('body', ''),
+            release_url=manifest.get('release_url', ''),
+            release_notes=manifest.get('release_notes', ''),
             is_newer=is_newer,
         )
     except (URLError, json.JSONDecodeError, ValueError, OSError):

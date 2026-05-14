@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QFileSystemWatcher, QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication,
@@ -120,6 +121,16 @@ class MainWindow(QMainWindow):
         # Check if service already has a pre-downloaded update
         QTimer.singleShot(10000, self._check_service_pending)
 
+        # Watch for new pending updates via file system (written by Go update service)
+        self._pending_watcher = QFileSystemWatcher(self)
+        self._pending_watcher.directoryChanged.connect(self._on_pending_dir_changed)
+        update_cache_dir = self._pending_file_dir()
+        if update_cache_dir.exists():
+            self._pending_watcher.addPath(str(update_cache_dir))
+        else:
+            # Retry adding the path once the directory is created
+            QTimer.singleShot(30000, self._try_watch_pending_dir)
+
         # Check Quark API configuration on startup
         QTimer.singleShot(2000, self._check_quark_config)
 
@@ -200,11 +211,16 @@ class MainWindow(QMainWindow):
         )
         self.show_notification('新版本可用 - 前往「关于」页面更新', '#B8956A')
 
-    def _check_service_pending(self):
-        """Check if update service has a pre-downloaded update ready."""
-        from gui.pipe_client import pending_update
+    def _pending_file_dir(self) -> Path:
+        """Return the update_cache directory where Go writes pending.json."""
+        program_data = os.environ.get('PROGRAMDATA', 'C:\\ProgramData')
+        return Path(program_data) / 'iOSPrintServer' / 'update_cache'
 
-        info = pending_update()
+    def _on_pending_dir_changed(self):
+        """Called by QFileSystemWatcher when update_cache/ changes."""
+        from gui.pipe_client import read_pending_file
+
+        info = read_pending_file()
         if info is None:
             return
 
@@ -212,11 +228,37 @@ class MainWindow(QMainWindow):
         self._service_pending_update = info
         self.show_notification(f'更新 {info.version} 已下载，空闲后将自动重启', '#6B8F6B')
 
-        # Start idle monitor to auto-apply when no active tasks
+        # Start one-shot idle monitor (60s delay, fires once)
         if not hasattr(self, '_idle_timer') or not self._idle_timer:
             self._idle_timer = QTimer(self)
+            self._idle_timer.setSingleShot(True)
             self._idle_timer.timeout.connect(self._check_idle_and_apply)
-            self._idle_timer.start(15000)
+            self._idle_timer.start(60000)
+
+    def _check_service_pending(self):
+        """Check if service has a pre-downloaded update ready (called once at startup)."""
+        from gui.pipe_client import read_pending_file
+
+        info = read_pending_file()
+        if info is None:
+            return
+
+        self._pending_update = True
+        self._service_pending_update = info
+        self.show_notification(f'更新 {info.version} 已下载，空闲后将自动重启', '#6B8F6B')
+
+        # Start idle monitor as one-shot (60s delay)
+        self._idle_timer = QTimer(self)
+        self._idle_timer.setSingleShot(True)
+        self._idle_timer.timeout.connect(self._check_idle_and_apply)
+        self._idle_timer.start(60000)
+
+    def _try_watch_pending_dir(self):
+        """Ensure the watcher covers update_cache/ (may have been created after startup)."""
+        d = self._pending_file_dir()
+        paths = self._pending_watcher.directories()
+        if str(d) not in paths and d.exists():
+            self._pending_watcher.addPath(str(d))
 
     def _check_quark_config(self):
         """Check Quark API config on startup and warn if missing."""
@@ -251,7 +293,7 @@ class MainWindow(QMainWindow):
         self._auto_apply_service_update()
 
     def _auto_apply_service_update(self):
-        """Tell service to apply update, then exit."""
+        """Apply pending update, then exit. Dispatches to Go service or NSIS."""
         import os
 
         from gui.pipe_client import apply_update
@@ -264,9 +306,23 @@ class MainWindow(QMainWindow):
             self._server.stop()
 
         app_dir = str(Path(sys.executable).parent) if getattr(sys, 'frozen', False) else None
-        apply_update(info.zip_path, app_dir)
-        self.show_notification('正在更新，程序即将重启...', '#6B8F6B')
-        QTimer.singleShot(2000, lambda: os._exit(0))
+
+        if info.download_type == 'full':
+            # Full installer: exec NSIS silently and exit
+            import subprocess
+
+            subprocess.Popen(
+                [info.zip_path, '/S'],
+                shell=True,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+            )
+            self.show_notification('正在更新，程序即将重启...', '#6B8F6B')
+            QTimer.singleShot(2000, lambda: os._exit(0))
+        else:
+            # Incremental: hand off to Go service
+            apply_update(info.zip_path, app_dir)
+            self.show_notification('正在更新，程序即将重启...', '#6B8F6B')
+            QTimer.singleShot(2000, lambda: os._exit(0))
 
     def _tray_check_update(self):
         about_idx = self.NAV_ITEMS.index('关于')

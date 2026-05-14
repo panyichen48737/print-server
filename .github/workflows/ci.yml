@@ -157,6 +157,27 @@ jobs:
         run: |
           $installer = Get-ChildItem dist\iOSPrintServer-Setup-*.exe | Select-Object -First 1
           (certutil -hashfile $installer.FullName SHA256 | Select-String -NotMatch "SHA256|CertUtil" | ForEach-Object { $_.Line.Trim() }) | Out-File -Encoding utf8 dist\iOSPrintServer-Setup.sha256
+      - name: Generate update.json manifest
+        shell: pwsh
+        run: |
+          $ver = "${{ github.ref_name }}" -replace '^v', ''
+          $zipSha = (Get-Content "dist/update-$ver.zip.sha256").Trim()
+          $installer = Get-ChildItem dist\iOSPrintServer-Setup-*.exe | Select-Object -First 1
+          $exeSha = (Get-Content "dist/iOSPrintServer-Setup.sha256").Trim()
+          $json = @{
+            latest_version = $ver
+            release_url = "https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
+            release_notes = ""
+            download_url = @{
+              incremental = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/update-$ver.zip"
+              full = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/iOSPrintServer-Setup-$ver.exe"
+            }
+            sha256 = @{
+              incremental = $zipSha
+              full = $exeSha
+            }
+          }
+          $json | ConvertTo-Json -Compress | Out-File -Encoding utf8 "dist/update.json"
       - name: Archive build artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -167,6 +188,7 @@ jobs:
             dist/iOSPrintServer-Setup.sha256
             dist/update-*.zip
             dist/update-*.zip.sha256
+            dist/update.json
             dist/version_info.json
 
   release:
@@ -204,3 +226,14 @@ jobs:
           gh api repos/panyichen48737/print-server/actions/caches \
             --jq '.actions_caches[] | select(.ref | startswith("refs/heads/refs/tags/") and (.ref != "${{ github.ref }}")) | .id' \
             | xargs -r -I {} sh -c 'gh api -X DELETE "repos/panyichen48737/print-server/actions/caches/{}" --silent && echo "  deleted cache {}"'
+      - name: Deploy update manifest to GitHub Pages
+        run: |
+          mkdir -p gh-pages-deploy
+          cp update.json gh-pages-deploy/
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ github.token }}
+          publish_dir: ./gh-pages-deploy
+          keep_files: false
+          publish_branch: gh-pages
+          enable_jekyll: true

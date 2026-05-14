@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,22 +15,29 @@ import (
 )
 
 const (
-	githubAPI     = "https://api.github.com/repos/panyichen48737/print-server/releases/latest"
-	checkInterval = 6 * time.Hour
-	userAgent     = "iOSPrintServerUpdateService"
+	manifestURL    = "https://panyichen48737.github.io/print-server/update.json"
+	checkInterval  = 6 * time.Hour
+	userAgent      = "iOSPrintServerUpdateService"
 )
 
-type githubRelease struct {
-	TagName string `json:"tag_name"`
-	Assets  []struct {
-		Name               string `json:"name"`
-		BrowserDownloadURL string `json:"browser_download_url"`
-	} `json:"assets"`
+type manifestData struct {
+	LatestVersion string `json:"latest_version"`
+	ReleaseURL    string `json:"release_url"`
+	ReleaseNotes  string `json:"release_notes"`
+	DownloadURL   struct {
+		Incremental string `json:"incremental"`
+		Full        string `json:"full"`
+	} `json:"download_url"`
+	SHA256 struct {
+		Incremental string `json:"incremental"`
+		Full        string `json:"full"`
+	} `json:"sha256"`
 }
 
 type pendingUpdate struct {
-	Version string `json:"version"`
-	ZipPath string `json:"zip_path"`
+	Version      string `json:"version"`
+	ZipPath      string `json:"zip_path"`
+	DownloadType string `json:"download_type"` // "incremental" | "full"
 }
 
 var (
@@ -42,20 +50,20 @@ func startUpdateChecker(stopCh chan struct{}, appDir string) {
 	updateDir = filepath.Join(dataDir(), "update_cache")
 	os.MkdirAll(updateDir, 0755)
 
-	// Resume pending update if previously downloaded
-	resumePending(appDir)
+	// Resume pending update if previously saved
+	resumePending()
 
 	go func() {
 		ticker := time.NewTicker(checkInterval)
 		defer ticker.Stop()
 
 		time.Sleep(10 * time.Second)
-		checkAndDownload(appDir)
+		checkAndDownloadWithRetry(appDir)
 
 		for {
 			select {
 			case <-ticker.C:
-				checkAndDownload(appDir)
+				checkAndDownloadWithRetry(appDir)
 			case <-stopCh:
 				return
 			}
@@ -70,25 +78,47 @@ func getPendingUpdate() *pendingUpdate {
 }
 
 func triggerCheck(appDir string) {
-	go checkAndDownload(appDir)
+	go checkAndDownloadWithRetry(appDir)
 }
 
-func resumePending(appDir string) {
-	cacheDir := filepath.Join(dataDir(), "update_cache")
-	entries, err := os.ReadDir(cacheDir)
+func writePendingJSON(p *pendingUpdate) {
+	path := filepath.Join(updateDir, "pending.json")
+	data, err := json.Marshal(p)
+	if err != nil {
+		log.Printf("Failed to marshal pending.json: %v", err)
+		return
+	}
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		log.Printf("Failed to write pending.json: %v", err)
+	}
+}
+
+func removePendingJSON() {
+	os.Remove(filepath.Join(updateDir, "pending.json"))
+}
+
+func resumePending() {
+	path := filepath.Join(updateDir, "pending.json")
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return
 	}
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasPrefix(e.Name(), "update-") && strings.HasSuffix(e.Name(), ".zip") {
-			ver := strings.TrimPrefix(strings.TrimSuffix(e.Name(), ".zip"), "update-")
-			mu.Lock()
-			pending = &pendingUpdate{Version: ver, ZipPath: filepath.Join(cacheDir, e.Name())}
-			mu.Unlock()
-			log.Printf("Resumed pending update: %s", ver)
-			return
-		}
+	var p pendingUpdate
+	if err := json.Unmarshal(data, &p); err != nil {
+		log.Printf("Failed to parse pending.json: %v", err)
+		os.Remove(path)
+		return
 	}
+	// Verify the file still exists on disk
+	if _, err := os.Stat(p.ZipPath); os.IsNotExist(err) {
+		log.Printf("Pending update file missing: %s", p.ZipPath)
+		os.Remove(path)
+		return
+	}
+	mu.Lock()
+	pending = &p
+	mu.Unlock()
+	log.Printf("Resumed pending update: %s (%s)", p.Version, p.DownloadType)
 }
 
 func getCurrentVersion(appDir string) string {
@@ -111,69 +141,114 @@ func getCurrentVersion(appDir string) string {
 	return "0.0.0"
 }
 
-func checkAndDownload(appDir string) {
-	log.Println("Checking for updates from GitHub...")
+// checkAndDownloadWithRetry calls checkAndDownload, retrying on failure
+// with backoff: 1min -> 5min -> 15min.
+func checkAndDownloadWithRetry(appDir string) {
+	delays := []time.Duration{1 * time.Minute, 5 * time.Minute, 15 * time.Minute}
+	for i := 0; ; i++ {
+		if checkAndDownload(appDir) {
+			return
+		}
+		if i >= len(delays) {
+			log.Println("All retry attempts exhausted, will retry at next scheduled interval")
+			return
+		}
+		log.Printf("Retrying update check in %v...", delays[i])
+		time.Sleep(delays[i])
+	}
+}
+
+// checkAndDownload returns true on success, false on failure.
+func checkAndDownload(appDir string) bool {
+	log.Println("Checking for updates from manifest...")
 
 	current := getCurrentVersion(appDir)
 
-	release, err := fetchLatestRelease()
+	manifest, err := fetchManifest()
 	if err != nil {
 		log.Printf("Update check failed: %v", err)
-		return
+		return false
 	}
 
-	ver := strings.TrimPrefix(release.TagName, "v")
+	ver := strings.TrimPrefix(manifest.LatestVersion, "v")
 	if !versionGreater(ver, current) {
 		log.Printf("Already up to date: %s", current)
-		return
+		return true
 	}
 
-	var downloadURL string
-	for _, a := range release.Assets {
-		if strings.HasPrefix(a.Name, "update-") && strings.HasSuffix(a.Name, ".zip") {
-			downloadURL = a.BrowserDownloadURL
-			break
-		}
-	}
-	if downloadURL == "" {
-		log.Println("No update zip found in release")
-		return
+	// Pick incremental first, fall back to full installer
+	var downloadURL, downloadType string
+	if manifest.DownloadURL.Incremental != "" {
+		downloadURL = manifest.DownloadURL.Incremental
+		downloadType = "incremental"
+	} else if manifest.DownloadURL.Full != "" {
+		downloadURL = manifest.DownloadURL.Full
+		downloadType = "full"
+	} else {
+		log.Println("No download URL found in manifest")
+		return false
 	}
 
-	dest := filepath.Join(updateDir, fmt.Sprintf("update-%s.zip", ver))
+	ext := ".zip"
+	if downloadType == "full" {
+		ext = ".exe"
+	}
+	dest := filepath.Join(updateDir, fmt.Sprintf("update-%s%s", ver, ext))
 
+	// Check if already downloaded
 	mu.Lock()
-	if pending != nil && pending.ZipPath == dest {
+	if pending != nil && pending.ZipPath == dest && pending.DownloadType == downloadType {
 		mu.Unlock()
 		log.Printf("Update %s already downloaded", ver)
-		return
+		return true
 	}
 	mu.Unlock()
 
-	log.Printf("Downloading update %s...", ver)
+	log.Printf("Downloading update %s (%s)...", ver, downloadType)
 	if err := downloadFile(downloadURL, dest); err != nil {
 		log.Printf("Download failed: %v", err)
-		return
+		return false
+	}
+
+	// SHA256 verification
+	expectedSHA, hasSHA := manifest.SHA256.Incremental, false
+	if downloadType == "incremental" && manifest.SHA256.Incremental != "" {
+		hasSHA = true
+	} else if downloadType == "full" && manifest.SHA256.Full != "" {
+		expectedSHA = manifest.SHA256.Full
+		hasSHA = true
+	}
+	if hasSHA {
+		if err := verifySHA256(dest, expectedSHA); err != nil {
+			log.Printf("SHA256 verification failed: %v, removing corrupt file", err)
+			os.Remove(dest)
+			return false
+		}
+		log.Println("SHA256 verification passed")
+	} else {
+		log.Println("No SHA256 in manifest, skipping verification")
 	}
 
 	mu.Lock()
-	// Cleanup old pending zips (except the new one)
+	// Cleanup old pending file (different version)
 	oldPending := pending
 	if oldPending != nil && oldPending.ZipPath != dest {
 		os.Remove(oldPending.ZipPath)
 	}
-	pending = &pendingUpdate{Version: ver, ZipPath: dest}
+	p := &pendingUpdate{Version: ver, ZipPath: dest, DownloadType: downloadType}
+	pending = p
+	writePendingJSON(p)
 	mu.Unlock()
 
-	log.Printf("Update %s ready at %s", ver, dest)
+	log.Printf("Update %s ready (%s)", ver, downloadType)
+	return true
 }
 
-func fetchLatestRelease() (*githubRelease, error) {
-	req, err := http.NewRequest("GET", githubAPI, nil)
+func fetchManifest() (*manifestData, error) {
+	req, err := http.NewRequest("GET", manifestURL, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
 	req.Header.Set("User-Agent", userAgent)
 
 	client := &http.Client{Timeout: 15 * time.Second}
@@ -184,17 +259,17 @@ func fetchLatestRelease() (*githubRelease, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API returned HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("manifest returned HTTP %d", resp.StatusCode)
 	}
 
-	var release githubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+	var m manifestData
+	if err := json.NewDecoder(resp.Body).Decode(&m); err != nil {
 		return nil, err
 	}
-	if release.TagName == "" {
-		return nil, fmt.Errorf("empty tag_name (API %s)", githubAPI)
+	if m.LatestVersion == "" {
+		return nil, fmt.Errorf("empty latest_version in manifest")
 	}
-	return &release, nil
+	return &m, nil
 }
 
 func downloadFile(url, dest string) error {
@@ -225,6 +300,24 @@ func downloadFile(url, dest string) error {
 	}
 	f.Close()
 	return os.Rename(tmp, dest)
+}
+
+func verifySHA256(path, expectedHex string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return err
+	}
+	got := fmt.Sprintf("%x", h.Sum(nil))
+	if !strings.EqualFold(got, expectedHex) {
+		return fmt.Errorf("SHA256 mismatch: got %s, expected %s", got, expectedHex)
+	}
+	return nil
 }
 
 func versionGreater(a, b string) bool {

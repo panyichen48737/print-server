@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import socket
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 _SERVICE_HOST = '127.0.0.1'
@@ -23,6 +25,35 @@ class ServiceResponse:
 class PendingUpdate:
     version: str
     zip_path: str
+    download_type: str = 'incremental'  # "incremental" | "full"
+
+
+_PENDING_FILE: Path | None = None
+
+
+def _pending_file_path() -> Path:
+    global _PENDING_FILE
+    if _PENDING_FILE is None:
+        program_data = os.environ.get('PROGRAMDATA', 'C:\\ProgramData')
+        _PENDING_FILE = Path(program_data) / 'iOSPrintServer' / 'update_cache' / 'pending.json'
+    return _PENDING_FILE
+
+
+def read_pending_file() -> PendingUpdate | None:
+    """Read pending update info from Go service's pending.json (no TCP call)."""
+    path = _pending_file_path()
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text('utf-8'))
+        version = data.get('version', '')
+        zip_path = data.get('zip_path', '')
+        download_type = data.get('download_type', 'incremental')
+        if not version or not zip_path:
+            return None
+        return PendingUpdate(version=version, zip_path=zip_path, download_type=download_type)
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
 def _send_request(data: dict) -> ServiceResponse | None:

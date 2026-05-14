@@ -219,12 +219,50 @@ class UpdateSection(QWidget):
         self.update_btn.setText('安装中...')
 
         if self._update_info and self._update_info.download_type == 'incremental':
-            self._apply_incremental_update()
+            self._apply_go_update()
         else:
             self._start_worker('install')
 
-    def _apply_incremental_update(self):
-        from gui.pipe_client import apply_update, service_status
+    def _apply_go_update(self):
+        """Apply incremental update via Go service, or full installer via NSIS."""
+        from gui.pipe_client import apply_update, read_pending_file, service_status
+
+        # Check if Go already downloaded the update
+        go_pending = read_pending_file()
+        installer_path = self._installer_path
+
+        if go_pending and go_pending.download_type == 'full':
+            # Full installer already downloaded by Go — exec NSIS directly
+            import subprocess
+
+            subprocess.Popen(
+                [go_pending.zip_path, '/S'],
+                shell=True,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+            )
+            self.update_status.setText('更新提交成功，程序即将重启...')
+            self.update_status.setStyleSheet('color: #6B8F6B;')
+            QTimer.singleShot(1000, lambda: os._exit(0))
+            return
+
+        if go_pending and go_pending.zip_path:
+            # Reuse Go-downloaded file
+            installer_path = Path(go_pending.zip_path)
+
+        if not installer_path or not installer_path.exists():
+            import webbrowser
+
+            self.update_status.setText('更新文件丢失，请重新下载')
+            self.update_status.setStyleSheet('color: #C53A3A;')
+            self.update_btn.setText('前往下载页')
+            self.update_btn.clicked.disconnect()
+            self.update_btn.clicked.connect(
+                lambda: (
+                    webbrowser.open(self._update_info.release_url) if self._update_info else None
+                )
+            )
+            self.update_btn.setEnabled(True)
+            return
 
         status = service_status()
         if status is None:
@@ -250,13 +288,13 @@ class UpdateSection(QWidget):
             self.update_status.setStyleSheet('color: #C53A3A;')
             return
 
-        resp = apply_update(str(self._installer_path), app_dir)
+        resp = apply_update(str(installer_path), app_dir)
         if resp is None or resp.status != 'ok':
             self.update_status.setText('更新服务响应失败，请重试')
             self.update_status.setStyleSheet('color: #C53A3A;')
             self.update_btn.setText('重试')
             self.update_btn.clicked.disconnect()
-            self.update_btn.clicked.connect(self._apply_incremental_update)
+            self.update_btn.clicked.connect(self._apply_go_update)
             self.update_btn.setEnabled(True)
             return
 

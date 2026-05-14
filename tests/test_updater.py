@@ -46,24 +46,26 @@ class TestVersionGreater:
 
 
 class TestCheckLatestVersion:
-    def _mock_github_response(self, data: dict):
+    def _mock_manifest_response(self, data: dict):
         mock_resp = MagicMock()
         mock_resp.read.return_value = json.dumps(data).encode()
         return mock_resp
 
     @patch('app.updater.urlopen')
     def test_new_version_with_asset(self, mock_urlopen):
-        mock_urlopen.return_value = self._mock_github_response(
+        mock_urlopen.return_value = self._mock_manifest_response(
             {
-                'tag_name': 'v9.9.9',
-                'html_url': 'https://github.com/test/release',
-                'body': 'New release',
-                'assets': [
-                    {
-                        'name': 'iOSPrintServer-Setup-9.9.9.exe',
-                        'browser_download_url': 'https://github.com/test/setup.exe',
-                    }
-                ],
+                'latest_version': '9.9.9',
+                'release_url': 'https://github.com/test/release',
+                'release_notes': 'New release',
+                'download_url': {
+                    'incremental': '',
+                    'full': 'https://github.com/test/setup.exe',
+                },
+                'sha256': {
+                    'incremental': '',
+                    'full': 'abc123',
+                },
             }
         )
 
@@ -77,18 +79,16 @@ class TestCheckLatestVersion:
 
     @patch('app.updater.urlopen')
     def test_prefers_incremental_zip(self, mock_urlopen):
-        mock_urlopen.return_value = self._mock_github_response(
+        mock_urlopen.return_value = self._mock_manifest_response(
             {
-                'tag_name': 'v9.9.9',
-                'html_url': 'https://github.com/test/release',
-                'body': '',
-                'assets': [
-                    {'name': 'update-9.9.9.zip', 'browser_download_url': 'https://x/update.zip'},
-                    {
-                        'name': 'iOSPrintServer-Setup-9.9.9.exe',
-                        'browser_download_url': 'https://x/setup.exe',
-                    },
-                ],
+                'latest_version': '9.9.9',
+                'release_url': 'https://github.com/test/release',
+                'release_notes': '',
+                'download_url': {
+                    'incremental': 'https://x/update.zip',
+                    'full': 'https://x/setup.exe',
+                },
+                'sha256': {'incremental': 'def456', 'full': 'abc123'},
             }
         )
         info = check_latest_version()
@@ -98,12 +98,13 @@ class TestCheckLatestVersion:
 
     @patch('app.updater.urlopen')
     def test_same_version_no_asset(self, mock_urlopen):
-        mock_urlopen.return_value = self._mock_github_response(
+        mock_urlopen.return_value = self._mock_manifest_response(
             {
-                'tag_name': f'v{__version__}',
-                'html_url': '',
-                'body': '',
-                'assets': [],
+                'latest_version': __version__,
+                'release_url': '',
+                'release_notes': '',
+                'download_url': {'incremental': '', 'full': ''},
+                'sha256': {'incremental': '', 'full': ''},
             }
         )
 
@@ -118,27 +119,21 @@ class TestCheckLatestVersion:
 
     @patch('app.updater.urlopen')
     def test_no_tag_name_returns_none(self, mock_urlopen):
-        mock_urlopen.return_value = self._mock_github_response({'tag_name': ''})
+        mock_urlopen.return_value = self._mock_manifest_response({'latest_version': ''})
         assert check_latest_version() is None
 
     @patch('app.updater.urlopen')
     def test_asset_filter_ignores_other_files(self, mock_urlopen):
-        mock_urlopen.return_value = self._mock_github_response(
+        mock_urlopen.return_value = self._mock_manifest_response(
             {
-                'tag_name': 'v9.9.9',
-                'html_url': '',
-                'body': '',
-                'assets': [
-                    {'name': 'iOSPrintServer.exe', 'browser_download_url': 'https://x/bare.exe'},
-                    {
-                        'name': 'iOSPrintServer-Setup-9.9.9.exe',
-                        'browser_download_url': 'https://x/setup.exe',
-                    },
-                    {
-                        'name': 'version_info.json',
-                        'browser_download_url': 'https://x/manifest.json',
-                    },
-                ],
+                'latest_version': '9.9.9',
+                'release_url': '',
+                'release_notes': '',
+                'download_url': {
+                    'incremental': '',
+                    'full': 'https://x/setup.exe',
+                },
+                'sha256': {'incremental': '', 'full': 'abc123'},
             }
         )
 
