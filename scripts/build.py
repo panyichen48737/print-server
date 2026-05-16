@@ -263,8 +263,6 @@ def build(version: str):
         'gui.components.print_dialog',
         # 新增依赖
         '--hidden-import',
-        'aiosqlite',
-        '--hidden-import',
         'msgspec',
         # PySide6
         '--hidden-import',

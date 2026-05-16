@@ -11,11 +11,11 @@ MIGRATIONS: dict[str, str] = {
 }
 
 
-async def migrate_db(execute_fn) -> None:
+def migrate_db(execute_fn) -> None:
     """检测并执行增量列添加"""
-    rows = await execute_fn('PRAGMA table_info(jobs)', fetchall=True, row_factory=True)
+    rows = execute_fn('PRAGMA table_info(jobs)', fetchall=True, row_factory=True)
     existing = {row['name'] for row in rows} if rows else set()
     for col, dtype in MIGRATIONS.items():
         if col not in existing:
-            await execute_fn(f'ALTER TABLE jobs ADD COLUMN {col} {dtype}', commit=True)
+            execute_fn(f'ALTER TABLE jobs ADD COLUMN {col} {dtype}', commit=True)
             logger.info(f'迁移: 添加列 {col} {dtype}')

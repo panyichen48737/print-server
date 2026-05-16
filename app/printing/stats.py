@@ -3,10 +3,10 @@
 from datetime import datetime, timedelta
 
 
-async def get_stats(execute_fn) -> dict:
+def get_stats(execute_fn) -> dict:
     """返回任务统计概览"""
     today = datetime.now().strftime('%Y-%m-%d')
-    row = await execute_fn(
+    row = execute_fn(
         """SELECT
             COUNT(CASE WHEN status='queued' THEN 1 END) AS queued,
             COUNT(CASE WHEN status='printing' THEN 1 END) AS printing,
@@ -37,9 +37,9 @@ async def get_stats(execute_fn) -> dict:
     }
 
 
-async def get_daily_counts(execute_fn, days: int = 7) -> dict[str, int]:
+def get_daily_counts(execute_fn, days: int = 7) -> dict[str, int]:
     """返回过去 N 天的每日任务量"""
-    cursor = await execute_fn(
+    cursor = execute_fn(
         'SELECT DATE(created_at) as day, COUNT(*) as cnt FROM jobs '
         "WHERE created_at >= datetime('now', ? || ' days') "
         'GROUP BY day ORDER BY day',
@@ -50,10 +50,10 @@ async def get_daily_counts(execute_fn, days: int = 7) -> dict[str, int]:
     return {row['day']: row['cnt'] for row in cursor} if cursor else {}
 
 
-async def cleanup_old_jobs(execute_fn, retention_days: int = 30) -> int:
+def cleanup_old_jobs(execute_fn, retention_days: int = 30) -> int:
     """删除超过保留天数的旧任务"""
     cutoff = (datetime.now() - timedelta(days=retention_days)).isoformat()
-    cur = await execute_fn('DELETE FROM jobs WHERE created_at < ?', (cutoff,), commit=True)
+    cur = execute_fn('DELETE FROM jobs WHERE created_at < ?', (cutoff,), commit=True)
     deleted = cur.rowcount if hasattr(cur, 'rowcount') else 0
     if deleted > 0:
         from loguru import logger
