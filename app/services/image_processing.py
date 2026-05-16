@@ -25,6 +25,16 @@ class QuarkEnhancer:
         with contextlib.suppress(Exception):
             self._client.close()
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+    def __del__(self):
+        with contextlib.suppress(Exception):
+            self._client.close()
+
     def enhance(self, filepath: str) -> bytes | None:
         client_id = self.config.get('quark_api_key_id', '')
         client_secret = self.config.get('quark_api_key', '')

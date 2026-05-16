@@ -307,7 +307,7 @@ async function shareSheetFlow(files) {
           statuses[d.job_id] = d.status;
           const idx = jobs.findIndex(j => j.id === d.job_id);
           if (idx >= 0 && !wvClosed) {
-            wv.evaluateJavaScript("u(" + idx + ",'" + d.status + "','" + (d.error||'').replace(/'/g,"\\'") + "')");
+            wv.evaluateJavaScript("u(" + idx + ",'" + (d.status||'').replace(/'/g,"\\'") + "','" + (d.error||'').replace(/'/g,"\\'") + "')");
           }
           // 检查是否全部完成
           if (jobs.every(j => { const s=statuses[j.id]; return s==='completed'||s==='failed'; })) {

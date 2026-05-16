@@ -60,27 +60,33 @@ class OfficeBackend(PrinterBackend):
     def _word_to_pdf(self, filepath, pdf_path, print_params):
         word_lock = print_params.get('_word_lock')
         with self._com_context('Word.Application', word_lock, display_alerts=0) as word:
-            doc = word.Documents.Open(str(Path(filepath).resolve()))
+            doc = None
             try:
+                doc = word.Documents.Open(str(Path(filepath).resolve()))
                 doc.SaveAs2(pdf_path, FileFormat=17)  # wdFormatPDF
             finally:
-                doc.Close(SaveChanges=0)
+                if doc:
+                    doc.Close(SaveChanges=0)
 
     def _excel_to_pdf(self, filepath, pdf_path, _print_params):
         with self._com_context('Excel.Application', self.excel_lock, display_alerts=False) as excel:
-            wb = excel.Workbooks.Open(str(Path(filepath).resolve()))
+            wb = None
             try:
+                wb = excel.Workbooks.Open(str(Path(filepath).resolve()))
                 wb.ExportAsFixedFormat(0, pdf_path)  # xlTypePDF
             finally:
-                wb.Close(SaveChanges=False)
+                if wb:
+                    wb.Close(SaveChanges=False)
 
     def _ppt_to_pdf(self, filepath, pdf_path, _print_params):
         with self._com_context('PowerPoint.Application', self.ppt_lock) as ppt:
-            pres = ppt.Presentations.Open(str(Path(filepath).resolve()))
+            pres = None
             try:
+                pres = ppt.Presentations.Open(str(Path(filepath).resolve()))
                 pres.SaveAs(pdf_path, 32)  # ppSaveAsPDF
             finally:
-                pres.Close(SaveChanges=0)
+                if pres:
+                    pres.Close(SaveChanges=0)
 
     # ── PrinterBackend 存根（实际打印委托给 PdfBackend）──
 

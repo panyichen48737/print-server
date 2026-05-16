@@ -128,7 +128,12 @@ class PdfBackend(PrinterBackend):
         )
         self._track_job(job_id, printer_name, 'chromium', pid=proc.pid)
 
-        _, stderr = proc.communicate(timeout=self.config.get('job_timeout', 300))
+        try:
+            _, stderr = proc.communicate(timeout=self.config.get('job_timeout', 300))
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            _, stderr = proc.communicate()
+            raise PrintError(f'Chrome 打印超时 ({self.config.get("job_timeout", 300)}s)') from None
         if proc.returncode != 0:
             raise PrintError(
                 f'Chrome 打印失败: {proc.returncode}\n{stderr[:500].decode("utf-8", errors="replace")}'

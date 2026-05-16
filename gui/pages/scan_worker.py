@@ -9,7 +9,7 @@ class ScanWorker(QThread):
     """Background worker for Quark API enhancement."""
 
     progress = Signal(int, int)
-    finished = Signal(int, list)
+    finished = Signal(list)
     error = Signal(str)
 
     def __init__(self, paths: list[str], parent=None):
@@ -26,7 +26,7 @@ class ScanWorker(QThread):
 
         config = Config()
         enhancer = QuarkEnhancer(config)
-        results: list[tuple[str, bytes | None]] = []
+        results: list[bytes] = []
 
         for i, path in enumerate(self.paths):
             if self._cancelled:
@@ -34,8 +34,9 @@ class ScanWorker(QThread):
             self.progress.emit(i + 1, len(self.paths))
             try:
                 enhanced = enhancer.enhance(path)
-                results.append((path, enhanced))
+                if enhanced:
+                    results.append(enhanced)
             except Exception:
-                results.append((path, None))
+                pass
 
-        self.finished.emit(len(self.paths), results)
+        self.finished.emit(results)

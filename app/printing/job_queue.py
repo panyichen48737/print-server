@@ -5,7 +5,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeout
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from loguru import logger
@@ -170,7 +170,9 @@ class JobQueue:
         self._repo.cleanup_old_jobs(retention_days)
 
     def recover_stuck_jobs(self) -> None:
-        heartbeat = (datetime.now() - timedelta(minutes=5)).isoformat()
+        heartbeat = (datetime.now(timezone.utc) - timedelta(minutes=5)).strftime(
+            '%Y-%m-%d %H:%M:%S'
+        )
         stuck_jobs = self._repo.get_jobs_by_status('printing')
         stuck_ids = [j['id'] for j in stuck_jobs if j['created_at'] < heartbeat]
 

@@ -1,11 +1,11 @@
 """任务统计查询 — 概览/每日统计/清理过期"""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 def get_stats(execute_fn) -> dict:
     """返回任务统计概览"""
-    today = datetime.now().strftime('%Y-%m-%d')
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
     row = execute_fn(
         """SELECT
             COUNT(CASE WHEN status='queued' THEN 1 END) AS queued,
@@ -13,8 +13,8 @@ def get_stats(execute_fn) -> dict:
             COUNT(CASE WHEN status='completed' THEN 1 END) AS completed_total,
             COUNT(CASE WHEN status='failed' THEN 1 END) AS failed_total,
             COUNT(*) AS total,
-            SUM(CASE WHEN status='completed' AND created_at >= ? THEN 1 ELSE 0 END) AS today_completed,
-            SUM(CASE WHEN status='failed' AND created_at >= ? THEN 1 ELSE 0 END) AS today_failed
+            SUM(CASE WHEN status='completed' AND completed_at >= ? THEN 1 ELSE 0 END) AS today_completed,
+            SUM(CASE WHEN status='failed' AND completed_at >= ? THEN 1 ELSE 0 END) AS today_failed
         FROM jobs""",
         (today, today),
         fetchone=True,
@@ -50,7 +50,9 @@ def get_daily_counts(execute_fn, days: int = 7) -> dict[str, int]:
 
 def cleanup_old_jobs(execute_fn, retention_days: int = 30) -> int:
     """删除超过保留天数的旧任务"""
-    cutoff = (datetime.now() - timedelta(days=retention_days)).isoformat()
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).strftime(
+        '%Y-%m-%d %H:%M:%S'
+    )
     cur = execute_fn('DELETE FROM jobs WHERE created_at < ?', (cutoff,), commit=True)
     deleted = cur.rowcount if hasattr(cur, 'rowcount') else 0
     if deleted > 0:

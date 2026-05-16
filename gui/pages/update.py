@@ -41,6 +41,14 @@ class _UpdateCheckWorker(QObject):
 class UpdateSection(QWidget):
     """Self-contained update check/download/install widget."""
 
+    @staticmethod
+    def _safe_disconnect(signal):
+        """断开信号连接，无连接时不抛异常"""
+        import contextlib
+
+        with contextlib.suppress(TypeError, RuntimeError):
+            signal.disconnect()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._update_info: UpdateInfo | None = None
@@ -142,7 +150,7 @@ class UpdateSection(QWidget):
             self.update_status.setText('检查更新失败，请稍后重试')
             self.update_status.setStyleSheet('color: #C53A3A;')
             self.update_btn.setText('重试')
-            self.update_btn.clicked.disconnect()
+            self._safe_disconnect(self.update_btn.clicked)
             self.update_btn.clicked.connect(self._check_update)
             return
 
@@ -158,14 +166,14 @@ class UpdateSection(QWidget):
 
         if info.download_url:
             self.update_btn.setText('下载更新')
-            self.update_btn.clicked.disconnect()
+            self._safe_disconnect(self.update_btn.clicked)
             self.update_btn.clicked.connect(self._start_download)
             self.update_btn.setEnabled(True)
         else:
             import webbrowser
 
             self.update_btn.setText('前往下载页')
-            self.update_btn.clicked.disconnect()
+            self._safe_disconnect(self.update_btn.clicked)
             self.update_btn.clicked.connect(lambda: webbrowser.open(info.release_url))
             self.update_btn.setEnabled(True)
 
@@ -206,7 +214,7 @@ class UpdateSection(QWidget):
             self.update_status.setText('下载失败，请重试')
             self.update_status.setStyleSheet('color: #C53A3A;')
             self.update_btn.setText('重试')
-            self.update_btn.clicked.disconnect()
+            self._safe_disconnect(self.update_btn.clicked)
             self.update_btn.clicked.connect(self._start_download)
             self.update_btn.setEnabled(True)
             if self._installer_path and self._installer_path.exists():
@@ -255,7 +263,7 @@ class UpdateSection(QWidget):
             self.update_status.setText('更新文件丢失，请重新下载')
             self.update_status.setStyleSheet('color: #C53A3A;')
             self.update_btn.setText('前往下载页')
-            self.update_btn.clicked.disconnect()
+            self._safe_disconnect(self.update_btn.clicked)
             self.update_btn.clicked.connect(
                 lambda: (
                     webbrowser.open(self._update_info.release_url) if self._update_info else None
@@ -271,7 +279,7 @@ class UpdateSection(QWidget):
             self.update_status.setText('更新服务未运行，请使用安装器手动更新')
             self.update_status.setStyleSheet('color: #C53A3A;')
             self.update_btn.setText('前往下载页')
-            self.update_btn.clicked.disconnect()
+            self._safe_disconnect(self.update_btn.clicked)
             self.update_btn.clicked.connect(
                 lambda: (
                     webbrowser.open(self._update_info.release_url) if self._update_info else None
@@ -293,7 +301,7 @@ class UpdateSection(QWidget):
             self.update_status.setText('更新服务响应失败，请重试')
             self.update_status.setStyleSheet('color: #C53A3A;')
             self.update_btn.setText('重试')
-            self.update_btn.clicked.disconnect()
+            self._safe_disconnect(self.update_btn.clicked)
             self.update_btn.clicked.connect(self._apply_go_update)
             self.update_btn.setEnabled(True)
             return
@@ -310,7 +318,7 @@ class UpdateSection(QWidget):
             self.update_status.setText('安装启动失败，请手动下载')
             self.update_status.setStyleSheet('color: #C53A3A;')
             self.update_btn.setText('前往下载页')
-            self.update_btn.clicked.disconnect()
+            self._safe_disconnect(self.update_btn.clicked)
             self.update_btn.clicked.connect(
                 lambda: (
                     webbrowser.open(self._update_info.release_url) if self._update_info else None

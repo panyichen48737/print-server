@@ -2,7 +2,7 @@ import contextlib
 import sqlite3
 import threading
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TypedDict
 
@@ -188,8 +188,13 @@ class JobRepository:
     def get_job(self, job_id: str) -> JobRecord | None:
         return self._execute('SELECT * FROM jobs WHERE id = ?', (job_id,), fetchone=True)
 
+    _VALID_STATUSES = frozenset({'queued', 'printing', 'completed', 'failed'})
+
     def update_status(self, job_id: str, status: str, error_message: str | None = None) -> None:
-        now = datetime.now().isoformat()
+        if status not in self._VALID_STATUSES:
+            logger.warning(f'invalid status: {status}')
+            return
+        now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         if status in ('completed', 'failed'):
             self._execute(
                 'UPDATE jobs SET status = ?, error_message = ?, completed_at = ? WHERE id = ?',
@@ -239,7 +244,7 @@ class JobRepository:
     def batch_update_status(self, job_ids: list[str], status: str, error_message: str = '') -> None:
         if not job_ids:
             return
-        now = datetime.now().isoformat()
+        now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         rows = [(status, error_message or '', now, jid) for jid in job_ids]
         self._execute(
             'UPDATE jobs SET status = ?, error_message = ?, completed_at = ? WHERE id = ?',

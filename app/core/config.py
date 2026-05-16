@@ -188,10 +188,22 @@ class Config(BaseSettings):
 
     def set(self, key: str, value: Any) -> None:
         with self._lock:
+            from pydantic import ValidationError
+
+            try:
+                self.__class__.model_validate({**self.model_dump(), key: value})
+            except ValidationError as e:
+                raise ConfigError(f'配置项 {key} 的值 {value!r} 校验失败') from e
             object.__setattr__(self, key, value)
 
     def set_many(self, kwargs: dict[str, Any]) -> None:
         with self._lock:
+            from pydantic import ValidationError
+
+            try:
+                self.__class__.model_validate({**self.model_dump(), **kwargs})
+            except ValidationError as e:
+                raise ConfigError(f'配置校验失败: {e}') from e
             for key, val in kwargs.items():
                 object.__setattr__(self, key, val)
 

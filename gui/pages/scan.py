@@ -145,6 +145,8 @@ class ScanPage(PageBase):
         layout.addWidget(self._actions_widget)
 
         self._export_action_widget = QWidget()
+        self._export_actions_layout = QHBoxLayout(self._export_action_widget)
+        self._export_actions_layout.setContentsMargins(0, 0, 0, 0)
         self._export_action_widget.setVisible(False)
         layout.addWidget(self._export_action_widget)
 
@@ -257,28 +259,25 @@ class ScanPage(PageBase):
         self._generated_images.clear()
         self._generated_pdf = None
 
-        self._worker = ScanWorker(paths, self.output_combo.currentText(), self.merge_cb.isChecked())
+        self._worker = ScanWorker(paths)
         self._worker.progress.connect(self.progress.setValue)
         self._worker.finished.connect(self._on_generation_done)
         self._worker.error.connect(self._on_generation_error)
         self._worker.start()
 
-    def _on_generation_done(self, images: list[bytes], pdf: bytes | None):
+    def _on_generation_done(self, images: list[bytes]):
         self._worker = None
         self.cancel_btn.setVisible(False)
         self.progress.setVisible(False)
         if self._cancelled_by_user:
             return
         self._generated_images = images
-        self._generated_pdf = pdf
+        self._generated_pdf = None
 
         self.generate_btn.set_success()
         self._actions_widget.setVisible(True)
         self.result_list.clear()
 
-        if pdf:
-            item = QListWidgetItem(f'PDF 文档 ({len(pdf) / 1024:.0f} KB)')
-            self.result_list.addItem(item)
         for i, img in enumerate(images):
             pixmap = QPixmap()
             pixmap.loadFromData(img)
@@ -356,10 +355,15 @@ class ScanPage(PageBase):
         self._status_label.setText(f'已导出: {path}')
         self._status_label.setStyleSheet('color: #6B8F6B;')
         self._export_action_widget.setVisible(True)
-        from PySide6.QtWidgets import QHBoxLayout
 
-        lo = QHBoxLayout(self._export_action_widget)
-        lo.setContentsMargins(0, 0, 0, 0)
+        # 清空并重用已有布局，避免重复创建 QHBoxLayout
+        lo = self._export_actions_layout
+        while lo.count():
+            item = lo.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+
         open_btn = QPushButton('打开文件')
         open_btn.setObjectName('ghost')
         open_btn.setProperty('compact', True)

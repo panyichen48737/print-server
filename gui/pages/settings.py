@@ -391,12 +391,11 @@ class SettingsPage(PageBase):
             self.status_label.setStyleSheet('color: #C53A3A;')
 
     def _test_notification(self):
-        from app.core.config import Config
         from app.services.notifications.bark import BarkNotifier
         from app.services.notifications.dingtalk import DingTalk
 
-        cfg = Config()
-        channel = cfg.get('notify_channel', 'disabled')
+        cfg = self._config
+        channel = cfg.get('notify_channel', 'disabled') if cfg else 'disabled'
         if channel == 'bark':
             notifier = BarkNotifier(cfg)
         elif channel == 'dingtalk':
