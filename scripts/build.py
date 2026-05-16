@@ -146,6 +146,17 @@ def build(version: str):
         str(PROJECT_ROOT / 'gui' / 'resources' / 'icon.ico'),
     ]
 
+    # ── 自动收集应用包 ──
+    args += [
+        '--collect-all',
+        'app',
+        '--collect-all',
+        'gui',
+        '--collect-all',
+        'launcher',
+    ]
+
+    # ── pywin32 COM 模块（动态加载，必须显式指定）──
     args += [
         '--hidden-import',
         'win32ui',
@@ -157,114 +168,20 @@ def build(version: str):
         'win32com.client',
         '--hidden-import',
         'pythoncom',
-        '--hidden-import',
-        'python_multipart',
-        # 隐式导入 — HTTP/ASGI
-        '--hidden-import',
-        'uvicorn.logging',
-        '--hidden-import',
-        'uvicorn.loops',
-        '--hidden-import',
-        'uvicorn.lifespan',
-        '--hidden-import',
-        'uvicorn.protocols.http',
-        '--hidden-import',
-        'uvicorn.protocols.websockets',
-        # 隐式导入 — 文档解析
-        '--hidden-import',
-        'PIL.ImageWin',
-        '--hidden-import',
-        'PIL.ImageDraw',
-        '--hidden-import',
-        'http.client',
-        '--hidden-import',
-        'email.mime.multipart',
-        '--hidden-import',
-        'email.mime.text',
-        # 隐式导入 — 应用模块
-        '--hidden-import',
-        'app.config',
-        '--hidden-import',
-        'app.updater',
-        '--hidden-import',
-        'gui.pipe_client',
-        '--hidden-import',
-        'app.routes.api',
-        '--hidden-import',
-        'app.routes.admin',
-        '--hidden-import',
-        'app.routes.ws',
-        '--hidden-import',
-        'app.services.dingtalk',
-        '--hidden-import',
-        'app.services.bark',
-        '--hidden-import',
-        'app.services.sse_broadcaster',
-        '--hidden-import',
-        'app.services.printer_monitor',
-        '--hidden-import',
-        'app.services.log_broadcaster',
-        '--hidden-import',
-        'app.printing.job_queue',
-        '--hidden-import',
-        'app.printing.engine',
-        '--hidden-import',
-        'app.printing.backends',
-        # GUI 包
-        '--hidden-import',
-        'gui',
-        '--hidden-import',
-        'gui.theme',
-        '--hidden-import',
-        'gui.settings_store',
-        '--hidden-import',
-        'gui.event_bridge',
-        '--hidden-import',
-        'gui.state',
-        '--hidden-import',
-        'gui.pages',
-        '--hidden-import',
-        'gui.pages.dashboard',
-        '--hidden-import',
-        'gui.pages.quick_print',
-        '--hidden-import',
-        'gui.pages.scan',
-        '--hidden-import',
-        'gui.pages.job_manager',
-        '--hidden-import',
-        'gui.pages.logs',
-        '--hidden-import',
-        'gui.pages.settings',
-        '--hidden-import',
-        'gui.pages.about',
-        '--hidden-import',
-        'gui.components',
-        '--hidden-import',
-        'gui.components.sidebar',
-        '--hidden-import',
-        'gui.components.notification',
-        '--hidden-import',
-        'gui.components.stateful_button',
-        '--hidden-import',
-        'gui.components.toggle_switch',
-        '--hidden-import',
-        'gui.components.drop_zone',
-        '--hidden-import',
-        'gui.components.validators',
-        '--hidden-import',
-        'gui.components.printer_capabilities',
-        '--hidden-import',
-        'gui.components.progress_state',
-        '--hidden-import',
-        'gui.components.skeleton',
-        '--hidden-import',
-        'gui.components.printer_card',
-        '--hidden-import',
-        'gui.components.print_dialog',
-        # PySide6
-        '--hidden-import',
-        'PySide6.QtNetwork',
-        # 排除不需要的库（减小体积）
+    ]
+
+    # ── 第三方库自动收集 ──
+    args += [
+        '--collect-all',
+        'pydantic',
+        '--collect-all',
+        'loguru',
+        '--collect-all',
+        'PySide6',
+    ]
+
+    # ── 排除不需要的库（减小体积）──
+    args += [
         '--exclude-module',
         'flet',
         '--exclude-module',
@@ -279,9 +196,10 @@ def build(version: str):
         'setuptools',
         '--exclude-module',
         'pip',
-        # 入口
-        str(PROJECT_ROOT / 'gui_main.py'),
     ]
+
+    # 入口
+    args.append(str(PROJECT_ROOT / 'gui_main.py'))
 
     subprocess.run(args, cwd=PROJECT_ROOT, check=True, env=env)
 
