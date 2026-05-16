@@ -18,7 +18,8 @@ def nup_compose(input_pdf: str, pages_per_sheet: int = 2) -> str:
 
     # A4 尺寸 (points)
     page_w, page_h = 595, 842
-    scale = 0.3  # 渲染缩放，保持图像质量
+    # 动态缩放：高密度拼版使用更高分辨率确保文字可读
+    scale = max(0.3, 2.0 / max(cols, rows))
 
     output_doc = fitz.open()
 
@@ -44,6 +45,10 @@ def nup_compose(input_pdf: str, pages_per_sheet: int = 2) -> str:
             # Calculate centered position within cell
             img_w = pix.width
             img_h = pix.height
+
+            if img_w <= 0 or img_h <= 0:
+                continue
+
             cell_scale = min(cell_w / img_w, cell_h / img_h) * 0.95
             final_w = img_w * cell_scale
             final_h = img_h * cell_scale
