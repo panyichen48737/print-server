@@ -37,6 +37,13 @@ dev = [
     "pre-commit>=4",
 ]
 
+[tool.coverage.run]
+omit = [
+    "app/bootstrap.py",
+    "app/resources.py",
+    "app/printing/enhancer.py",
+]
+
 [tool.hatch.build]
 include = [
     "app/**/*.py",
