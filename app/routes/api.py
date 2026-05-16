@@ -26,7 +26,9 @@ from app.services.upload import handle_file_upload
 api_router = APIRouter()
 
 
-async def _handle_upload(request, file, printer, copies, duplex, color, paper_size, source):
+async def _handle_upload(
+    request, file, printer, copies, duplex, color, paper_size, source, page_range=None, nup=None
+):
     config = request.app.state.app_config
     job_queue = request.app.state.job_queue
     content = await file.read()
@@ -42,6 +44,8 @@ async def _handle_upload(request, file, printer, copies, duplex, color, paper_si
             duplex=duplex,
             color=color,
             paper_size=paper_size,
+            page_range=page_range,
+            nup=nup,
         )
     except FileTypeError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
@@ -61,6 +65,8 @@ async def print_file(
     duplex: str = Form(None),
     color: str = Form(None),
     paper_size: str = Form(None),
+    page_range: str = Form(None),
+    nup: str = Form(None),
     _auth=Depends(require_auth),
 ):
     """提交打印任务（iOS 端使用）
@@ -71,8 +77,22 @@ async def print_file(
     - duplex: 双面打印（可选，"0"或"1"）
     - color: 彩色打印（可选，"0"或"1"）
     - paper_size: 纸张大小（可选，"A4"/"Letter"/"A3"）
+    - page_range: 页码范围（可选，如 "1-3,5,7-9"）
+    - nup: 多页合一（可选，"2"/"4"/"6"/"8"/"16"）
     """
-    return await _handle_upload(request, file, printer, copies, duplex, color, paper_size, 'ios')
+    nup_val = int(nup) if nup and nup.isdigit() else None
+    return await _handle_upload(
+        request,
+        file,
+        printer,
+        copies,
+        duplex,
+        color,
+        paper_size,
+        'ios',
+        page_range=page_range,
+        nup=nup_val,
+    )
 
 
 @api_router.get('/status/{job_id}')
@@ -128,10 +148,24 @@ async def upload_file(
     duplex: str = Form(None),
     color: str = Form(None),
     paper_size: str = Form(None),
+    page_range: str = Form(None),
+    nup: str = Form(None),
     _auth=Depends(require_auth),
 ):
     """Web 上传打印"""
-    result = await _handle_upload(request, file, printer, copies, duplex, color, paper_size, 'web')
+    nup_val = int(nup) if nup and nup.isdigit() else None
+    result = await _handle_upload(
+        request,
+        file,
+        printer,
+        copies,
+        duplex,
+        color,
+        paper_size,
+        'web',
+        page_range=page_range,
+        nup=nup_val,
+    )
     logger.info(f'Web 上传成功: job_id={result["job_id"]}')
     return result
 

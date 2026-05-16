@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QProgressBar,
@@ -177,6 +178,22 @@ class QuickPrintPage(QWidget):
         options_row.addWidget(QLabel('纸张:'))
         options_row.addWidget(self.paper_combo)
         layout.addLayout(options_row)
+
+        # Page range + N-up row
+        adv_row = QHBoxLayout()
+        self.page_range_input = QLineEdit()
+        self.page_range_input.setPlaceholderText('全部')
+        self.page_range_input.setToolTip('指定页码范围，如 1-3,5,7-9（留空=全部）')
+        self.page_range_input.setMaximumWidth(120)
+        self.nup_combo = QComboBox()
+        self.nup_combo.addItems(['1 页/张', '2 页/张', '4 页/张', '6 页/张', '8 页/张', '16 页/张'])
+        self.nup_combo.setToolTip('每张纸打印的页数')
+        adv_row.addWidget(QLabel('页码范围:'))
+        adv_row.addWidget(self.page_range_input)
+        adv_row.addWidget(QLabel('多页合一:'))
+        adv_row.addWidget(self.nup_combo)
+        adv_row.addStretch()
+        layout.addLayout(adv_row)
 
         self.drop_zone.setToolTip('支持 PDF、Office 文档、图片文件，可拖拽或多选')
         self.copies_spin.setToolTip('设置打印份数，最大不超过打印机支持上限')
@@ -370,6 +387,8 @@ class QuickPrintPage(QWidget):
                     duplex='1' if self.duplex_cb.isChecked() else '0',
                     color='1' if self.color_combo.currentText() == '彩色' else '0',
                     paper_size=self.paper_combo.currentText(),
+                    page_range=self.page_range_input.text().strip(),
+                    nup=int(self.nup_combo.currentText().split(' ')[0]),
                 )
                 if result.success:
                     self._tracking_job_ids.append(result.job_id)

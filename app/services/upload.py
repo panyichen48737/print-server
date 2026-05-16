@@ -60,6 +60,8 @@ def handle_file_upload(
     duplex: str | None = None,
     color: str | None = None,
     paper_size: str | None = None,
+    page_range: str | None = None,
+    nup: int | None = None,
 ) -> UploadResult:
     """处理文件上传的统一逻辑（不依赖 Flask request 对象）
 
@@ -125,6 +127,8 @@ def handle_file_upload(
         paper_size=paper_size or None,
         printer_name=printer or None,
         source=source,
+        page_range=page_range or None,
+        nup=nup or None,
     )
 
     logger.info(f'Upload success: {filename} -> job_id={actual_job_id}')

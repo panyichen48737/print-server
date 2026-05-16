@@ -27,6 +27,8 @@ class JobRecord(TypedDict, total=False):
     paper_size: str
     source: str
     retry_count: int
+    page_range: str
+    nup: int
     created_at: str
     completed_at: str | None
 
@@ -153,13 +155,16 @@ class JobRepository:
         paper_size: str | None = None,
         printer_name: str | None = None,
         source: str = 'api',
+        page_range: str | None = None,
+        nup: int | None = None,
     ) -> str:
         job_id = str(uuid.uuid4())
         self._execute(
             """INSERT INTO jobs
                (id, filename, filepath, file_size, file_type, status,
-                duplex, color, copies, paper_size, printer_name, source)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                duplex, color, copies, paper_size, printer_name, source,
+                page_range, nup)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 job_id,
                 filename,
@@ -173,6 +178,8 @@ class JobRepository:
                 paper_size,
                 printer_name,
                 source,
+                page_range,
+                nup,
             ),
             commit=True,
         )

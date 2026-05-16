@@ -74,6 +74,8 @@ class PrintOptions(BaseModel):
     duplex: bool | None = None
     color: bool | None = None
     paper_size: str | None = None
+    page_range: str | None = None
+    nup: int | None = Field(default=None, ge=1, le=16)
 
 
 class SettingsUpdate(BaseModel):

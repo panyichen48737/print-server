@@ -3,6 +3,7 @@
 import contextlib
 import os
 import subprocess
+import tempfile
 import threading
 from pathlib import Path
 
@@ -24,29 +25,35 @@ class PdfBackend(PrinterBackend):
         self._chrome_path = None
 
     def print_file(self, filepath, job_id, print_params, _lock=None):
-        printer_name = self._resolve_printer(print_params)
-        self._track_job(job_id, printer_name, 'pending')
-
+        prepared = self._prepare_pdf(filepath, print_params)
         try:
-            # ❶ IPP Everywhere — PDF 直送打印机硬件 RIP，质量最高
-            printer_ip = get_printer_ip(printer_name)
-            if printer_ip and self._try_ipp(printer_ip, filepath, job_id, print_params):
+            printer_name = self._resolve_printer(print_params)
+            self._track_job(job_id, printer_name, 'pending')
+
+            try:
+                # ❶ IPP Everywhere — PDF 直送打印机硬件 RIP，质量最高
+                printer_ip = get_printer_ip(printer_name)
+                if printer_ip and self._try_ipp(printer_ip, prepared, job_id, print_params):
+                    return True
+
+                # ❷ RAW — PDF 字节直送 Windows Spooler，零渲染
+                if self._try_raw(printer_name, prepared, job_id):
+                    return True
+
+                # ❸ Chromium — 软件渲染保底
+                self._try_chromium(printer_name, prepared, job_id, print_params)
                 return True
 
-            # ❷ RAW — PDF 字节直送 Windows Spooler，零渲染
-            if self._try_raw(printer_name, filepath, job_id):
-                return True
-
-            # ❸ Chromium — 软件渲染保底
-            self._try_chromium(printer_name, filepath, job_id, print_params)
-            return True
-
-        except Exception as e:
-            logger.error(f'打印失败: {filepath} - {e}')
-            raise
+            except Exception as e:
+                logger.error(f'打印失败: {filepath} - {e}')
+                raise
+            finally:
+                with self._active_jobs_lock:
+                    self._active_jobs.pop(job_id, None)
         finally:
-            with self._active_jobs_lock:
-                self._active_jobs.pop(job_id, None)
+            # Clean up temporary PDF if _prepare_pdf created one
+            if prepared != filepath:
+                Path(prepared).unlink(missing_ok=True)
 
     # ── 内部方法 ──
 
@@ -126,6 +133,73 @@ class PdfBackend(PrinterBackend):
             raise PrintError(
                 f'Chrome 打印失败: {proc.returncode}\n{stderr[:500].decode("utf-8", errors="replace")}'
             )
+
+    # ── 页码范围 + N-up 预处理 ──
+
+    def _parse_page_range(self, spec: str, total: int) -> list[int]:
+        """Parse '1-3,5,7-9' into [0,1,2,4,6,7,8] (0-indexed)."""
+        if not spec or not spec.strip():
+            return list(range(total))
+        pages: list[int] = []
+        for part in spec.split(','):
+            part = part.strip()
+            if not part:
+                continue
+            if '-' in part:
+                try:
+                    start, end = part.split('-', 1)
+                    s, e = int(start.strip()), int(end.strip())
+                    if s > e:
+                        s, e = e, s
+                    pages.extend(range(max(1, s), min(e, total) + 1))
+                except ValueError:
+                    continue
+            else:
+                try:
+                    pages.append(int(part))
+                except ValueError:
+                    continue
+        result = sorted(set(p for p in pages if 1 <= p <= total))
+        return [p - 1 for p in result]  # convert to 0-indexed
+
+    def _prepare_pdf(self, filepath: str, print_params: dict) -> str:
+        """Apply page range and N-up transformations. Returns path to final PDF."""
+        import fitz
+
+        current = filepath
+
+        # Step 1: Page range
+        page_range = print_params.get('page_range', '')
+        if page_range and page_range.strip():
+            doc = fitz.open(current)
+            total = len(doc)
+            pages = self._parse_page_range(page_range, total)
+            if pages and len(pages) < total:
+                new_doc = fitz.open()
+                for p in pages:
+                    new_doc.insert_pdf(doc, from_page=p, to_page=p)
+                with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
+                    tmp_path = tmp.name
+                new_doc.save(tmp_path)
+                new_doc.close()
+                doc.close()
+                current = tmp_path
+            else:
+                doc.close()
+
+        # Step 2: N-up
+        nup = int(print_params.get('nup', 1))
+        if nup > 1:
+            from app.printing.backends.pdf_render import nup_compose
+
+            composed = nup_compose(current, nup)
+            if composed != current:
+                # Clean up intermediate file from step 1
+                if current != filepath:
+                    Path(current).unlink(missing_ok=True)
+                current = composed
+
+        return current
 
     def cancel(self, job_id, _info):
         with self._active_jobs_lock:

@@ -8,6 +8,8 @@ MIGRATIONS: dict[str, str] = {
     'paper_size': "TEXT DEFAULT 'A4'",
     'source': "TEXT DEFAULT 'api'",
     'retry_count': 'INTEGER DEFAULT 0',
+    'page_range': "TEXT DEFAULT ''",
+    'nup': 'INTEGER DEFAULT 1',
 }
 
 

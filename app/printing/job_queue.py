@@ -65,6 +65,8 @@ class JobQueue:
         paper_size: str | None = None,
         printer_name: str | None = None,
         source: str = 'api',
+        page_range: str | None = None,
+        nup: int | None = None,
     ) -> str:
         job_id = self._repo.add_job(
             filename,
@@ -77,6 +79,8 @@ class JobQueue:
             paper_size=paper_size,
             printer_name=printer_name,
             source=source,
+            page_range=page_range,
+            nup=nup,
         )
         self._queue.put(job_id)
         with self._queued_ids_lock:
@@ -154,6 +158,8 @@ class JobQueue:
             copies=job.get('copies'),
             paper_size=job.get('paper_size'),
             printer_name=job.get('printer_name'),
+            page_range=job.get('page_range'),
+            nup=job.get('nup'),
         )
         logger.info(f'任务重试: {job_id} -> {new_job_id}')
         return new_job_id, None
@@ -305,6 +311,8 @@ class JobQueue:
             else (self._config.get('default_color', True) if self._config else True),
             'paper_size': job.get('paper_size')
             or (self._config.get('paper_size', 'A4') if self._config else 'A4'),
+            'page_range': job.get('page_range', '') or '',
+            'nup': job.get('nup', 1) or 1,
         }
         self._validate_color_capability(print_params)
         timeout = self._config.get('job_timeout', 300) if self._config else 300
