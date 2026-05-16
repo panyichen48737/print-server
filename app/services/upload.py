@@ -8,6 +8,24 @@ from loguru import logger
 
 from app.core._paths import ensure_dir, persistent_dir
 
+# 文件头魔数 → 扩展名映射（仅校验常见格式）
+MAGIC_NUMBERS: dict[bytes, tuple[str, ...]] = {
+    b'%PDF': ('.pdf',),
+    b'\xff\xd8\xff': ('.jpg', '.jpeg'),
+    b'\x89PNG\r\n\x1a\n': ('.png',),
+    b'GIF87a': ('.gif',),
+    b'GIF89a': ('.gif',),
+    b'BM': ('.bmp',),
+    b'II*\x00': ('.tiff', '.tif'),
+    b'MM\x00*': ('.tiff', '.tif'),
+    b'RIFF': ('.webp',),  # WEBP 以 RIFF 开头
+    b'\x00\x00\x01\x00': ('.ico',),
+    b'\x00\x00\x02\x00': ('.ico',),
+    b'ftyp': ('.heic', '.heif'),  # HEIC/HEIF 包含 ftyp box
+    b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1': ('.doc', '.xls', '.ppt'),  # CFB
+    b'PK\x03\x04': ('.docx', '.xlsx', '.pptx'),  # Office Open XML
+}
+
 
 @dataclass
 class UploadResult:
@@ -16,6 +34,18 @@ class UploadResult:
     success: bool
     job_id: str = ''
     error: str = ''
+
+
+def _check_magic_number(file_bytes: bytes, ext: str) -> bool:
+    """检查文件头魔数是否与扩展名匹配"""
+    for magic, exts in MAGIC_NUMBERS.items():
+        if ext in exts and file_bytes[: len(magic)] == magic:
+            return True
+    # HEIC/HEIF 的 ftyp 在偏移 4 处
+    if ext in ('.heic', '.heif') and len(file_bytes) > 8 and file_bytes[4:8] == b'ftyp':
+        return True
+    # 未注册的扩展名跳过魔数检查
+    return True
 
 
 def handle_file_upload(
@@ -58,6 +88,10 @@ def handle_file_upload(
             success=False, error=f'文件过大，最大 {config.get("max_file_size_mb", 50)}MB'
         )
 
+    # 文件头魔数校验
+    if not _check_magic_number(file_bytes, ext):
+        return UploadResult(success=False, error=f'文件内容与扩展名不匹配: {ext}')
+
     safe_name = Path(filename).name
     ext = Path(safe_name).suffix or '.bin'
     job_id = str(uuid.uuid4())
@@ -66,6 +100,19 @@ def handle_file_upload(
 
     with open(save_path, 'wb') as f:
         f.write(file_bytes)
+
+    # 写入后回读校验大小
+    try:
+        written_size = save_path.stat().st_size
+        if written_size != len(file_bytes):
+            save_path.unlink(missing_ok=True)
+            return UploadResult(
+                success=False,
+                error=f'文件写入不完整: 期望 {len(file_bytes)} 字节，实际 {written_size} 字节',
+            )
+    except OSError as e:
+        save_path.unlink(missing_ok=True)
+        return UploadResult(success=False, error=f'文件写入校验失败: {e}')
 
     actual_job_id = queue_mgr.add_job(
         filename,

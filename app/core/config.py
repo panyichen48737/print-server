@@ -28,7 +28,7 @@ class Config(BaseSettings):
     api_key: str = Field('print-server-key-2026', validation_alias='PRINT_SERVER_API_KEY')
     default_printer: str = ''
     default_copies: int = Field(default=1, ge=1, le=999)
-    default_duplex: bool = False
+    default_duplex: bool = True
     default_color: bool = True
     excel_print_all_sheets: bool = True
     ppt_output_type: str = 'slides'
@@ -75,6 +75,7 @@ class Config(BaseSettings):
     auto_retry_count: int = Field(default=0, ge=0, le=10)
     theme_mode: str = 'system'
     auto_update_check: bool = Field(default=True, description='启动时自动检查更新')
+    wizard_completed: bool = Field(default=False, description='首次配置向导是否已完成')
 
     # ── 内部状态（PrivateAttr 不会被 .model_dump() 导出） ──
     _config_path: Path = PrivateAttr()

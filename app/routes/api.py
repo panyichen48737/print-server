@@ -14,6 +14,12 @@ from loguru import logger
 
 from app.core.auth import require_auth
 from app.core.exceptions import FileTypeError, PrintServerError
+from app.core.schemas import (
+    ErrorDetail,
+    PrintConfigResponse,
+    PrintResponse,
+    QueuePositionResponse,
+)
 from app.core.utils import format_time
 from app.services.upload import handle_file_upload
 
@@ -46,7 +52,7 @@ async def _handle_upload(request, file, printer, copies, duplex, color, paper_si
     return {'success': True, 'job_id': result.job_id}
 
 
-@api_router.post('/print')
+@api_router.post('/print', response_model=PrintResponse, responses={400: {'model': ErrorDetail}})
 async def print_file(
     request: Request,
     file: UploadFile = File(...),
@@ -57,7 +63,15 @@ async def print_file(
     paper_size: str = Form(None),
     _auth=Depends(require_auth),
 ):
-    """提交打印任务（iOS 端使用）"""
+    """提交打印任务（iOS 端使用）
+
+    - file: 要打印的文件（PDF/Office/图片）
+    - printer: 打印机名称（可选，默认使用服务器默认打印机）
+    - copies: 份数（可选，默认 1）
+    - duplex: 双面打印（可选，"0"或"1"）
+    - color: 彩色打印（可选，"0"或"1"）
+    - paper_size: 纸张大小（可选，"A4"/"Letter"/"A3"）
+    """
     return await _handle_upload(request, file, printer, copies, duplex, color, paper_size, 'ios')
 
 
@@ -105,7 +119,7 @@ async def cancel_job_api(
     return {'success': True}
 
 
-@api_router.post('/upload')
+@api_router.post('/upload', response_model=PrintResponse, responses={400: {'model': ErrorDetail}})
 async def upload_file(
     request: Request,
     file: UploadFile = File(...),
@@ -206,3 +220,47 @@ async def api_jobs(
     )
     total = repo.count_jobs(status=status or None, search=search or None)
     return {'jobs': jobs, 'total': total}
+
+
+@api_router.get('/print/config', response_model=PrintConfigResponse)
+async def get_print_config(request: Request):
+    """获取服务器默认打印配置（无需认证，供 Scriptable 客户端预填表单）"""
+    config = request.app.state.app_config
+    monitor = request.app.state.printer_monitor
+    printers = list(monitor.get_all_statuses().keys())
+    if not printers:
+        printers = [config.get('default_printer', '')] if config.get('default_printer') else []
+    return {
+        'default_printer': config.get('default_printer', ''),
+        'printers': printers,
+        'default_copies': config.get('default_copies', 1),
+        'default_duplex': config.get('default_duplex', True),
+        'default_color': config.get('default_color', True),
+        'paper_size': config.get('paper_size', 'A4'),
+    }
+
+
+@api_router.get('/queue/position/{job_id}', response_model=QueuePositionResponse)
+async def get_queue_position(job_id: str, request: Request):
+    """查询任务在队列中的位置"""
+    job = request.app.state.job_repo.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail='任务不存在')
+
+    job_queue = request.app.state.job_queue
+    queue_size = job_queue.queue_size()
+    position = 0
+
+    if job['status'] == 'queued':
+        # 获取所有排队任务，计算位置
+        queued_jobs = request.app.state.job_repo.get_jobs_by_status('queued')
+        for i, qj in enumerate(queued_jobs):
+            if qj['id'] == job_id:
+                position = i + 1
+                break
+
+    return {
+        'job_id': job_id,
+        'position': position,
+        'queue_size': queue_size,
+    }

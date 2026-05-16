@@ -31,11 +31,11 @@ def _startup_folder() -> Path:
 
 
 def _exe_path() -> tuple[str, str]:
-    """返回 (可执行路径, 参数) — 无参数，直接启动 GUI"""
+    """返回 (可执行路径, 参数) — 开机自启使用 --tray 仅显示托盘图标"""
     if getattr(sys, 'frozen', False) or getattr(sys, '__compiled__', False):
-        return sys.executable, ''
+        return sys.executable, '--tray'
     this_dir = Path(__file__).resolve().parent.parent
-    return sys.executable, f'"{this_dir}" -m launcher'
+    return sys.executable, f'--tray "{this_dir}" -m launcher'
 
 
 def _startup_link_path() -> Path:

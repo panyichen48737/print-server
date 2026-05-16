@@ -288,11 +288,13 @@ def _gui_main() -> int:
         saved_theme = 'light'
     ThemeEngine.instance().apply(saved_theme, QApplication.instance())
 
-    # 首次启动：显示配置向导
-    is_default_key = config.get('api_key') == 'print-server-key-2026'
-    if is_default_key:
+    # 首次启动：显示配置向导（当且仅当 wizard_completed 标记为 False）
+    if not config.get('wizard_completed'):
         printer_monitor.start()
-        _show_setup_wizard(config, printer_monitor)
+        result = _show_setup_wizard(config, printer_monitor)
+        if result:
+            config.set('wizard_completed', True)
+            config.save()
 
     # Rebind logger to GUI source for GUI-process logging
     import sys as _sys

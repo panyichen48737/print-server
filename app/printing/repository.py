@@ -1,5 +1,6 @@
 import contextlib
 import sqlite3
+import threading
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -50,6 +51,7 @@ class JobRepository:
             db_path = db_dir / 'jobs.db'
         self.db_path = str(db_path)
 
+        self._lock = threading.Lock()
         self._conn = sqlite3.connect(self.db_path, timeout=5.0, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute('PRAGMA journal_mode=WAL')
@@ -58,51 +60,56 @@ class JobRepository:
 
     # ── 执行核心 ──
 
-    def _execute_inner(
+    def _execute(
         self,
         query: str,
         params: Any = None,
         *,
         fetchone: bool = False,
         fetchall: bool = False,
-        row_factory: bool = False,
         commit: bool = False,
         executemany: bool = False,
     ) -> Any:
-        if row_factory:
-            self._conn.row_factory = sqlite3.Row
-        else:
-            self._conn.row_factory = None
-        try:
-            if executemany:
-                cur = self._conn.executemany(query, params or [])
-            else:
-                cur = self._conn.execute(query, params or [])
-            if commit:
-                self._conn.commit()
-            if fetchone:
-                row = cur.fetchone()
-                return dict(row) if row else None
-            if fetchall:
-                rows = cur.fetchall()
-                return [dict(r) for r in rows]
-            if executemany:
-                return cur.rowcount
-            return cur
-        finally:
-            self._conn.row_factory = None
-
-    def _execute(self, query: str, params: Any = None, **kwargs: Any) -> Any:
-        try:
-            return self._execute_inner(query, params, **kwargs)
-        except sqlite3.OperationalError:
-            logger.warning('Database connection lost, reconnecting...')
-            with contextlib.suppress(Exception):
-                self._conn.close()
-            self._conn = sqlite3.connect(self.db_path, timeout=5.0, check_same_thread=False)
-            self._conn.row_factory = sqlite3.Row
-            self._conn.execute('PRAGMA journal_mode=WAL')
-            return self._execute_inner(query, params, **kwargs)
+        with self._lock:
+            try:
+                if executemany:
+                    cur = self._conn.executemany(query, params or [])
+                else:
+                    cur = self._conn.execute(query, params or [])
+                if commit:
+                    self._conn.commit()
+                if fetchone:
+                    row = cur.fetchone()
+                    return dict(row) if row else None
+                if fetchall:
+                    rows = cur.fetchall()
+                    return [dict(r) for r in rows]
+                if executemany:
+                    return cur.rowcount
+                return cur
+            except sqlite3.OperationalError:
+                logger.warning('Database connection lost, reconnecting...')
+                with contextlib.suppress(Exception):
+                    self._conn.close()
+                self._conn = sqlite3.connect(self.db_path, timeout=5.0, check_same_thread=False)
+                self._conn.row_factory = sqlite3.Row
+                self._conn.execute('PRAGMA journal_mode=WAL')
+                self._conn.execute('PRAGMA synchronous=NORMAL')
+                if executemany:
+                    cur = self._conn.executemany(query, params or [])
+                else:
+                    cur = self._conn.execute(query, params or [])
+                if commit:
+                    self._conn.commit()
+                if fetchone:
+                    row = cur.fetchone()
+                    return dict(row) if row else None
+                if fetchall:
+                    rows = cur.fetchall()
+                    return [dict(r) for r in rows]
+                if executemany:
+                    return cur.rowcount
+                return cur
 
     # ── 初始化 + 迁移 ──
 
@@ -172,9 +179,7 @@ class JobRepository:
         return job_id
 
     def get_job(self, job_id: str) -> JobRecord | None:
-        return self._execute(
-            'SELECT * FROM jobs WHERE id = ?', (job_id,), fetchone=True, row_factory=True
-        )
+        return self._execute('SELECT * FROM jobs WHERE id = ?', (job_id,), fetchone=True)
 
     def update_status(self, job_id: str, status: str, error_message: str | None = None) -> None:
         now = datetime.now().isoformat()
@@ -197,13 +202,13 @@ class JobRepository:
         query, params = self._build_where('SELECT * FROM jobs WHERE 1=1', status, search)
         query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'
         params.extend([limit, offset])
-        return self._execute(query, params, fetchall=True, row_factory=True)
+        return self._execute(query, params, fetchall=True)
 
     def count_jobs(self, status: str | None = None, search: str | None = None) -> int:
         query, params = self._build_where(
             'SELECT COUNT(*) AS cnt FROM jobs WHERE 1=1', status, search
         )
-        result = self._execute(query, params, fetchone=True, row_factory=True)
+        result = self._execute(query, params, fetchone=True)
         return result['cnt'] if result else 0
 
     def _build_where(self, query: str, status: str | None, search: str | None) -> tuple[str, list]:
@@ -217,9 +222,7 @@ class JobRepository:
         return query, params
 
     def get_jobs_by_status(self, status: str) -> list[JobRecord]:
-        return self._execute(
-            'SELECT * FROM jobs WHERE status = ?', (status,), fetchall=True, row_factory=True
-        )
+        return self._execute('SELECT * FROM jobs WHERE status = ?', (status,), fetchall=True)
 
     def increment_retry(self, job_id: str) -> None:
         self._execute(

@@ -13,7 +13,7 @@ MIGRATIONS: dict[str, str] = {
 
 def migrate_db(execute_fn) -> None:
     """检测并执行增量列添加"""
-    rows = execute_fn('PRAGMA table_info(jobs)', fetchall=True, row_factory=True)
+    rows = execute_fn('PRAGMA table_info(jobs)', fetchall=True)
     existing = {row['name'] for row in rows} if rows else set()
     for col, dtype in MIGRATIONS.items():
         if col not in existing:

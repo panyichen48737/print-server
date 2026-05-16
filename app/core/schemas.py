@@ -101,6 +101,21 @@ class SettingsUpdate(BaseModel):
     auto_retry_count: int | None = Field(default=None, ge=0, le=10)
 
 
+class PrintConfigResponse(BaseModel):
+    default_printer: str
+    printers: list[str]
+    default_copies: int
+    default_duplex: bool
+    default_color: bool
+    paper_size: str
+
+
+class QueuePositionResponse(BaseModel):
+    job_id: str
+    position: int
+    queue_size: int
+
+
 class JobFilter(BaseModel):
     status: str | None = None
     search: str | None = None

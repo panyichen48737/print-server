@@ -18,7 +18,6 @@ def get_stats(execute_fn) -> dict:
         FROM jobs""",
         (today, today),
         fetchone=True,
-        row_factory=True,
     )
     success_total = row['completed_total']
     failed_total = row['failed_total']
@@ -45,7 +44,6 @@ def get_daily_counts(execute_fn, days: int = 7) -> dict[str, int]:
         'GROUP BY day ORDER BY day',
         (-days,),
         fetchall=True,
-        row_factory=True,
     )
     return {row['day']: row['cnt'] for row in cursor} if cursor else {}
 

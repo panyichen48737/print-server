@@ -46,12 +46,12 @@ class ToggleSwitch(QSlider):
 
     def _animate_toggle(self, target: int):
         self._animating = True
-        anim = QPropertyAnimation(self, b'value')
-        anim.setDuration(150)
-        anim.setStartValue(self.value())
-        anim.setEndValue(target)
-        anim.finished.connect(lambda: setattr(self, '_animating', False))
-        anim.start()
+        self._anim = QPropertyAnimation(self, b'value')
+        self._anim.setDuration(150)
+        self._anim.setStartValue(self.value())
+        self._anim.setEndValue(target)
+        self._anim.finished.connect(lambda: setattr(self, '_animating', False))
+        self._anim.start()
 
     def _refresh_qss(self):
         opacity = '0.4' if not self.isEnabled() else '1.0'
