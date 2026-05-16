@@ -207,8 +207,6 @@ def build(version: str):
         '--hidden-import',
         'app.printing.job_queue',
         '--hidden-import',
-        'app.printing.worker_pool',
-        '--hidden-import',
         'app.printing.engine',
         '--hidden-import',
         'app.printing.backends',

@@ -1,6 +1,6 @@
 """测试 JobQueue"""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -17,6 +17,15 @@ def repo():
 @pytest.fixture
 def event_bus():
     return MagicMock()
+
+
+@pytest.fixture
+def config():
+    cfg = MagicMock()
+    cfg.get.side_effect = lambda key, default=None: {
+        'worker_count': 2,
+    }.get(key, default)
+    return cfg
 
 
 @pytest.fixture
@@ -127,3 +136,45 @@ class TestJobQueue:
         assert queue.queue_size() == 0
         queue.add_job('a.pdf', '/a.pdf')
         assert queue.queue_size() == 1
+
+
+# =============================================================================
+# Worker lifecycle tests (replaces test_worker_pool.py)
+# =============================================================================
+
+
+class TestWorkerLifecycle:
+    """JobQueue 内联 Worker 生命周期"""
+
+    @pytest.fixture
+    def q(self, repo, event_bus, config):
+        """JobQueue with config for worker lifecycle tests"""
+        return JobQueue(repo, event_bus=event_bus, config=config)
+
+    def test_start_creates_workers(self, q, repo, event_bus):
+        with patch.dict('sys.modules', {'pythoncom': MagicMock()}):
+            q.start(count=2)
+            assert q.running_workers() == 2
+            q.stop()
+
+    def test_stop_all_workers(self, q, repo, event_bus):
+        with patch.dict('sys.modules', {'pythoncom': MagicMock()}):
+            q.start(count=2)
+            q.stop()
+            assert q.running_workers() == 0
+
+    def test_double_stop_safe(self, q, repo, event_bus):
+        with patch.dict('sys.modules', {'pythoncom': MagicMock()}):
+            q.start(count=2)
+            q.stop()
+            q.stop()  # 不应抛出
+
+    def test_stop_no_workers(self, q):
+        q.stop()  # 不应抛出
+
+    def test_start_without_print_engine(self, q, repo, event_bus):
+        """set_print_engine 未调用时 start 仍可运行（打印会失败）"""
+        with patch.dict('sys.modules', {'pythoncom': MagicMock()}):
+            q.start(count=1)
+            assert q.running_workers() == 1
+            q.stop()

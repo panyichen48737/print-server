@@ -10,14 +10,13 @@ from app.core.utils import format_time
 
 
 def bootstrap(config: Config, lifespan=None):
-    """初始化所有服务并返回 (app, job_queue, worker_pool, print_engine, printer_monitor)"""
+    """初始化所有服务并返回 (app, job_queue, job_queue, print_engine, printer_monitor, heartbeat)"""
 
     import httpx
 
     from app.printing.engine import PrintEngine
     from app.printing.job_queue import JobQueue
     from app.printing.repository import JobRepository
-    from app.printing.worker_pool import WorkerPool
     from app.services.notifications.bark import BarkNotifier
     from app.services.notifications.dingtalk import DingTalk
     from app.services.printer_monitor import PrinterMonitor
@@ -53,8 +52,7 @@ def bootstrap(config: Config, lifespan=None):
     ppt_lock = threading.Lock()
 
     repo = JobRepository()
-    job_queue = JobQueue(repo, event_bus=broadcaster)
-    worker_pool = WorkerPool(config, event_bus=broadcaster, word_lock=word_lock)
+    job_queue = JobQueue(repo, event_bus=broadcaster, config=config)
     print_engine = PrintEngine(config, excel_lock=excel_lock, ppt_lock=ppt_lock)
     printer_monitor = PrinterMonitor(broadcaster=broadcaster)
 
@@ -94,12 +92,14 @@ def bootstrap(config: Config, lifespan=None):
         broadcaster.on('job_status', _on_job_status)
 
     # 启动工作线程
-    worker_pool.start(print_engine, repo, job_queue)
+    worker_count = config.get('worker_count', 2)
+    job_queue.set_print_engine(print_engine, word_lock)
+    job_queue.start(worker_count)
 
     # Register on app.state
     app.state.job_queue = job_queue
     app.state.job_repo = repo
-    app.state.worker_pool = worker_pool
+    app.state.worker_pool = job_queue  # 兼容 lifespan 引用
     app.state.app_config = config
     config.start_watcher()
     app.state.print_engine = print_engine
@@ -111,4 +111,4 @@ def bootstrap(config: Config, lifespan=None):
 
     job_queue.cleanup_old_jobs(config.get('job_retention_days', 30))
 
-    return app, job_queue, worker_pool, print_engine, printer_monitor, heartbeat
+    return app, job_queue, job_queue, print_engine, printer_monitor, heartbeat
