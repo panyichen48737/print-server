@@ -67,8 +67,6 @@ librt==0.10.0
     # via mypy
 loguru==0.7.3
     # via ios-print-server (pyproject.toml)
-msgspec==0.21.1
-    # via ios-print-server (pyproject.toml)
 mypy==2.0.0
     # via ios-print-server (pyproject.toml:dev)
 mypy-extensions==1.1.0

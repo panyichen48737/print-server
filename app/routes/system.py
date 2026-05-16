@@ -1,13 +1,10 @@
-"""系统相关路由 — 健康检查、版本、日志、统计、SSE"""
+"""系统相关路由 — 健康检查、版本、日志、统计"""
 
-import queue as _queue
 import time
 from collections import deque
 from pathlib import Path
 
-import msgspec
 from fastapi import APIRouter, Request
-from fastapi.responses import StreamingResponse
 
 from app.core._paths import log_dir, persistent_dir
 from app.core.version import __build_date__, __pyinstaller_version__, __version__
@@ -52,33 +49,6 @@ async def api_logs(_request: Request, lines: int = 50):
         return {'lines': []}
     except Exception as e:
         return {'lines': [f'[ERROR] 读取日志失败: {e}']}
-
-
-@system_router.get('/events')
-async def sse_events(request: Request):
-    broadcaster = request.app.state.sse
-    sub_id, q = broadcaster.subscribe()
-    start = time.monotonic()
-    max_duration = 3600
-
-    def generate():
-        _encoder = msgspec.json.Encoder()
-        try:
-            while True:
-                elapsed = time.monotonic() - start
-                if elapsed > max_duration:
-                    break
-                try:
-                    event_type, data = q.get(timeout=30)
-                    yield f'event: {event_type}\ndata: {_encoder.encode(data).decode("utf-8")}\n\n'
-                except _queue.Empty:
-                    continue
-        except GeneratorExit:
-            pass
-        finally:
-            broadcaster.unsubscribe(sub_id)
-
-    return StreamingResponse(generate(), media_type='text/event-stream')
 
 
 @system_router.get('/stats')

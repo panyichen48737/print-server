@@ -261,9 +261,6 @@ def build(version: str):
         'gui.components.printer_card',
         '--hidden-import',
         'gui.components.print_dialog',
-        # 新增依赖
-        '--hidden-import',
-        'msgspec',
         # PySide6
         '--hidden-import',
         'PySide6.QtNetwork',

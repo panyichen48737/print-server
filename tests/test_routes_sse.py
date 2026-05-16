@@ -78,65 +78,6 @@ class TestStatsEndpoint:
 
 
 # =============================================================================
-# /api/events 端点注册验证
-# =============================================================================
-
-
-class TestSSEEndpointRegistration:
-    """/api/events 端点在应用中正确注册"""
-
-    def test_endpoint_registered(self, app_instance):
-        routes = [r.path for r in app_instance.routes]
-        assert '/api/events' in routes
-
-    def test_endpoint_accepts_get(self, app_instance):
-        methods = set()
-        for route in app_instance.routes:
-            if hasattr(route, 'path') and route.path == '/api/events':
-                methods = route.methods
-                break
-        assert 'GET' in methods
-
-    def test_sse_broadcaster_available(self, app_instance):
-        """app.state.sse 可在端点中访问"""
-        assert hasattr(app_instance.state, 'sse')
-        from app.services.sse_broadcaster import SSEBroadcaster
-
-        assert isinstance(app_instance.state.sse, SSEBroadcaster)
-
-    def test_sse_subscribe_publish_cycle(self, app_instance):
-        """通过 app.state.sse 的完整发布/订阅周期"""
-        import json
-
-        broadcaster = app_instance.state.sse
-        sub_id, q = broadcaster.subscribe()
-
-        # 模拟端点行为：发布一个事件
-        test_data = {'job_id': '1', 'status': 'completed'}
-        broadcaster.publish('job_status', test_data)
-
-        # 模拟端点行为：从 queue 读取并格式化 SSE
-        event_type, data = q.get(timeout=1)
-        sse = f'event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n'
-
-        assert sse.startswith('event: job_status')
-        assert '"status": "completed"' in sse
-        assert sse.endswith('\n\n')
-
-    def test_sse_subscriber_cleanup(self, app_instance):
-        """模拟端点 finally 块中的 unsubscribe"""
-        broadcaster = app_instance.state.sse
-        sub_id, q = broadcaster.subscribe()
-
-        sub_count_before = len(broadcaster._subscribers)
-        broadcaster.unsubscribe(sub_id)
-        sub_count_after = len(broadcaster._subscribers)
-
-        assert sub_count_before == 1
-        assert sub_count_after == 0
-
-
-# =============================================================================
 # /api/logs — REST 日志接口
 # =============================================================================
 

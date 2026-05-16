@@ -40,8 +40,6 @@ idna==3.13
     #   httpx
 loguru==0.7.3
     # via ios-print-server (pyproject.toml)
-msgspec==0.21.1
-    # via ios-print-server (pyproject.toml)
 pillow==12.2.0
     # via ios-print-server (pyproject.toml)
 pydantic==2.13.4

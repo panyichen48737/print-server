@@ -19,5 +19,4 @@ repos:
           - starlette>=1.0
           - pydantic-settings>=2
           - loguru>=0.7
-          - msgspec>=0.21
           - typing-extensions>=4

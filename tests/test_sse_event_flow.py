@@ -338,10 +338,6 @@ class TestInitApp:
 
         assert isinstance(app_instance.state.sse, SSEBroadcaster)
 
-    def test_sse_endpoint_registered(self, app_instance):
-        routes = [r.path for r in app_instance.routes]
-        assert '/api/events' in routes
-
     def test_subscribe_publish_cycle_via_app(self, app_instance):
         """通过 app.state.sse 的完整 publish/subscribe 周期"""
         broadcaster = app_instance.state.sse
