@@ -23,6 +23,8 @@ class TextBackend(PrinterBackend):
         content = Path(filepath).read_bytes()
         printer_name = print_params.get('printer_name', '')
         if not printer_name:
+            printer_name = self.config.get('default_printer', '')
+        if not printer_name:
             printer_name = win32print.GetDefaultPrinter()
 
         try:
@@ -39,7 +41,7 @@ class TextBackend(PrinterBackend):
             return True
         except Exception as e:
             logger.error(f'Text 打印失败: {e}')
-            return False
+            raise
 
     def cancel(self, _job_id: str, _info: dict) -> bool:
         """Text 打印无法取消 — 文档已直接发送到 Spooler"""
