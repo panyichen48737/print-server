@@ -1,20 +1,20 @@
-"""Bridge EventBus (thread-safe) to Qt signal/slot."""
+"""Bridge SSEBroadcaster (thread-safe) to Qt signal/slot."""
 
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, Signal, Slot
 
-from app.services.sse_broadcaster import EventBus
+from app.services.sse_broadcaster import SSEBroadcaster
 
 
 class EventBridge(QObject):
-    """Wraps EventBus subscriptions in Qt signals for thread-safe GUI updates."""
+    """Wraps SSEBroadcaster subscriptions in Qt signals for thread-safe GUI updates."""
 
     job_status = Signal(dict)
     printer_status = Signal(dict)
     log = Signal(dict)
 
-    def __init__(self, event_bus: EventBus | None, parent: QObject | None = None):
+    def __init__(self, event_bus: SSEBroadcaster | None, parent: QObject | None = None):
         super().__init__(parent)
         self._bus = event_bus
         if self._bus:

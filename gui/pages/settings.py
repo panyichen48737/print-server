@@ -213,7 +213,7 @@ class SettingsPage(QWidget):
         self._setup_validation()
         self._populate_printers()
         self.test_notify_btn.clicked.connect(self._test_notification)
-        self._mw._app.state.event_bus.on('printer_list_updated', self._populate_printers)
+        self._mw._app.state.sse.on('printer_list_updated', self._populate_printers)
 
         # Brief skeleton pulse before revealing the form
         QTimer.singleShot(200, self._show_content)
@@ -406,7 +406,7 @@ class SettingsPage(QWidget):
                 self.restart_label.setVisible(True)
                 if self._show_restart_dialog():
                     self._mw._server.stop()
-                self._mw._server.start(self._mw._app, self._mw._config)
+                    self._mw._server.start(self._mw._app, self._mw._config)
         except Exception as e:
             self.save_btn.set_error()
             self.status_label.setText(f'保存失败: {e}')

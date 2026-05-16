@@ -33,7 +33,7 @@ class MainWindow(QMainWindow):
         self._config = config
         self._server = server_handle
         self._theme_mode = 'light'
-        self._event_bus = app.state.event_bus
+        self._event_bus = app.state.sse
         self._pending_update = None
         self._service_pending_update = None
         self._idle_timer = None

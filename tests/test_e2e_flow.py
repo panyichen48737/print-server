@@ -25,7 +25,6 @@ def e2e_app(tmp_path):
 
     queue = JobQueue(repo)
     app.state.job_queue = queue
-    app.state.event_bus = queue._event_bus
 
     # Mock 外部依赖
     app.state.printer_monitor = MagicMock()

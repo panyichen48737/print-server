@@ -1,8 +1,7 @@
-"""事件系统 — EventBus（本地监听）+ SSEBroadcaster（远程推送）
+"""事件系统 — SSEBroadcaster：本地监听 + SSE/WS 远程推送
 
-EventBus:     on/off/publish    — 服务间本地解耦（JobQueue → Notifier）
-SSEBroadcaster: subscribe/unsubscribe/publish    — SSE/WS 远程推送
-                同时委托 EventBus 处理本地监听，一次 publish 两端覆盖。
+SSEBroadcaster: on/off/subscribe/unsubscribe/publish
+                一次 publish 覆盖本地监听器和远程订阅者。
 """
 
 import queue
@@ -19,12 +18,18 @@ _STALE_LIMIT = 3
 _LOG_PATTERN = re.compile(r'^\[([^\]]+)\]\s+\[([^\]]+)\]\s+(.*)')
 
 
-class EventBus:
-    """本地事件监听 — 注册/注销/发布，线程安全"""
+class SSEBroadcaster:
+    """发布/订阅 + 本地监听 — 一次 publish 覆盖 SSE 远程订阅者和本地监听器"""
 
-    def __init__(self) -> None:
+    def __init__(self, maxsize: int = 100) -> None:
+        self._maxsize = maxsize
+        self._subscribers: dict[str, queue.Queue] = {}
+        self._stale_count: dict[str, int] = {}
+        self._subscribe_time: dict[str, float] = {}
         self._listeners: dict[str, list[Callable]] = {}
         self._lock = threading.Lock()
+
+    # ── 本地监听 ──
 
     def on(self, event_type: str, handler: Callable) -> None:
         with self._lock:
@@ -35,33 +40,6 @@ class EventBus:
             self._listeners[event_type] = [
                 h for h in self._listeners.get(event_type, []) if h is not handler
             ]
-
-    def publish(self, event_type: str, data: Any) -> None:
-        for handler in list(self._listeners.get(event_type, [])):
-            try:
-                handler(data)
-            except Exception:
-                logger.exception(f'事件监听器异常 ({event_type})')
-
-
-class SSEBroadcaster:
-    """远程推送 — SSE/WebSocket 发布/订阅，内部持有 EventBus 处理本地监听"""
-
-    def __init__(self, event_bus: EventBus | None = None, maxsize: int = 100) -> None:
-        self._maxsize = maxsize
-        self._subscribers: dict[str, queue.Queue] = {}
-        self._stale_count: dict[str, int] = {}
-        self._subscribe_time: dict[str, float] = {}
-        self._event_bus = event_bus or EventBus()
-        self._lock = threading.Lock()
-
-    # ── 本地监听（委托给 EventBus）──
-
-    def on(self, event_type: str, handler: Callable) -> None:
-        self._event_bus.on(event_type, handler)
-
-    def off(self, event_type: str, handler: Callable) -> None:
-        self._event_bus.off(event_type, handler)
 
     # ── 远程订阅 ──
 
@@ -116,7 +94,11 @@ class SSEBroadcaster:
                         f'SSE 订阅者 {sub_id[:8]} 已连续 {_STALE_LIMIT} 次队列满，已移除'
                     )
 
-        self._event_bus.publish(event_type, data)
+        for handler in list(self._listeners.get(event_type, [])):
+            try:
+                handler(data)
+            except Exception:
+                logger.exception(f'事件监听器异常 ({event_type})')
 
     def cleanup_idle_subscribers(self, timeout: float = 300) -> int:
         """移除超过 timeout 秒未活动的空闲订阅者。
@@ -139,9 +121,7 @@ class SSEBroadcaster:
 
 def init_app(app: Any, maxsize: int = 100) -> SSEBroadcaster:
     """初始化事件系统并注册到 app.state"""
-    event_bus = EventBus()
-    broadcaster = SSEBroadcaster(event_bus=event_bus, maxsize=maxsize)
-    app.state.event_bus = event_bus
+    broadcaster = SSEBroadcaster(maxsize=maxsize)
     app.state.sse = broadcaster
     return broadcaster
 

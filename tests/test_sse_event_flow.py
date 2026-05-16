@@ -332,7 +332,7 @@ class TestInitApp:
     """init_app 正确初始化 app.state"""
 
     def test_init_app_sets_state(self, app_instance):
-        assert hasattr(app_instance.state, 'event_bus')
+        assert hasattr(app_instance.state, 'sse')
         assert hasattr(app_instance.state, 'sse')
         from app.services.sse_broadcaster import SSEBroadcaster
 
