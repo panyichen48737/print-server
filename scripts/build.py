@@ -154,6 +154,16 @@ def build(version: str):
         'gui',
         '--collect-all',
         'launcher',
+        '--collect-all',
+        'fastapi',
+        '--collect-all',
+        'starlette',
+        '--collect-all',
+        'uvicorn',
+        '--collect-all',
+        'pydantic_settings',
+        '--collect-all',
+        'jinja2',
     ]
 
     # ── pywin32 COM 模块（动态加载，必须显式指定）──
