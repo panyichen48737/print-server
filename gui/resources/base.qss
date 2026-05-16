@@ -40,10 +40,6 @@ QComboBox:focus {
     padding: 5px 29px 5px 9px;
 }
 
-QFrame#chartArea {
-    min-height: 160px;
-}
-
 QFrame#printerCard {
     min-height: 56px;
 }
@@ -262,23 +258,6 @@ QPushButton#primary {
     font-size: 13px;
     font-weight: 600;
     min-height: 20px;
-}
-
-QPushButton#statusPill {
-    height: 26px;
-    padding: 0 14px;
-    background: transparent;
-    font-size: 11px;
-    font-weight: 500;
-    min-height: 26px;
-}
-
-QPushButton#statusPillSuccess {
-    height: 26px;
-    padding: 0 14px;
-    font-size: 11px;
-    font-weight: 500;
-    min-height: 26px;
 }
 
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {

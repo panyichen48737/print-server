@@ -10,50 +10,13 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QPushButton,
-    QScrollArea,
     QTableView,
     QVBoxLayout,
     QWidget,
 )
 
-
-class SkeletonCard(QFrame):
-    """Placeholder card with pulsing animation."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setObjectName('statCard')
-        self._pulse = 0
-        self._forward = True
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._pulse_step)
-        self._timer.start(50)
-
-    def _pulse_step(self):
-        if self._forward:
-            self._pulse += 1
-            if self._pulse >= 10:
-                self._forward = False
-        else:
-            self._pulse -= 1
-            if self._pulse <= 0:
-                self._forward = True
-        alpha = 180 + self._pulse * 6  # 180-240 range
-        self.setStyleSheet(f"""
-            QFrame#statCard {{
-                background-color: rgba(200, 195, 185, {alpha});
-                border: 1px solid #E5DDD5;
-                border-radius: 12px;
-                min-height: 100px;
-            }}
-        """)
-
-    def stop_pulse(self):
-        self._timer.stop()
-        self.setStyleSheet('')
-        self.setObjectName('statCard')
-        self.style().unpolish(self)
-        self.style().polish(self)
+from gui.components.page_base import PageBase
+from gui.components.skeleton import SkeletonWidget
 
 
 class StatCard(QFrame):
@@ -163,19 +126,14 @@ class RecentJobsModel(QAbstractTableModel):
         self.endResetModel()
 
 
-class DashboardPage(QWidget):
+class DashboardPage(PageBase):
     def __init__(self, main_window, parent=None):
-        super().__init__(parent)
         self._mw = main_window
         self._event_bus = getattr(main_window, '_event_bus', None)
-        self._skeleton_cards: list[SkeletonCard] = []
         self._initial_loaded = False
+        super().__init__(parent)
 
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
-
-        # Error banner with retry
+        # Error banner with retry (outside scroll — top of page)
         self.error_banner = QWidget()
         self.error_banner.setVisible(False)
         eb_lo = QHBoxLayout(self.error_banner)
@@ -188,19 +146,29 @@ class DashboardPage(QWidget):
         self.retry_btn.clicked.connect(self._refresh)
         eb_lo.addWidget(self.error_label, 1)
         eb_lo.addWidget(self.retry_btn)
-        main_layout.addWidget(self.error_banner)
+        # Insert at top of main layout (above scroll area)
+        self.layout().insertWidget(0, self.error_banner)
 
-        # Scroll area
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setObjectName('dashboardScroll')
+        # Empty state (also outside scroll)
+        self.empty_state = QWidget()
+        empty_lo = QVBoxLayout(self.empty_state)
+        empty_lo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_text = QLabel('尚无打印任务')
+        empty_text.setStyleSheet('font-size: 16px; color: #8A8178;')
+        go_btn = QPushButton('前往快速打印')
+        go_btn.setObjectName('primary')
+        go_btn.clicked.connect(lambda: main_window.sidebar.setCurrentRow(1))
+        empty_lo.addWidget(empty_text, alignment=Qt.AlignmentFlag.AlignCenter)
+        empty_lo.addWidget(go_btn, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.layout().addWidget(self.empty_state)
+        self.empty_state.setVisible(False)
 
-        container = QWidget()
-        lo = QVBoxLayout(container)
-        lo.setContentsMargins(28, 28, 32, 28)
-        lo.setSpacing(0)
+        # Refresh Timer
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._refresh)
 
-        # ===== Page Header =====
+    def _build_content(self, layout: QVBoxLayout):
+        # Header
         header = QWidget()
         hdr_lo = QHBoxLayout(header)
         hdr_lo.setContentsMargins(0, 0, 0, 0)
@@ -227,15 +195,15 @@ class DashboardPage(QWidget):
         refresh_btn.clicked.connect(self._refresh)
         new_job_btn = QPushButton('+ 新打印任务')
         new_job_btn.setObjectName('primary')
-        new_job_btn.clicked.connect(lambda: main_window.sidebar.setCurrentRow(1))
+        new_job_btn.clicked.connect(lambda: self._mw.sidebar.setCurrentRow(1))
         act_lo.addWidget(refresh_btn)
         act_lo.addWidget(new_job_btn)
         hdr_lo.addWidget(actions)
 
-        lo.addWidget(header)
-        lo.addSpacing(28)
+        layout.addWidget(header)
+        layout.addSpacing(28)
 
-        # ===== KPI Grid (2 rows × 3 cols) =====
+        # KPI Grid (2 rows x 3 cols)
         self._stats: dict[str, StatCard] = {}
         self._stat_widget = QWidget()
         self._kpi_grid = QGridLayout()
@@ -253,10 +221,10 @@ class DashboardPage(QWidget):
             card = StatCard(title, val, variant, change, cv, trend)
             self._stats[title] = card
             self._kpi_grid.addWidget(card, i // 3, i % 3)
-        lo.addWidget(self._stat_widget)
-        lo.addSpacing(24)
+        layout.addWidget(self._stat_widget)
+        layout.addSpacing(24)
 
-        # ===== Recent Jobs Section =====
+        # Recent Jobs Section
         self.recent_section = QWidget()
         rs_lo = QVBoxLayout(self.recent_section)
         rs_lo.setContentsMargins(0, 0, 0, 0)
@@ -277,31 +245,8 @@ class DashboardPage(QWidget):
         header.setStretchLastSection(True)
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         rs_lo.addWidget(self.recent_table)
-        lo.addWidget(self.recent_section)
+        layout.addWidget(self.recent_section)
 
-        lo.addStretch()
-        scroll.setWidget(container)
-        main_layout.addWidget(scroll, 1)
-
-        # ===== Empty State =====
-        self.empty_state = QWidget()
-        empty_lo = QVBoxLayout(self.empty_state)
-        empty_lo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        empty_text = QLabel('尚无打印任务')
-        empty_text.setStyleSheet('font-size: 16px; color: #8A8178;')
-        go_btn = QPushButton('前往快速打印')
-        go_btn.setObjectName('primary')
-        go_btn.clicked.connect(lambda: main_window.sidebar.setCurrentRow(1))
-        empty_lo.addWidget(empty_text, alignment=Qt.AlignmentFlag.AlignCenter)
-        empty_lo.addWidget(go_btn, alignment=Qt.AlignmentFlag.AlignCenter)
-        main_layout.addWidget(self.empty_state)
-        self.empty_state.setVisible(False)
-
-        # ===== Refresh Timer (delayed, stopped when page hidden) =====
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._refresh)
-
-        # Show skeleton on init
         self._show_skeleton()
 
     def showEvent(self, event):
@@ -316,22 +261,17 @@ class DashboardPage(QWidget):
     def _show_skeleton(self):
         for card in self._stats.values():
             card.setVisible(False)
-        for sk in self._skeleton_cards:
-            sk.stop_pulse()
-            sk.setParent(None)
-            sk.deleteLater()
-        self._skeleton_cards.clear()
+        self._skeleton_widgets: list[SkeletonWidget] = []
         for i in range(6):
-            sk = SkeletonCard()
-            self._skeleton_cards.append(sk)
+            sk = SkeletonWidget(width=280, height=100)
+            self._skeleton_widgets.append(sk)
             self._kpi_grid.addWidget(sk, i // 3, i % 3)
 
     def _hide_skeleton(self):
-        for sk in self._skeleton_cards:
-            sk.stop_pulse()
+        for sk in self._skeleton_widgets:
             sk.setParent(None)
             sk.deleteLater()
-        self._skeleton_cards.clear()
+        self._skeleton_widgets.clear()
         for card in self._stats.values():
             card.setVisible(True)
 
@@ -342,7 +282,6 @@ class DashboardPage(QWidget):
         stats = repo.get_stats()
         total = stats.get('total', 0)
 
-        # First successful load: hide skeleton
         if not self._initial_loaded:
             self._initial_loaded = True
             self._hide_skeleton()
@@ -357,7 +296,6 @@ class DashboardPage(QWidget):
         has_data = total > 0
         self.empty_state.setVisible(not has_data and self._initial_loaded)
 
-        # Recent jobs
         recent = repo.get_jobs(limit=10)
         recent_rows = [
             [

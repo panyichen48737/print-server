@@ -12,10 +12,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from gui.components.printer_capabilities import (
-    PrinterCapabilities,
-    query_capabilities,
-)
+from gui.components.printer_combo import PrinterComboBox
 from gui.components.toggle_switch import LabeledToggle
 
 
@@ -26,7 +23,6 @@ class PrintDialog(QDialog):
         self.setMinimumWidth(420)
         self.setModal(True)
 
-        self._caps: PrinterCapabilities = PrinterCapabilities()
         self._result: dict | None = None
         self._config = config
 
@@ -36,9 +32,8 @@ class PrintDialog(QDialog):
         # Printer
         printer_row = QHBoxLayout()
         printer_row.addWidget(QLabel('打印机:'))
-        self.printer_combo = QComboBox()
+        self.printer_combo = PrinterComboBox(config)
         self.printer_combo.addItems(printers)
-        self.printer_combo.currentTextChanged.connect(self._on_printer_changed)
         printer_row.addWidget(self.printer_combo, 1)
         layout.addLayout(printer_row)
 
@@ -90,33 +85,32 @@ class PrintDialog(QDialog):
         if printers:
             self.printer_combo.setCurrentIndex(0)
 
+        self.printer_combo.currentTextChanged.connect(self._on_printer_changed)
+
     def _on_printer_changed(self, name: str):
         if not name:
             return
-        self._caps = query_capabilities(name)
-        self.copies_spin.setRange(1, self._caps.copies_max)
+        caps = self.printer_combo.caps
+        self.copies_spin.setRange(1, caps.copies_max)
 
-        # Color
         self.color_combo.clear()
-        if self._caps.supports_color:
+        if caps.supports_color:
             self.color_combo.addItems(['彩色', '黑白'])
             default_color = self._config.get('default_color', True) if self._config else True
             self.color_combo.setCurrentText('彩色' if default_color else '黑白')
         else:
             self.color_combo.addItems(['黑白'])
 
-        # Duplex
-        self.duplex_cb.setVisible(self._caps.supports_duplex)
-        if not self._caps.supports_duplex:
+        self.duplex_cb.setVisible(caps.supports_duplex)
+        if not caps.supports_duplex:
             self.duplex_cb.setChecked(False)
         else:
             default_duplex = self._config.get('default_duplex', False) if self._config else False
             self.duplex_cb.setChecked(default_duplex)
 
-        # Paper
         self.paper_combo.clear()
-        self.paper_combo.addItems(self._caps.paper_names)
-        if 'A4' in self._caps.paper_names:
+        self.paper_combo.addItems(caps.paper_names)
+        if 'A4' in caps.paper_names:
             self.paper_combo.setCurrentText('A4')
 
     def _confirm(self):

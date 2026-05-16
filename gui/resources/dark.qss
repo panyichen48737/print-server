@@ -57,12 +57,6 @@ QComboBox:hover {
     border-color: #4A4742;
 }
 
-QFrame#chartArea {
-    background-color: #32312E;
-    border: 1px solid #4A4742;
-    border-radius: 12px;
-}
-
 QFrame#printerCard {
     background-color: #32312E;
     border: 1px solid #4A4742;
@@ -347,42 +341,6 @@ QPushButton#primary:hover {
 
 QPushButton#primary:pressed {
     background-color: #A08058;
-}
-
-QPushButton#statusPill {
-    border-radius: 13px;
-    border: 1px solid #353330;
-    color: #9A928A;
-}
-
-QPushButton#statusPill:hover {
-    background-color: #30302C;
-    color: #E8E5E0;
-    border-color: #4A4742;
-}
-
-QPushButton#statusPill:pressed {
-    background-color: #1C1C1A;
-}
-
-QPushButton#statusPillSuccess {
-    border-radius: 13px;
-    border: none;
-    background-color: #6B8F6B;
-    color: #1C1C1A;
-}
-
-QPushButton#statusPillSuccess:disabled {
-    background-color: #353330;
-    color: #6A6560;
-}
-
-QPushButton#statusPillSuccess:hover {
-    background-color: #7DA07D;
-}
-
-QPushButton#statusPillSuccess:pressed {
-    background-color: #5A7D5A;
 }
 
 QPushButton:disabled {

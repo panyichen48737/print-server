@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import io
 from pathlib import Path
 
-from PIL import Image
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
@@ -17,19 +15,18 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QProgressBar,
     QPushButton,
-    QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from gui.components.drop_zone import DropZoneWidget
-from gui.components.printer_capabilities import query_capabilities
+from gui.components.file_item import IMAGE_EXTS, collect_file_paths, populate_file_list
+from gui.components.page_base import PageBase
+from gui.components.printer_combo import PrinterComboBox
 from gui.components.stateful_button import StatefulButton
 from gui.components.toggle_switch import LabeledToggle
 from gui.pages.scan_worker import ScanWorker
-
-IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif', '.heic', '.heif']
 
 
 class _ScanResultItem(QWidget):
@@ -52,26 +49,17 @@ class _ScanResultItem(QWidget):
         lo.addWidget(info, 1)
 
 
-class ScanPage(QWidget):
+class ScanPage(PageBase):
     def __init__(self, main_window, parent=None):
-        super().__init__(parent)
         self._mw = main_window
+        super().__init__(parent)
         self._generated_images: list[bytes] = []
         self._generated_pdf: bytes | None = None
+        self._file_paths: list[str] = []
+        self._worker: ScanWorker | None = None
+        self._cancelled_by_user = False
 
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setObjectName('dashboardScroll')
-
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(28, 28, 32, 28)
-        layout.setSpacing(12)
-
+    def _build_content(self, layout: QVBoxLayout):
         title_row = QHBoxLayout()
         title_lbl = QLabel('文档扫描')
         title_lbl.setObjectName('pageTitle')
@@ -87,7 +75,7 @@ class ScanPage(QWidget):
         # Drop zone — images only
         self.drop_zone = DropZoneWidget(self, extensions=IMAGE_EXTS)
         self.drop_zone.setToolTip('支持 JPG、PNG、TIFF 等图片格式')
-        self.drop_zone._icon_label.setText('🖼')
+        self.drop_zone._icon_label.setText('\U0001f5bc')
         self.drop_zone._text_label.setText('点击选择图片，或拖拽到此处')
         self.drop_zone.files_selected.connect(self._on_files_selected)
         layout.addWidget(self.drop_zone)
@@ -113,18 +101,16 @@ class ScanPage(QWidget):
         options_row.addWidget(self.merge_cb)
         layout.addLayout(options_row)
 
-        # Progress bar
+        # Progress
         self.progress = QProgressBar()
         self.progress.setVisible(False)
         self.progress.setRange(0, 100)
         layout.addWidget(self.progress)
 
-        # Generate button
         self.generate_btn = StatefulButton('开始扫描')
         self.generate_btn.clicked.connect(self._generate)
         layout.addWidget(self.generate_btn)
 
-        # Cancel button (hidden until generation starts)
         self.cancel_btn = QPushButton('取消')
         self.cancel_btn.setObjectName('ghostDanger')
         self.cancel_btn.setVisible(False)
@@ -149,7 +135,6 @@ class ScanPage(QWidget):
         self.print_btn = QPushButton('打印')
         self.print_btn.setObjectName('primary')
         self.print_btn.clicked.connect(self._show_print_dialog)
-
         actions_row.addWidget(self.copy_btn)
         actions_row.addWidget(self.export_btn)
         actions_row.addWidget(self.print_btn)
@@ -163,22 +148,19 @@ class ScanPage(QWidget):
         self._export_action_widget.setVisible(False)
         layout.addWidget(self._export_action_widget)
 
-        # Print options (hidden until print clicked)
+        # Print panel
         self._print_panel = QWidget()
         self._print_panel.setVisible(False)
         print_lo = QHBoxLayout(self._print_panel)
         print_lo.setContentsMargins(0, 0, 0, 0)
-        self._printer_combo = QComboBox()
-        self._printer_combo.setPlaceholderText('选择打印机')
+        self._printer_combo = PrinterComboBox(self._mw._config)
         self._copies_spin = QSpinBox()
         self._copies_spin.setRange(1, 99)
         cfg = self._mw._config
         self._copies_spin.setValue(cfg.get('default_copies', 1) if cfg else 1)
-        self._copies_spin.setToolTip('设置打印份数，最大不超过打印机支持上限')
         self._duplex_cb = LabeledToggle(
             '双面', checked=cfg.get('default_duplex', False) if cfg else False, label_first=True
         )
-        self._duplex_cb.setToolTip('开启后打印机将双面打印（需打印机支持）')
         self._color_combo = QComboBox()
         self._color_combo.addItems(['彩色', '黑白'])
         if cfg:
@@ -205,64 +187,21 @@ class ScanPage(QWidget):
         self._status_label = QLabel('')
         layout.addWidget(self._status_label)
 
-        layout.addStretch()
-        scroll.setWidget(container)
-        main_layout.addWidget(scroll, 1)
-
-        self._file_paths: list[str] = []
-        self._worker: ScanWorker | None = None
-        self._cancelled_by_user = False
-
-        QTimer.singleShot(300, self._refresh_printers)
+        QTimer.singleShot(300, lambda: self._printer_combo.refresh(self._mw._app.state))
         self._printer_combo.currentTextChanged.connect(self._on_printer_changed)
-
-    def _refresh_printers(self):
-        monitor = getattr(self._mw._app.state, 'printer_monitor', None)
-        if monitor is None:
-            return
-        self._printer_combo.clear()
-        raw = monitor.get_all_statuses()
-        for name in raw:
-            self._printer_combo.addItem(name)
-
-        # Auto-select default
-        try:
-            import win32print
-
-            default = win32print.GetDefaultPrinter()
-            idx = self._printer_combo.findText(default)
-            if idx >= 0:
-                self._printer_combo.setCurrentIndex(idx)
-        except Exception:
-            pass
 
     def _on_printer_changed(self, name: str):
         if not name:
             return
-        caps = query_capabilities(name)
-        self._copies_spin.setRange(1, caps.copies_max)
-        self._copies_spin.setToolTip(f'最大复印数: {caps.copies_max}')
+        self._printer_combo.configure_copies(self._copies_spin)
+        self._printer_combo.configure_color(self._color_combo)
+        self._printer_combo.configure_duplex(self._duplex_cb)
+        self._printer_combo.configure_paper(self._paper_combo)
 
-        self._color_combo.clear()
-        if caps.supports_color:
-            self._color_combo.addItems(['彩色', '黑白'])
-            self._color_combo.setCurrentText(
-                '彩色' if self._mw._config.get('default_color', True) else '黑白'
-            )
-        else:
-            self._color_combo.addItems(['黑白'])
-
-        self._duplex_cb.setVisible(caps.supports_duplex)
-        if not caps.supports_duplex:
-            self._duplex_cb.setChecked(False)
-        else:
-            cfg = self._mw._config
-            self._duplex_cb.setChecked(cfg.get('default_duplex', False) if cfg else False)
-
-        self._paper_combo.clear()
-        self._paper_combo.addItems(caps.paper_names)
-        if 'A4' in caps.paper_names:
-            self._paper_combo.setCurrentText('A4')
+    def _on_files_selected(self, paths: list[str]):
+        self._file_paths = paths
+        populate_file_list(self.file_list, paths)
+        self.file_list.setVisible(len(paths) > 0)
 
     def _confirm_clear(self):
         from PySide6.QtWidgets import QMessageBox
@@ -280,266 +219,121 @@ class ScanPage(QWidget):
         self._file_paths.clear()
         self.file_list.clear()
         self.file_list.setVisible(False)
-        self._clear_results()
-        self.progress.setVisible(False)
-        self._status_label.setText('')
-        self.cancel_btn.setVisible(False)
-        self.generate_btn.setVisible(True)
-        self.generate_btn.reset()
+        self.result_list.clear()
+        self.result_list.setVisible(False)
+        self._actions_widget.setVisible(False)
         self._export_action_widget.setVisible(False)
+        self._print_panel.setVisible(False)
+        self._status_label.setText('')
+        self._generated_images.clear()
+        self._generated_pdf = None
+        self.progress.setVisible(False)
+        self.generate_btn.reset()
+        self.generate_btn.setEnabled(True)
+        self.copy_btn.setEnabled(True)
+        self.export_btn.setEnabled(True)
+        self.print_btn.setEnabled(True)
 
     def _has_unsaved_content(self) -> bool:
         return self.file_list.count() > 0
 
-    def _on_files_selected(self, paths: list[str]):
-        self._file_paths = paths
-        self.file_list.clear()
-        for p in paths:
-            item = QListWidgetItem()
-            w = _FileItemWidget(p, self.file_list)
-            item.setSizeHint(w.sizeHint())
-            self.file_list.addItem(item)
-            self.file_list.setItemWidget(item, w)
-        self.file_list.setVisible(len(paths) > 0)
-        self._update_merge_visibility()
-        self._clear_results()
-
     def _on_output_format_changed(self, fmt: str):
-        self._update_merge_visibility()
-
-    def _update_merge_visibility(self):
-        multi = len(self._get_current_paths()) > 1
-        pdf_mode = self.output_combo.currentText() == 'PDF'
-        self.merge_cb.setVisible(multi and pdf_mode)
-
-    def _get_current_paths(self) -> list[str]:
-        paths = []
-        for i in range(self.file_list.count()):
-            item = self.file_list.item(i)
-            w = self.file_list.itemWidget(item)
-            if w and hasattr(w, 'file_path'):
-                paths.append(w.file_path)
-        return paths
-
-    def _clear_results(self):
-        self.result_list.setVisible(False)
-        self._actions_widget.setVisible(False)
-        self._print_panel.setVisible(False)
-        self._generated_images = []
-        self._generated_pdf = None
+        self.merge_cb.setVisible(fmt == 'PDF')
 
     def _generate(self):
-        paths = self._get_current_paths()
+        paths = collect_file_paths(self.file_list)
         if not paths:
+            from PySide6.QtWidgets import QMessageBox
+
+            QMessageBox.warning(self, '提示', '请先选择需要扫描的图片')
             return
-
-        # Check Quark API keys before starting
-        config = self._mw._config
-        if config:
-            key_id = config.get('quark_api_key_id', '')
-            key_secret = config.get('quark_api_key', '')
-            if not key_id or not key_secret:
-                self._show_quark_missing_dialog()
-                return
-
-        self.generate_btn.set_loading()
-        self.generate_btn.setVisible(False)
-        self.cancel_btn.setVisible(True)
         self._cancelled_by_user = False
+        self.generate_btn.set_loading()
+        self.cancel_btn.setVisible(True)
         self.progress.setVisible(True)
-        self.progress.setRange(0, 0)
-        self.result_list.clear()
-        self.result_list.setVisible(False)
-        self._actions_widget.setVisible(False)
-        self._print_panel.setVisible(False)
-        self._generated_images = []
+        self.progress.setValue(0)
+        self._status_label.setText('正在处理...')
+        self._status_label.setStyleSheet('')
+        self._generated_images.clear()
         self._generated_pdf = None
-        self._status_label.setText('')
 
-        self._worker = ScanWorker(paths)
-        self._worker.progress.connect(self._on_scan_progress)
-        self._worker.finished.connect(self._on_scan_finished)
-        self._worker.error.connect(self._on_scan_error)
+        self._worker = ScanWorker(paths, self.output_combo.currentText(), self.merge_cb.isChecked())
+        self._worker.progress.connect(self.progress.setValue)
+        self._worker.finished.connect(self._on_generation_done)
+        self._worker.error.connect(self._on_generation_error)
         self._worker.start()
 
-    def _show_quark_missing_dialog(self):
-        """Show error dialog when Quark API keys are missing, with button to navigate to Settings."""
-        from PySide6.QtWidgets import QMessageBox, QPushButton
+    def _on_generation_done(self, images: list[bytes], pdf: bytes | None):
+        self._worker = None
+        self.cancel_btn.setVisible(False)
+        self.progress.setVisible(False)
+        if self._cancelled_by_user:
+            return
+        self._generated_images = images
+        self._generated_pdf = pdf
 
-        msg = '夸克 API 未配置，文档扫描功能需要 API 密钥。\n请在设置页面中配置「夸克 API Key ID」和「夸克 API Key」。'
-        box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Critical)
-        box.setWindowTitle('夸克 API 未配置')
-        box.setText(msg)
-        settings_btn = QPushButton('前往设置')
-        box.addButton(settings_btn, QMessageBox.ButtonRole.ActionRole)
-        box.addButton(QMessageBox.StandardButton.Cancel)
-        box.exec()
-        if box.clickedButton() is settings_btn:
-            self._mw.sidebar.setCurrentRow(self._mw.NAV_ITEMS.index('设置'))
+        self.generate_btn.set_success()
+        self._actions_widget.setVisible(True)
+        self.result_list.clear()
+
+        if pdf:
+            item = QListWidgetItem(f'PDF 文档 ({len(pdf) / 1024:.0f} KB)')
+            self.result_list.addItem(item)
+        for i, img in enumerate(images):
+            pixmap = QPixmap()
+            pixmap.loadFromData(img)
+            name = f'输出图片 {i + 1} ({len(img) / 1024:.0f} KB)'
+            w = _ScanResultItem(name, pixmap)
+            item = QListWidgetItem()
+            item.setSizeHint(w.sizeHint())
+            self.result_list.addItem(item)
+            self.result_list.setItemWidget(item, w)
+        self.result_list.setVisible(True)
+        self._status_label.setText('')
+
+    def _on_generation_error(self, msg: str):
+        self._worker = None
+        self.cancel_btn.setVisible(False)
+        self.progress.setVisible(False)
+        self.generate_btn.set_error()
+        self._status_label.setText(f'扫描失败: {msg}')
+        self._status_label.setStyleSheet('color: #C53A3A;')
 
     def _cancel_generation(self):
         if self._worker:
+            self._cancelled_by_user = True
             self._worker.cancel()
-        self._cancelled_by_user = True
-        self._reset_after_cancel()
-
-    def _reset_after_cancel(self):
+            self._worker = None
+        self.progress.setVisible(False)
         self.cancel_btn.setVisible(False)
-        self.generate_btn.setVisible(True)
         self.generate_btn.reset()
-        self.progress.setVisible(False)
-        self._status_label.setText('已取消')
-        self._status_label.setStyleSheet('')
-
-    def _on_scan_progress(self, current: int, total: int):
-        self.progress.setRange(0, total)
-        self.progress.setValue(current)
-
-    def _on_scan_finished(self, total: int, results: list[tuple[str, bytes | None]]):
-        # Ignore results if user cancelled
-        if self._cancelled_by_user:
-            return
-        self.cancel_btn.setVisible(False)
-        self.generate_btn.setVisible(True)
-        self.progress.setRange(0, 100)
-        self.generate_btn.set_success()
-
-        # Collect enhanced images
-        enhanced_images: list[bytes] = []
-        errors = 0
-        for _path, data in results:
-            if data:
-                enhanced_images.append(data)
-            else:
-                errors += 1
-
-        if not enhanced_images:
-            self._status_label.setText('扫描失败，请检查 Quark API 配置')
-            self._status_label.setStyleSheet('color: #C53A3A;')
-            self.generate_btn.set_error()
-            self._show_quark_missing_dialog()
-            return
-
-        # Generate output
-        output_format = self.output_combo.currentText()
-        merge = self.merge_cb.isChecked() and output_format == 'PDF'
-
-        try:
-            if output_format == 'PDF':
-                self._generate_pdf(enhanced_images, merge)
-            else:
-                self._generate_images(enhanced_images, merge)
-        except Exception as e:
-            self._status_label.setText(f'生成失败: {e}')
-            self._status_label.setStyleSheet('color: #C53A3A;')
-            self.generate_btn.set_error()
-            return
-
-        status_parts = [f'成功处理 {len(enhanced_images)}/{total} 张图片']
-        if errors:
-            status_parts.append(f'{errors} 张失败')
-        self._status_label.setText('，'.join(status_parts))
-        self._status_label.setStyleSheet('color: #6B8F6B;')
-        self._actions_widget.setVisible(True)
-
-    def _generate_pdf(self, images: list[bytes], merge: bool):
-        if merge:
-            # Single PDF with all pages
-            pil_images = [Image.open(io.BytesIO(img)).convert('RGB') for img in images]
-            buf = io.BytesIO()
-            pil_images[0].save(buf, 'PDF', save_all=True, append_images=pil_images[1:])
-            self._generated_pdf = buf.getvalue()
-            self.result_list.clear()
-            item = QListWidgetItem()
-            w = _ScanResultItem(f'合并 PDF — {len(images)} 页', _make_thumbnail(images[0]))
-            item.setSizeHint(w.sizeHint())
-            self.result_list.addItem(item)
-            self.result_list.setItemWidget(item, w)
-        else:
-            # Separate PDFs
-            self._generated_images = images
-            self.result_list.clear()
-            for i, img_data in enumerate(images):
-                pil_img = Image.open(io.BytesIO(img_data)).convert('RGB')
-                buf = io.BytesIO()
-                pil_img.save(buf, 'PDF')
-                self._generated_images[i] = buf.getvalue()
-                item = QListWidgetItem()
-                w = _ScanResultItem(f'文档 {i + 1}.pdf', _make_thumbnail(img_data))
-                item.setSizeHint(w.sizeHint())
-                self.result_list.addItem(item)
-                self.result_list.setItemWidget(item, w)
-        self.result_list.setVisible(True)
-
-    def _generate_images(self, images: list[bytes], merge: bool):
-        if merge:
-            # Merge into a single multi-page TIFF
-            pil_images = [Image.open(io.BytesIO(img)).convert('RGB') for img in images]
-            buf = io.BytesIO()
-            pil_images[0].save(buf, 'TIFF', save_all=True, append_images=pil_images[1:])
-            self._generated_images = [buf.getvalue()]
-            self.result_list.clear()
-            item = QListWidgetItem()
-            w = _ScanResultItem(f'合并 TIFF — {len(images)} 页', _make_thumbnail(images[0]))
-            item.setSizeHint(w.sizeHint())
-            self.result_list.addItem(item)
-            self.result_list.setItemWidget(item, w)
-        else:
-            self._generated_images = images
-            self.result_list.clear()
-            for i, img_data in enumerate(images):
-                item = QListWidgetItem()
-                w = _ScanResultItem(f'文档 {i + 1}.jpg', _make_thumbnail(img_data))
-                item.setSizeHint(w.sizeHint())
-                self.result_list.addItem(item)
-                self.result_list.setItemWidget(item, w)
-        self.result_list.setVisible(True)
-
-    def _on_scan_error(self, msg: str):
-        self._status_label.setText(msg)
-        self._status_label.setStyleSheet('color: #C53A3A;')
-        self.cancel_btn.setVisible(False)
-        self.generate_btn.setVisible(True)
-        self.generate_btn.set_error()
-        self.progress.setVisible(False)
 
     def _copy_result(self):
         if self._generated_pdf:
-            from PySide6.QtCore import QMimeData
-            from PySide6.QtGui import QGuiApplication
-
-            mime = QMimeData()
-            mime.setData('application/pdf', self._generated_pdf)
-            QGuiApplication.clipboard().setMimeData(mime)
-            self._status_label.setText('PDF 已复制到剪贴板')
+            data = self._generated_pdf
         elif self._generated_images:
+            data = self._generated_images[0]
+        else:
+            return
+        from PySide6.QtGui import QGuiApplication
+
+        qapp = QGuiApplication.instance()
+        if qapp:
             from PySide6.QtCore import QMimeData
-            from PySide6.QtGui import QGuiApplication
 
             mime = QMimeData()
-            if len(self._generated_images) == 1:
-                pixmap = QPixmap()
-                pixmap.loadFromData(self._generated_images[0])
-                QGuiApplication.clipboard().setPixmap(pixmap)
-            else:
-                # Can't copy multiple images natively, copy first as image
-                pixmap = QPixmap()
-                pixmap.loadFromData(self._generated_images[0])
-                QGuiApplication.clipboard().setPixmap(pixmap)
-                self._status_label.setText(
-                    f'已复制第 1 张图片（共 {len(self._generated_images)} 张）'
-                )
-                return
-            self._status_label.setText('图片已复制到剪贴板')
-        self._status_label.setStyleSheet('color: #6B8F6B;')
+            mime.setData('application/octet-stream', data)
+            qapp.clipboard().setMimeData(mime)
+            self._status_label.setText('已复制到剪贴板')
+            self._status_label.setStyleSheet('color: #6B8F6B;')
 
     def _export_result(self):
-        ext = '.pdf' if self._generated_pdf else '.jpg'
-        filter_str = 'PDF (*.pdf)' if self._generated_pdf else 'JPEG (*.jpg);;PNG (*.png)'
+
+        ext = '.pdf' if self._generated_pdf else '.png'
+        filter_str = 'PDF (*.pdf)' if self._generated_pdf else 'PNG (*.png)'
         file_path, _ = QFileDialog.getSaveFileName(
             self,
-            '导出文件',
+            '导出扫描结果',
             f'scan_result{ext}',
             filter_str,
         )
@@ -551,11 +345,8 @@ class ScanPage(QWidget):
             if self._generated_pdf:
                 out.write_bytes(self._generated_pdf)
             elif self._generated_images:
-                data = self._generated_images[0] if len(self._generated_images) == 1 else None
-                if data:
-                    out.write_bytes(data)
-                else:
-                    out.write_bytes(self._generated_images[0])
+                data = self._generated_images[0]
+                out.write_bytes(data)
             self._show_export_result(out)
         except Exception as e:
             self._status_label.setText(f'导出失败: {e}')
@@ -564,156 +355,75 @@ class ScanPage(QWidget):
     def _show_export_result(self, path: Path):
         self._status_label.setText(f'已导出: {path}')
         self._status_label.setStyleSheet('color: #6B8F6B;')
+        self._export_action_widget.setVisible(True)
+        from PySide6.QtWidgets import QHBoxLayout
 
-        # Show action buttons
+        lo = QHBoxLayout(self._export_action_widget)
+        lo.setContentsMargins(0, 0, 0, 0)
+        open_btn = QPushButton('打开文件')
+        open_btn.setObjectName('ghost')
+        open_btn.setProperty('compact', True)
+        open_btn.clicked.connect(lambda: self._open_export(path))
+        folder_btn = QPushButton('打开文件夹')
+        folder_btn.setObjectName('ghost')
+        folder_btn.setProperty('compact', True)
+        folder_btn.clicked.connect(lambda: self._open_export_folder(path))
+        lo.addWidget(open_btn)
+        lo.addWidget(folder_btn)
+        lo.addStretch()
+
+    def _open_export(self, path: Path):
         import subprocess
 
-        from PySide6.QtWidgets import QPushButton
+        subprocess.Popen(['explorer', str(path)], shell=True)
 
-        # Remove old buttons if any
-        for btn in self._export_action_widget.findChildren(QPushButton):
-            btn.deleteLater()
+    def _open_export_folder(self, path: Path):
+        import subprocess
 
-        open_btn = QPushButton('打开文件')
-        open_btn.clicked.connect(lambda: subprocess.Popen(['explorer', str(path)], shell=True))
-        open_folder_btn = QPushButton('打开所在文件夹')
-        open_folder_btn.clicked.connect(
-            lambda: subprocess.Popen(['explorer', '/select,', str(path)], shell=True)
-        )
-
-        lo = self._export_action_widget.layout() or QHBoxLayout(self._export_action_widget)
-        lo.addWidget(open_btn)
-        lo.addWidget(open_folder_btn)
-        self._export_action_widget.setVisible(True)
+        subprocess.Popen(['explorer', '/select,', str(path)], shell=True)
 
     def _show_print_dialog(self):
-        if not (self._generated_pdf or self._generated_images):
-            return
-
-        monitor = getattr(self._mw._app.state, 'printer_monitor', None)
-        printers = list(monitor.get_all_statuses().keys()) if monitor else []
-
         from gui.components.print_dialog import PrintDialog
 
+        monitor = getattr(self._mw._app.state, 'printer_monitor', None)
+        printers = list(monitor.get_all_statuses()) if monitor else []
         dlg = PrintDialog(printers, self, config=self._mw._config)
         if dlg.exec() == PrintDialog.DialogCode.Accepted:
-            params = dlg.get_result()
-            if params:
-                self._do_print(params)
+            result = dlg.get_result()
+            if result:
+                self._printer_combo.setCurrentText(result['printer'])
+                self._copies_spin.setValue(result['copies'])
+                self._color_combo.setCurrentText('彩色' if result['color'] else '黑白')
+                self._duplex_cb.setChecked(result['duplex'])
+                self._paper_combo.setCurrentText(result['paper_size'])
+                self._print_panel.setVisible(True)
+                self._do_print()
 
-    def _do_print(self, params: dict | None = None):
-        if not (self._generated_pdf or self._generated_images):
+    def _do_print(self):
+        if not self._generated_pdf and not self._generated_images:
             return
-        try:
-            import tempfile
+        data = self._generated_pdf if self._generated_pdf else self._generated_images[0]
+        ext = '.pdf' if self._generated_pdf else '.png'
+        filename = f'scan_export{ext}'
+        from app.services.upload import handle_file_upload
 
-            queue = self._mw._app.state.job_queue
-            data_list = [self._generated_pdf] if self._generated_pdf else self._generated_images
-            ext = '.pdf' if self._generated_pdf else '.jpg'
-
-            printer = params.get('printer', '') if params else self._printer_combo.currentText()
-            copies = params.get('copies', 1) if params else self._copies_spin.value()
-            duplex = params.get('duplex', True) if params else self._duplex_cb.isChecked()
-            color = (
-                params.get('color', True) if params else self._color_combo.currentText() == '彩色'
-            )
-            paper_size = (
-                params.get('paper_size', 'A4') if params else self._paper_combo.currentText()
-            )
-
-            submitted = 0
-            for data in data_list:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as f:
-                    f.write(data)
-                    tmp_path = f.name
-                queue.add_job(
-                    f'scan_result{ext}',
-                    tmp_path,
-                    printer_name=printer,
-                    copies=copies,
-                    duplex=duplex,
-                    color=color,
-                    paper_size=paper_size,
-                    source='gui',
-                )
-                submitted += 1
-
-            self._status_label.setText(f'已提交 {submitted} 个打印任务')
+        queue = self._mw._app.state.job_queue
+        config = self._mw._config
+        result = handle_file_upload(
+            filename,
+            data,
+            config,
+            queue,
+            source='gui',
+            printer=self._printer_combo.currentText(),
+            copies=str(self._copies_spin.value()),
+            duplex='1' if self._duplex_cb.isChecked() else '0',
+            color='1' if self._color_combo.currentText() == '彩色' else '0',
+            paper_size=self._paper_combo.currentText(),
+        )
+        if result.success:
+            self._status_label.setText('打印任务已提交')
             self._status_label.setStyleSheet('color: #6B8F6B;')
-        except Exception as e:
-            self._status_label.setText(f'打印失败: {e}')
-            self._status_label.setStyleSheet('color: #C53A3A;')
-
-    def on_job_status(self, data: dict):
-        pass  # Could show notifications for print jobs from this page
-
-
-class _FileItemWidget(QWidget):
-    """Custom widget for a file list item with thumbnail, path, and delete button."""
-
-    def __init__(self, file_path: str, list_widget: QListWidget, parent=None):
-        super().__init__(parent)
-        self.file_path = file_path
-        self._list_widget = list_widget
-        self.setMinimumHeight(48)
-        p = Path(file_path)
-        lo = QHBoxLayout(self)
-        lo.setContentsMargins(8, 4, 8, 4)
-        lo.setSpacing(10)
-
-        from PySide6.QtCore import Qt
-        from PySide6.QtGui import QPixmap
-
-        # Thumbnail
-        thumb = QLabel()
-        thumb.setFixedSize(40, 40)
-        thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        if p.suffix.lower() in IMAGE_EXTS:
-            pixmap = QPixmap(file_path)
-            if not pixmap.isNull():
-                thumb.setPixmap(pixmap.scaled(40, 40, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-            else:
-                thumb.setText('🖼')
         else:
-            thumb.setText('📄')
-        lo.addWidget(thumb)
-
-        # File name + truncated path
-        parent_dir = p.parent.name if p.parent.name else p.parent.drive
-        display_path = f'{parent_dir}\\{p.name}'
-        if len(display_path) > 55:
-            display_path = f'{parent_dir[0]}...\\{p.name}'
-        info = QLabel(p.name)
-        info.setToolTip(str(p))
-        info.setStyleSheet('font-size: 12px; color: #8A8178;')
-
-        path_lbl = QLabel(display_path)
-        path_lbl.setToolTip(str(p))
-        path_lbl.setStyleSheet('font-size: 11px; color: #6B7280;')
-
-        text_col = QVBoxLayout()
-        text_col.setSpacing(2)
-        text_col.addWidget(info)
-        text_col.addWidget(path_lbl)
-        lo.addLayout(text_col, 1)
-
-        del_btn = QPushButton('✕')
-        del_btn.setFixedWidth(28)
-        del_btn.setObjectName('ghostDanger')
-        del_btn.setProperty('compact', True)
-        del_btn.clicked.connect(self._delete_self)
-        lo.addWidget(del_btn)
-
-    def _delete_self(self):
-        for i in range(self._list_widget.count()):
-            item = self._list_widget.item(i)
-            w = self._list_widget.itemWidget(item)
-            if w is self:
-                self._list_widget.takeItem(i)
-                break
-
-
-def _make_thumbnail(img_data: bytes, size: int = 48) -> QPixmap:
-    pixmap = QPixmap()
-    pixmap.loadFromData(img_data)
-    return pixmap.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self._status_label.setText(f'打印提交失败: {result.error}')
+            self._status_label.setStyleSheet('color: #C53A3A;')

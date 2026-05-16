@@ -14,53 +14,65 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
-    QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
+from gui.components.page_base import PageBase
 from gui.components.skeleton import SkeletonWidget
 from gui.components.stateful_button import StatefulButton
 from gui.components.toggle_switch import LabeledToggle
 from gui.components.validators import PortValidator
 
 
-class SettingsPage(QWidget):
+class SettingsPage(PageBase):
+    _RESTART_KEYS = {
+        'port',
+        'ssl_enabled',
+        'worker_count',
+        'log_level',
+        'job_timeout',
+        'word_timeout',
+        'print_dpi',
+        'max_file_size_mb',
+    }
+
     def __init__(self, main_window, parent=None):
-        super().__init__(parent)
         self._mw = main_window
         self._config = getattr(main_window, '_config', None)
         self._changed_keys: set[str] = set()
+        super().__init__(parent)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setObjectName('dashboardScroll')
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(28, 28, 32, 28)
+        self._load_config()
+        self._setup_validation()
+        self._populate_printers()
+        self.test_notify_btn.clicked.connect(self._test_notification)
+        self._mw._app.state.sse.on('printer_list_updated', self._populate_printers)
 
+        QTimer.singleShot(200, self._show_content)
+
+    def _build_content(self, layout: QVBoxLayout):
         title_lbl = QLabel('设置')
         title_lbl.setObjectName('pageTitle')
         layout.addWidget(title_lbl)
 
-        # Skeleton loading overlay (shown briefly on init for smooth perceived loading)
+        # Skeleton overlay
         self._skeleton = self._build_skeleton()
         layout.addWidget(self._skeleton)
 
-        # Real form content — hidden until skeleton pulse completes
-        self._content = QWidget()
-        self._content_layout = QVBoxLayout(self._content)
-        self._content_layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self._content)
-        self._content.setVisible(False)
+        # Real form content
+        self._form_widget = QWidget()
+        self._form_layout = QVBoxLayout(self._form_widget)
+        self._form_layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._form_widget)
+        self._form_widget.setVisible(False)
 
         # Group 1: Security
         security_group = QGroupBox('安全')
         security_form = QFormLayout(security_group)
         self.api_key_input = QLineEdit()
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        # Eye toggle for API key
         self._key_visible = False
         self.eye_btn = QPushButton('👁')
         self.eye_btn.setFixedWidth(32)
@@ -81,7 +93,7 @@ class SettingsPage(QWidget):
         key_widget = QWidget()
         key_widget.setLayout(key_row)
         security_form.addRow('API Key:', key_widget)
-        self._content_layout.addWidget(security_group)
+        self._form_layout.addWidget(security_group)
 
         # Group 1.5: Quark API
         quark_group = QGroupBox('夸克扫描 API')
@@ -103,7 +115,7 @@ class SettingsPage(QWidget):
         quark_key_widget = QWidget()
         quark_key_widget.setLayout(quark_key_row)
         quark_form.addRow('API Key:', quark_key_widget)
-        self._content_layout.addWidget(quark_group)
+        self._form_layout.addWidget(quark_group)
 
         # Group 2: Server
         server_group = QGroupBox('服务器')
@@ -113,7 +125,7 @@ class SettingsPage(QWidget):
         server_form.addRow('端口:', self.port_input)
         self.ssl_cb = LabeledToggle('启用 SSL', checked=True, label_first=True)
         server_form.addRow('', self.ssl_cb)
-        self._content_layout.addWidget(server_group)
+        self._form_layout.addWidget(server_group)
 
         # Group 3: Printer
         printer_group = QGroupBox('打印机')
@@ -127,7 +139,7 @@ class SettingsPage(QWidget):
         self.retry_spin = QSpinBox()
         self.retry_spin.setRange(0, 10)
         printer_form.addRow('重试次数:', self.retry_spin)
-        self._content_layout.addWidget(printer_group)
+        self._form_layout.addWidget(printer_group)
 
         # Group 4: Notification
         notif_group = QGroupBox('通知')
@@ -139,7 +151,7 @@ class SettingsPage(QWidget):
         notif_form.addRow('Webhook / Key:', self.webhook_input)
         self.test_notify_btn = StatefulButton('测试通知')
         notif_form.addRow('', self.test_notify_btn)
-        self._content_layout.addWidget(notif_group)
+        self._form_layout.addWidget(notif_group)
 
         # Group 5: Print Options
         print_opts_group = QGroupBox('打印选项')
@@ -155,7 +167,7 @@ class SettingsPage(QWidget):
         self.paper_size_combo = QComboBox()
         self.paper_size_combo.addItems(['A4', 'Letter', 'A3'])
         print_opts_form.addRow('默认纸张:', self.paper_size_combo)
-        self._content_layout.addWidget(print_opts_group)
+        self._form_layout.addWidget(print_opts_group)
 
         # Group 6: Worker
         worker_group = QGroupBox('Worker')
@@ -175,7 +187,7 @@ class SettingsPage(QWidget):
         self.word_timeout_spin.setRange(30, 600)
         self.word_timeout_spin.setSuffix(' 秒')
         worker_form.addRow('Word 超时:', self.word_timeout_spin)
-        self._content_layout.addWidget(worker_group)
+        self._form_layout.addWidget(worker_group)
 
         # Group 7: Logging
         log_group = QGroupBox('日志')
@@ -186,44 +198,25 @@ class SettingsPage(QWidget):
         self.log_max_days_spin = QSpinBox()
         self.log_max_days_spin.setRange(1, 365)
         log_form.addRow('日志保留天数:', self.log_max_days_spin)
-        self._content_layout.addWidget(log_group)
+        self._form_layout.addWidget(log_group)
 
         # Save button
         self.save_btn = StatefulButton('保存设置')
         self.save_btn.clicked.connect(self._save)
-        self._content_layout.addWidget(self.save_btn)
+        self._form_layout.addWidget(self.save_btn)
 
-        # Status label
         self.status_label = QLabel('')
-        self._content_layout.addWidget(self.status_label)
+        self._form_layout.addWidget(self.status_label)
 
-        # Restart required label
         self.restart_label = QLabel('部分设置需要重启服务器才能生效')
         self.restart_label.setVisible(False)
         self.restart_label.setStyleSheet('color: #B8956A; font-size: 12px; padding: 4px 0;')
-        self._content_layout.addWidget(self.restart_label)
-
-        self._content_layout.addStretch()
-        scroll.setWidget(container)
-
-        main_layout = QVBoxLayout(self)
-        main_layout.addWidget(scroll)
-
-        self._load_config()
-        self._setup_validation()
-        self._populate_printers()
-        self.test_notify_btn.clicked.connect(self._test_notification)
-        self._mw._app.state.sse.on('printer_list_updated', self._populate_printers)
-
-        # Brief skeleton pulse before revealing the form
-        QTimer.singleShot(200, self._show_content)
+        self._form_layout.addWidget(self.restart_label)
 
     def _build_skeleton(self):
-        """Build the skeleton loading placeholder mimicking form layout."""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setSpacing(12)
-        # 10 rows of varying widths to simulate form fields
         for w in [280, 200, 350, 220, 300, 260, 340, 200, 250, 320]:
             sk = SkeletonWidget(width=w, height=24)
             layout.addWidget(sk, alignment=Qt.AlignmentFlag.AlignLeft)
@@ -231,9 +224,8 @@ class SettingsPage(QWidget):
         return widget
 
     def _show_content(self):
-        """Hide skeleton, reveal real form content."""
         self._skeleton.setVisible(False)
-        self._content.setVisible(True)
+        self._form_widget.setVisible(True)
 
     def _generate_key(self):
         self.api_key_input.setText(secrets.token_hex(32))
@@ -256,7 +248,6 @@ class SettingsPage(QWidget):
         self.quark_eye_btn.setText('🙈' if self._quark_key_visible else '👁')
 
     def _setup_validation(self):
-        """Bind validation feedback to port input."""
         self.port_input.textChanged.connect(self._validate_port)
 
     def _validate_port(self):
@@ -319,17 +310,6 @@ class SettingsPage(QWidget):
         if idx >= 0:
             self.default_printer_combo.setCurrentIndex(idx)
 
-    _RESTART_KEYS = {
-        'port',
-        'ssl_enabled',
-        'worker_count',
-        'log_level',
-        'job_timeout',
-        'word_timeout',
-        'print_dpi',
-        'max_file_size_mb',
-    }
-
     def _show_restart_dialog(self):
         from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
@@ -389,7 +369,6 @@ class SettingsPage(QWidget):
             elif channel == 'bark':
                 updates['bark_key'] = webhook_val
 
-            # Detect restart-required keys
             old = {k: self._config.get(k) for k in self._RESTART_KEYS}
             self._config.set_many(updates)
             self._config.save()
@@ -398,7 +377,6 @@ class SettingsPage(QWidget):
                 self._mw.show_notification('设置已保存', '#6B8F6B')
             self.status_label.setText('')
 
-            # Check if restart is needed
             needs_restart = any(
                 str(self._config.get(k)) != str(old.get(k)) for k in self._RESTART_KEYS
             )

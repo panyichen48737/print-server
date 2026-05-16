@@ -13,13 +13,13 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QProgressBar,
     QPushButton,
-    QScrollArea,
     QStyledItemDelegate,
     QTableView,
     QVBoxLayout,
     QWidget,
 )
 
+from gui.components.page_base import PageBase
 from gui.components.skeleton import SkeletonWidget
 
 
@@ -71,23 +71,43 @@ class HoverHighlightDelegate(QStyledItemDelegate):
         super().paint(painter, option, index)
 
 
-class JobManagerPage(QWidget):
+class JobManagerPage(PageBase):
+    _STATUS_MAP = {
+        '全部': None,
+        '完成': 'completed',
+        '失败': 'failed',
+        '已取消': 'cancelled',
+    }
+
     def __init__(self, main_window, parent=None):
-        super().__init__(parent)
         self._mw = main_window
+        self._page = 0
+        self._page_size = 20
+        super().__init__(parent)
 
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        self.status_filter.currentTextChanged.connect(self._on_filter_changed)
+        self.search_input.textChanged.connect(self._on_filter_changed)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setObjectName('dashboardScroll')
+        self._queue_delegate = HoverHighlightDelegate(self)
+        self.queue_table.setItemDelegate(self._queue_delegate)
+        self.queue_table.entered.connect(
+            lambda idx: self._on_entered(self._queue_delegate, self.queue_table, idx)
+        )
+        self.queue_table.setMouseTracking(True)
 
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(28, 28, 32, 28)
+        self._history_delegate = HoverHighlightDelegate(self)
+        self.history_table.setItemDelegate(self._history_delegate)
+        self.history_table.entered.connect(
+            lambda idx: self._on_entered(self._history_delegate, self.history_table, idx)
+        )
+        self.history_table.setMouseTracking(True)
 
+        self.queue_table.viewport().installEventFilter(self)
+        self.history_table.viewport().installEventFilter(self)
+
+        self._restore_table_state()
+
+    def _build_content(self, layout: QVBoxLayout):
         title_lbl = QLabel('任务管理')
         title_lbl.setObjectName('pageTitle')
         layout.addWidget(title_lbl)
@@ -214,42 +234,6 @@ class JobManagerPage(QWidget):
         batch_row.addStretch()
         layout.addLayout(batch_row)
 
-        scroll.setWidget(container)
-        main_layout.addWidget(scroll, 1)
-
-        self._page = 0
-        self._page_size = 20
-
-        self.status_filter.currentTextChanged.connect(self._on_filter_changed)
-        self.search_input.textChanged.connect(self._on_filter_changed)
-
-        # Hover delegate
-        self._queue_delegate = HoverHighlightDelegate(self)
-        self.queue_table.setItemDelegate(self._queue_delegate)
-        self.queue_table.entered.connect(
-            lambda idx: self._on_entered(self._queue_delegate, self.queue_table, idx)
-        )
-        self.queue_table.setMouseTracking(True)
-
-        self._history_delegate = HoverHighlightDelegate(self)
-        self.history_table.setItemDelegate(self._history_delegate)
-        self.history_table.entered.connect(
-            lambda idx: self._on_entered(self._history_delegate, self.history_table, idx)
-        )
-        self.history_table.setMouseTracking(True)
-
-        self.queue_table.viewport().installEventFilter(self)
-        self.history_table.viewport().installEventFilter(self)
-
-        self._restore_table_state()
-
-    _STATUS_MAP = {
-        '全部': None,
-        '完成': 'completed',
-        '失败': 'failed',
-        '已取消': 'cancelled',
-    }
-
     @property
     def _current_status_filter(self) -> str | None:
         return self._STATUS_MAP.get(self.status_filter.currentText())
@@ -283,6 +267,12 @@ class JobManagerPage(QWidget):
         if app is None:
             return None
         return getattr(app.state, 'job_queue', None)
+
+    def _job_repo(self):
+        app = getattr(self._mw, '_app', None)
+        if app is None:
+            return None
+        return getattr(app.state, 'job_repo', None)
 
     def _batch_cancel(self):
         jq = self._job_queue()
@@ -345,18 +335,8 @@ class JobManagerPage(QWidget):
                     fail += 1
         finally:
             self.batch_retry_btn.setEnabled(True)
-        QMessageBox.information(
-            self,
-            '批量重试',
-            f'成功 {ok} 个，失败 {fail} 个',
-        )
+        QMessageBox.information(self, '批量重试', f'成功 {ok} 个，失败 {fail} 个')
         self._refresh()
-
-    def _job_repo(self):
-        app = getattr(self._mw, '_app', None)
-        if app is None:
-            return None
-        return getattr(app.state, 'job_repo', None)
 
     def _refresh(self):
         self.job_error_widget.setVisible(False)
@@ -375,7 +355,6 @@ class JobManagerPage(QWidget):
         printing = repo.get_jobs_by_status('printing')
         active = list(printing) + list(queued)
 
-        # Active card
         if printing:
             p = printing[0]
             self.active_name.setText(str(p.get('filename', '')))
@@ -386,13 +365,7 @@ class JobManagerPage(QWidget):
             self.active_card.setVisible(False)
 
         queue_rows = [
-            [
-                str(j.get('filename', '')),
-                str(j.get('status', '')),
-                '-',
-                '取消',
-            ]
-            for j in active
+            [str(j.get('filename', '')), str(j.get('status', '')), '-', '取消'] for j in active
         ]
         self.queue_model.set_data(queue_rows)
         has_active = bool(queue_rows)
@@ -427,7 +400,6 @@ class JobManagerPage(QWidget):
         self._refresh()
 
     def on_log(self, data: dict):
-        # Stub
         pass
 
     def _on_entered(self, delegate, table, index):
@@ -491,7 +463,6 @@ class JobManagerPage(QWidget):
         settings.endGroup()
 
     def _highlight_row(self, row: int):
-        """Fade row background briefly on status change."""
         anim = QVariantAnimation(self)
         anim.setDuration(800)
         anim.setStartValue(QColor('#E8DFD4'))

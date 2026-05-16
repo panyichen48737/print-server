@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -24,6 +23,7 @@ from app.core.version import (
     __version__,
     get_build_manifest,
 )
+from gui.components.page_base import PageBase
 from gui.pages.update import UpdateSection
 
 
@@ -56,26 +56,15 @@ class _ToggleSection(QWidget):
         self.toggle.setText(f'{"▼" if expanded else "▶"} {self.toggle.text()[2:]}')
 
 
-class AboutPage(QWidget):
+class AboutPage(PageBase):
     def __init__(self, main_window, parent=None):
-        super().__init__(parent)
         self._mw = main_window
+        super().__init__(parent)
 
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        self.update_section = UpdateSection()
+        self._build_content(self._content)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setObjectName('dashboardScroll')
-
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(28, 28, 32, 28)
-        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        layout.setSpacing(8)
-
-        # ── Header ──
+    def _build_content(self, layout: QVBoxLayout):
         title = QLabel('iOS 云打印服务器')
         title.setObjectName('pageTitle')
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -95,7 +84,6 @@ class AboutPage(QWidget):
         desc.setStyleSheet('font-size: 13px; color: #8A8178;')
         layout.addWidget(desc, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # ── GitHub link ──
         links = QHBoxLayout()
         links.setAlignment(Qt.AlignmentFlag.AlignCenter)
         github_btn = QPushButton('GitHub')
@@ -109,7 +97,6 @@ class AboutPage(QWidget):
 
         layout.addSpacing(12)
 
-        # ── Build info card ──
         manifest = get_build_manifest()
         tools = manifest.get('build_tools', {})
 
@@ -176,11 +163,9 @@ class AboutPage(QWidget):
 
         layout.addWidget(info_card, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # ── Update section (self-contained widget) ──
-        self.update_section = UpdateSection()
+        # Update section
         layout.addWidget(self.update_section)
 
-        # ── Other actions ──
         action_row = QHBoxLayout()
         action_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
         action_row.setSpacing(10)
@@ -198,10 +183,6 @@ class AboutPage(QWidget):
         action_row.addWidget(cfg_btn)
 
         layout.addLayout(action_row)
-        layout.addStretch()
-
-        scroll.setWidget(container)
-        main_layout.addWidget(scroll, 1)
 
     def _build_pkg_section(self, parent_layout, pkgs: dict):
         section = _ToggleSection(f'已安装 {len(pkgs)} 个 Python 包')

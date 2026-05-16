@@ -19,12 +19,11 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPushButton,
-    QScrollArea,
     QVBoxLayout,
-    QWidget,
 )
 
 from app.core._paths import log_dir
+from gui.components.page_base import PageBase
 
 _LOG_PATTERN = re.compile(
     r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s+\[([^\]]+)\]\s+(.*)'
@@ -49,23 +48,26 @@ def _source_color(source: str, dark: bool) -> QColor:
     return colors.get(source, QColor('#8A8178'))
 
 
-class LogsPage(QWidget):
+class LogsPage(PageBase):
     def __init__(self, main_window, parent=None):
-        super().__init__(parent)
         self._mw = main_window
+        self._paused = False
+        self._buffer: list[str] = []
+        self._max_lines = 1000
+        self._dark = False
+        super().__init__(parent)
+        self.pause_btn.clicked.connect(self._toggle_pause)
+        self.clear_btn.clicked.connect(self.log_list.clear)
+        self.level_filter.currentTextChanged.connect(self._apply_filters)
+        self.source_filter.currentTextChanged.connect(self._apply_filters)
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(300)
+        self._search_timer.timeout.connect(self._apply_filters)
+        self.search_input.textChanged.connect(self._search_timer.start)
+        self._load_history()
 
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setObjectName('dashboardScroll')
-
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(28, 28, 32, 28)
-
+    def _build_content(self, layout: QVBoxLayout):
         title_lbl = QLabel('实时日志')
         title_lbl.setObjectName('pageTitle')
         layout.addWidget(title_lbl)
@@ -127,28 +129,7 @@ class LogsPage(QWidget):
         )
         layout.addWidget(self.pause_banner)
 
-        self._paused = False
-        self._buffer: list[str] = []
-        self._max_lines = 1000
-        self._dark = False
-
-        self.pause_btn.clicked.connect(self._toggle_pause)
-        self.clear_btn.clicked.connect(self.log_list.clear)
-        self.level_filter.currentTextChanged.connect(self._apply_filters)
-        self.source_filter.currentTextChanged.connect(self._apply_filters)
-        self._search_timer = QTimer(self)
-        self._search_timer.setSingleShot(True)
-        self._search_timer.setInterval(300)
-        self._search_timer.timeout.connect(self._apply_filters)
-        self.search_input.textChanged.connect(self._search_timer.start)
-
-        scroll.setWidget(container)
-        main_layout.addWidget(scroll, 1)
-
-        self._load_history()
-
     def _log_files(self) -> list[tuple[Path, str]]:
-        """Return list of (path, source_label) for all log files."""
         ld = log_dir()
         return [
             (ld / 'app.log', 'Server'),
@@ -161,7 +142,6 @@ class LogsPage(QWidget):
         if m:
             ts, level, source, msg = m.groups()
             return {'timestamp': ts, 'level': level.upper(), 'source': source, 'message': msg}
-        # Fallback: try timestamp + level without [source]
         m2 = re.match(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s+(.*)', line)
         if m2:
             return {
@@ -170,7 +150,6 @@ class LogsPage(QWidget):
                 'source': default_source,
                 'message': m2.group(3),
             }
-        # Go service plain log lines
         m3 = re.match(r'^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})\s+(.*)', line)
         if m3:
             return {
@@ -200,9 +179,7 @@ class LogsPage(QWidget):
             except OSError:
                 continue
 
-        # Merge-sort by timestamp, newest last
         entries.sort(key=lambda e: (e['timestamp'] or '', e['message'] or ''))
-
         self.loading_label.setVisible(False)
         for entry in entries:
             self.on_log(entry)
@@ -224,7 +201,6 @@ class LogsPage(QWidget):
         return f'{ts}  [{level}]  [{source}]  {msg}'
 
     def _append_line(self, text: str):
-        """Append a formatted line to the list."""
         item = QListWidgetItem(text)
         from gui.theme import ThemeEngine
 
@@ -235,7 +211,6 @@ class LogsPage(QWidget):
         if m:
             source = m.group(2)
         item.setForeground(_source_color(source, dark))
-        # Bold for ERROR/WARNING
         if '[ERROR]' in text or '[WARNING]' in text:
             font = item.font()
             font.setBold(True)

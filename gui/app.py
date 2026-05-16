@@ -70,23 +70,19 @@ class MainWindow(QMainWindow):
         self.sidebar.currentRowChanged.connect(self._on_nav_changed)
         body.addWidget(self.sidebar)
 
-        # Page container
+        # Page container — lazy loading: pages created on first navigation
         self.stack = QStackedWidget()
-        from gui.pages.about import AboutPage
-        from gui.pages.dashboard import DashboardPage
-        from gui.pages.job_manager import JobManagerPage
-        from gui.pages.logs import LogsPage
-        from gui.pages.quick_print import QuickPrintPage
-        from gui.pages.scan import ScanPage
-        from gui.pages.settings import SettingsPage
-
-        self.stack.addWidget(DashboardPage(self))
-        self.stack.addWidget(QuickPrintPage(self))
-        self.stack.addWidget(ScanPage(self))
-        self.stack.addWidget(JobManagerPage(self))
-        self.stack.addWidget(LogsPage(self))
-        self.stack.addWidget(SettingsPage(self))
-        self.stack.addWidget(AboutPage(self))
+        self._page_creators = {
+            0: lambda: self._create_page('dashboard', 'DashboardPage'),
+            1: lambda: self._create_page('quick_print', 'QuickPrintPage'),
+            2: lambda: self._create_page('scan', 'ScanPage'),
+            3: lambda: self._create_page('job_manager', 'JobManagerPage'),
+            4: lambda: self._create_page('logs', 'LogsPage'),
+            5: lambda: self._create_page('settings', 'SettingsPage'),
+            6: lambda: self._create_page('about', 'AboutPage'),
+        }
+        # Pre-create first page (dashboard) immediately
+        self._lazy_page(0)
 
         body.addWidget(self.stack, 1)
         main_layout.addLayout(body, 1)
@@ -113,7 +109,7 @@ class MainWindow(QMainWindow):
         # Register with watchdog for crash recovery
         QTimer.singleShot(3000, self._register_watchdog)
 
-        # Auto-update check (deferred to avoid delaying startup)
+        # Auto-update check (deferred)
         auto_enabled = self._config.get('auto_update_check', True) if self._config else True
         if auto_enabled:
             QTimer.singleShot(8000, self._check_auto_update)
@@ -121,18 +117,35 @@ class MainWindow(QMainWindow):
         # Check if service already has a pre-downloaded update
         QTimer.singleShot(10000, self._check_service_pending)
 
-        # Watch for new pending updates via file system (written by Go update service)
+        # Watch for new pending updates via file system
         self._pending_watcher = QFileSystemWatcher(self)
         self._pending_watcher.directoryChanged.connect(self._on_pending_dir_changed)
         update_cache_dir = self._pending_file_dir()
         if update_cache_dir.exists():
             self._pending_watcher.addPath(str(update_cache_dir))
         else:
-            # Retry adding the path once the directory is created
             QTimer.singleShot(30000, self._try_watch_pending_dir)
 
         # Check Quark API configuration on startup
         QTimer.singleShot(2000, self._check_quark_config)
+
+    def _create_page(self, module: str, cls_name: str) -> QWidget:
+        """Lazily import and create a page widget."""
+        import importlib
+
+        mod = importlib.import_module(f'gui.pages.{module}')
+        cls = getattr(mod, cls_name)
+        return cls(self)
+
+    def _lazy_page(self, index: int):
+        """Ensure page at *index* is created, return it."""
+        w = self.stack.widget(index)
+        if w is None:
+            creator = self._page_creators.get(index)
+            if creator:
+                w = creator()
+                self.stack.insertWidget(index, w)
+        return w
 
     def show_notification(self, text: str, color: str = '#8B7355'):
         self._notifications.show_notification(text, color)
@@ -186,7 +199,7 @@ class MainWindow(QMainWindow):
 
         wd_register(port)
 
-    # ── Auto-update ──
+    # Auto-update
 
     def _check_auto_update(self):
         """Background check for updates on startup."""
@@ -384,6 +397,7 @@ class MainWindow(QMainWindow):
             if hasattr(current, '_clear_all'):
                 current._clear_all()
 
+        self._lazy_page(index)
         self.stack.setCurrentIndex(index)
 
     def _on_log(self, data: dict):
