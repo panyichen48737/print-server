@@ -440,7 +440,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "httpx", specifier = ">=0.28" },
-    { name = "hypothesis", specifier = ">=6.130.13" },
+    { name = "hypothesis", specifier = ">=6.152.7" },
     { name = "mypy", specifier = ">=1.15.0" },
     { name = "pre-commit", specifier = ">=4" },
     { name = "pyinstaller", specifier = ">=6" },
