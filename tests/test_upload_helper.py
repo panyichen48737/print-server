@@ -2,6 +2,7 @@
 
 import os
 import sys
+import tempfile
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -57,22 +58,22 @@ class TestHandleFileUpload:
         assert result.success is False
         assert '文件过大' in result.error
 
-    @patch('app.services.upload.ensure_dir', return_value='/tmp/jobs')
-    @patch('builtins.open', new_callable=MagicMock)
-    def test_successful_upload(self, mock_open, mock_ensure_dir, config, queue_mgr):
+    def test_successful_upload(self, config, queue_mgr):
         """有效文件应成功入队"""
-        result = handle_file_upload('test.pdf', b'pdf content', config, queue_mgr)
-        assert result.success is True
-        assert result.job_id == 'test-job-id-123'
-        # 验证 add_job 被调用
-        queue_mgr.add_job.assert_called_once()
-        args, kwargs = queue_mgr.add_job.call_args
-        assert args[0] == 'test.pdf'  # filename
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch('app.services.upload.ensure_dir', return_value=tmpdir):
+                result = handle_file_upload('test.pdf', b'pdf content', config, queue_mgr)
+                assert result.success is True
+                assert result.job_id == 'test-job-id-123'
+                # 验证 add_job 被调用
+                queue_mgr.add_job.assert_called_once()
+                args, kwargs = queue_mgr.add_job.call_args
+                assert args[0] == 'test.pdf'  # filename
 
     def test_upload_with_print_params(self, config, queue_mgr):
         """应传递打印参数到 queue_mgr.add_job"""
-        with patch('app.services.upload.ensure_dir', return_value='/tmp/jobs'):
-            with patch('builtins.open', MagicMock()):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch('app.services.upload.ensure_dir', return_value=tmpdir):
                 result = handle_file_upload(
                     'doc.docx',
                     b'doc content',
