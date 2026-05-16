@@ -69,6 +69,8 @@ class Config(BaseSettings):
             '.tif',
             '.heic',
             '.heif',
+            '.txt',
+            '.csv',
         ]
     )
     job_timeout: int = Field(default=300, ge=30, le=3600)
