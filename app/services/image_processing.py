@@ -67,39 +67,25 @@ class QuarkEnhancer:
             if img.mode in ('RGBA', 'P', 'LA'):
                 img = img.convert('RGB')
 
-            if raw_size <= max_api_size:
-                # 统一转 JPEG quality=95（API 推荐格式，OCR 效果最好）
+            # 统一转 JPEG（API 推荐格式）
+            quality = 95
+            buf = io.BytesIO()
+            img.save(buf, format='JPEG', quality=quality)
+            while buf.tell() > max_api_size and quality > 50:
+                quality -= 5
                 buf = io.BytesIO()
-                img.save(buf, format='JPEG', quality=95)
-                img_data = buf.getvalue()
-                logger.info(
-                    f'Quark API: JPEG quality=95 ({raw_size // 1024}KB → {len(img_data) // 1024}KB)'
+                img.save(buf, format='JPEG', quality=quality)
+
+            if buf.tell() > max_api_size:
+                logger.warning(
+                    f'JPEG quality={quality} 仍超过 {max_api_size // 1024 // 1024}MB，跳过 Quark API'
                 )
-            else:
-                # ❶ PNG 无损压缩
-                buf = io.BytesIO()
-                img.save(buf, format='PNG', optimize=True)
-                if buf.tell() <= max_api_size:
-                    img_data = buf.getvalue()
-                    logger.info(f'Quark API: PNG 无损压缩 ({len(img_data) // 1024}KB)')
-                else:
-                    # ❷ JPEG quality=95（视觉无损）
-                    buf = io.BytesIO()
-                    quality = 95
-                    img.save(buf, format='JPEG', quality=quality)
-                    while buf.tell() > max_api_size and quality > 50:
-                        quality -= 5
-                        buf = io.BytesIO()
-                        img.save(buf, format='JPEG', quality=quality)
+                return None
 
-                    if buf.tell() > max_api_size:
-                        logger.warning(
-                            f'图片 quality={quality} 仍超过 {max_api_size // 1024 // 1024}MB，跳过 Quark API'
-                        )
-                        return None
-
-                    img_data = buf.getvalue()
-                    logger.info(f'Quark API: JPEG ({len(img_data) // 1024}KB, quality={quality})')
+            img_data = buf.getvalue()
+            logger.info(
+                f'Quark API: JPEG quality={quality} ({raw_size // 1024}KB → {len(img_data) // 1024}KB)'
+            )
 
             img_b64 = base64.b64encode(img_data).decode('utf-8')
 
