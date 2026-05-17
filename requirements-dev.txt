@@ -135,7 +135,7 @@ python-dotenv==1.2.2
     # via
     #   pydantic-settings
     #   uvicorn
-python-multipart==0.0.27
+python-multipart==0.0.28
     # via ios-print-server (pyproject.toml)
 pywin32==311
     # via ios-print-server (pyproject.toml)
