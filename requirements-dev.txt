@@ -13,7 +13,7 @@ anyio==4.13.0
     #   httpx
     #   starlette
     #   watchfiles
-ast-serialize==0.3.0
+ast-serialize==0.4.0
     # via mypy
 certifi==2026.4.22
     # via
@@ -21,7 +21,7 @@ certifi==2026.4.22
     #   httpx
 cfgv==3.5.0
     # via pre-commit
-click==8.3.3
+click==8.4.0
     # via uvicorn
 colorama==0.4.6
     # via
@@ -175,7 +175,7 @@ typing-inspection==0.4.2
     #   fastapi
     #   pydantic
     #   pydantic-settings
-uvicorn==0.46.0
+uvicorn==0.47.0
     # via ios-print-server (pyproject.toml)
 virtualenv==21.3.3
     # via pre-commit
