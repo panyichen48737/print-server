@@ -64,14 +64,18 @@ class QuarkEnhancer:
                 return None
 
             raw_size = Path(filepath).stat().st_size
-            if raw_size <= max_api_size:
-                logger.info(f'Quark API: 原图 {raw_size // 1024}KB，直接发送')
-                with open(filepath, 'rb') as f:
-                    img_data = f.read()
-            else:
-                if img.mode in ('RGBA', 'P', 'LA'):
-                    img = img.convert('RGB')
+            if img.mode in ('RGBA', 'P', 'LA'):
+                img = img.convert('RGB')
 
+            if raw_size <= max_api_size:
+                # 统一转 JPEG quality=95（API 推荐格式，OCR 效果最好）
+                buf = io.BytesIO()
+                img.save(buf, format='JPEG', quality=95)
+                img_data = buf.getvalue()
+                logger.info(
+                    f'Quark API: JPEG quality=95 ({raw_size // 1024}KB → {len(img_data) // 1024}KB)'
+                )
+            else:
                 # ❶ PNG 无损压缩
                 buf = io.BytesIO()
                 img.save(buf, format='PNG', optimize=True)
