@@ -4,6 +4,7 @@ from typing import ClassVar
 from unittest.mock import MagicMock
 
 import pytest
+from PIL import Image
 
 
 def _client(app, **kwargs):
@@ -17,6 +18,7 @@ class TestAuth:
 
     ENDPOINTS: ClassVar[list[tuple[str, str]]] = [
         ('POST', '/api/print'),
+        ('POST', '/api/print/images'),
         ('POST', '/api/cancel/test-job-id'),
         ('POST', '/api/upload'),
         ('POST', '/api/set_default_printer'),
@@ -343,3 +345,69 @@ class TestUpload:
         )
         assert resp.status_code == 200
         assert resp.json()['success'] is True
+
+
+class TestBatchImages:
+    """POST /api/print/images — 多图片合并打印"""
+
+    def _make_image(self, format='PNG', size=(100, 100), color=(255, 0, 0)):
+        from io import BytesIO
+
+        img = Image.new('RGB', size, color)
+        buf = BytesIO()
+        img.save(buf, format=format)
+        buf.seek(0)
+        return buf
+
+    def test_no_files_returns_422(self, app_instance, auth_header):
+        """无文件时 FastAPI 返回 422（参数校验失败）"""
+        from fastapi.testclient import TestClient
+
+        c = TestClient(app_instance)
+        resp = c.post('/api/print/images', headers=auth_header)
+        assert resp.status_code == 422
+
+    def test_single_image_success(self, app_instance, auth_header):
+        from fastapi.testclient import TestClient
+
+        c = TestClient(app_instance)
+        resp = c.post(
+            '/api/print/images',
+            files={'files': ('photo.png', self._make_image(), 'image/png')},
+            headers=auth_header,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data['success'] is True
+        assert data['job_id'] == 'test-job-id'
+        assert data['pages'] == 1
+
+    def test_multiple_images_success(self, app_instance, auth_header):
+        from fastapi.testclient import TestClient
+
+        c = TestClient(app_instance)
+        resp = c.post(
+            '/api/print/images',
+            files=[
+                ('files', ('photo1.png', self._make_image(color=(255, 0, 0)), 'image/png')),
+                ('files', ('photo2.png', self._make_image(color=(0, 255, 0)), 'image/png')),
+                ('files', ('photo3.png', self._make_image(color=(0, 0, 255)), 'image/png')),
+            ],
+            headers=auth_header,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data['success'] is True
+        assert data['pages'] == 3
+
+    def test_with_print_params(self, app_instance, auth_header):
+        from fastapi.testclient import TestClient
+
+        c = TestClient(app_instance)
+        resp = c.post(
+            '/api/print/images',
+            files={'files': ('photo.png', self._make_image(), 'image/png')},
+            data={'printer': 'Printer1', 'copies': '3', 'duplex': '1', 'color': '1', 'paper_size': 'A4'},
+            headers=auth_header,
+        )
+        assert resp.status_code == 200
