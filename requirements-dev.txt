@@ -29,7 +29,7 @@ colorama==0.4.6
     #   loguru
     #   pytest
     #   uvicorn
-coverage==7.13.5
+coverage==7.14.0
     # via pytest-cov
 distlib==0.4.0
     # via virtualenv
@@ -57,17 +57,17 @@ hypothesis==6.152.7
     # via ios-print-server (pyproject.toml:dev)
 identify==2.6.19
     # via pre-commit
-idna==3.13
+idna==3.15
     # via
     #   anyio
     #   httpx
 iniconfig==2.3.0
     # via pytest
-librt==0.10.0
+librt==0.11.0
     # via mypy
 loguru==0.7.3
     # via ios-print-server (pyproject.toml)
-mypy==2.0.0
+mypy==2.1.0
     # via ios-print-server (pyproject.toml:dev)
 mypy-extensions==1.1.0
     # via mypy

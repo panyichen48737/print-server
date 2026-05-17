@@ -1,18 +1,18 @@
 [build-system]
-requires = ["hatchling>=1.0"]
+requires = ["hatchling>=1.29.0"]
 build-backend = "hatchling.build"
 
 [project]
 name = "ios-print-server"
 version = "1.0.0"
 description = "iOSPrintServer"
-requires-python = ">=3.10.20"
+requires-python = ">=3.14.5"
 dependencies = [
     "fastapi>=0.136.1",
     "uvicorn[standard]>=0.34.0",
     "loguru>=0.7.0",
     "pywin32>=311",
-    "pillow>=10.0.1",
+    "pillow>=10.4.0",
     "PyMuPDF>=1.27.2.3",
     "httpx>=0.28.0",
     "pydantic>=2.13.4",
@@ -30,7 +30,7 @@ ios-print-server = "launcher:main"
 
 [dependency-groups]
 dev = [
-    "pytest>=9", "pytest-cov>=7", "pytest-asyncio>=0.25.0", "pytest-xdist>=3.8.0",
+    "pytest>=9", "pytest-cov>=7", "pytest-asyncio>=0.25.3", "pytest-xdist>=3.8.0",
     "httpx>=0.28", "pyinstaller>=6",
     "ruff>=0.11.13", "mypy>=2.1.0",
     "hypothesis>=6.152.7",
