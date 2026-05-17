@@ -407,7 +407,13 @@ class TestBatchImages:
         resp = c.post(
             '/api/print/images',
             files={'files': ('photo.png', self._make_image(), 'image/png')},
-            data={'printer': 'Printer1', 'copies': '3', 'duplex': '1', 'color': '1', 'paper_size': 'A4'},
+            data={
+                'printer': 'Printer1',
+                'copies': '3',
+                'duplex': '1',
+                'color': '1',
+                'paper_size': 'A4',
+            },
             headers=auth_header,
         )
         assert resp.status_code == 200
