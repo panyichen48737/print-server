@@ -125,7 +125,7 @@ jobs:
             sleep 3
           done
       - name: Build with PyInstaller
-        run: python scripts/build.py --release
+        run: uv run python scripts/build.py --release
         env:
           RELEASE_VERSION: ${{ github.ref_name || inputs.version }}
       - uses: actions/setup-go@v6

@@ -386,7 +386,7 @@ async function directRunFlow() {
     row.dismissOnTap = true; row.cellSpacing = 10;
     const sym = SFSymbol.named(icon);
     if (sym) {
-      const c = row.addImage(sym.image.resizable(new Size(28, 28)));
+      const c = row.addImage(sym.image);
       c.widthWeight = 40;
     }
     const tc = row.addText(title, sub);
