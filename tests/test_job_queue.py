@@ -122,9 +122,9 @@ class TestJobQueue:
         assert new_id == 'test-job-id'
 
     def test_recover_stuck_jobs(self, queue, repo):
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
-        old = (datetime.now() - timedelta(hours=1)).isoformat()
+        old = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
         repo.get_jobs_by_status.return_value = [
             {'id': 'stuck-1', 'created_at': old},
             {'id': 'stuck-2', 'created_at': old},
