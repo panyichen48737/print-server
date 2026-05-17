@@ -72,6 +72,7 @@ class MainWindow(QMainWindow):
 
         # Page container — lazy loading: pages created on first navigation
         self.stack = QStackedWidget()
+        self._pages: dict[int, QWidget] = {}
         self._page_creators = {
             0: lambda: self._create_page('dashboard', 'DashboardPage'),
             1: lambda: self._create_page('quick_print', 'QuickPrintPage'),
@@ -138,13 +139,13 @@ class MainWindow(QMainWindow):
         return cls(self)
 
     def _lazy_page(self, index: int):
-        """Ensure page at *index* is created, return it."""
-        w = self.stack.widget(index)
+        w = self._pages.get(index)
         if w is None:
             creator = self._page_creators.get(index)
             if creator:
                 w = creator()
-                self.stack.insertWidget(index, w)
+                self.stack.addWidget(w)
+                self._pages[index] = w
         return w
 
     def show_notification(self, text: str, color: str = '#8B7355'):
@@ -390,15 +391,16 @@ class MainWindow(QMainWindow):
             if reply != QMessageBox.StandardButton.Yes:
                 # Block navigation — revert sidebar selection
                 self.sidebar.blockSignals(True)
-                self.sidebar.setCurrentRow(self.stack.currentIndex())
+                self.sidebar.setCurrentRow(self.sidebar.currentRow())
                 self.sidebar.blockSignals(False)
                 return
             # Clear current page
             if hasattr(current, '_clear_all'):
                 current._clear_all()
 
-        self._lazy_page(index)
-        self.stack.setCurrentIndex(index)
+        w = self._lazy_page(index)
+        if w:
+            self.stack.setCurrentWidget(w)
 
     def _on_log(self, data: dict):
         current = self.stack.currentWidget()
