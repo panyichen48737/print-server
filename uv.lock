@@ -472,7 +472,7 @@ requires-dist = [
     { name = "python-multipart", specifier = ">=0.0.18" },
     { name = "pywin32", specifier = ">=311" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.0" },
-    { name = "watchfiles", specifier = ">=1.0.0" },
+    { name = "watchfiles", specifier = ">=1.1.1" },
 ]
 
 [package.metadata.requires-dev]
