@@ -76,10 +76,7 @@ jobs:
           enable-cache: true
           cache-suffix: test
       - name: Install dependencies
-        run: |
-          uv pip install --system -r requirements-dev.txt
-          uv pip install --system -e .
-          uv pip install --system pytest-xdist
+        run: uv sync --group dev --frozen
       - name: Run tests with coverage
         run: pytest tests/ -n auto --durations=10 --tb=short -m "not integration" --cov=app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=70
         env:
@@ -108,9 +105,7 @@ jobs:
           enable-cache: true
           cache-suffix: build
       - name: Install dependencies
-        run: |
-          uv pip install --system -r requirements-dev.txt
-          uv pip install --system -e .
+        run: uv sync --group dev --frozen
       - name: Cache PyInstaller build
         uses: actions/cache@v5
         with:
