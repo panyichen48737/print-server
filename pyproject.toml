@@ -43,6 +43,7 @@ omit = [
     "app/bootstrap.py",
     "app/resources.py",
     "app/printing/enhancer.py",
+    "app/printing/image_merger.py",
 ]
 
 [tool.hatch.build]

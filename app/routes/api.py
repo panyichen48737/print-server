@@ -146,7 +146,8 @@ async def print_images_batch(
     file_size = 0
     first_name = ''
     for f in files:
-        ext = Path(f.filename).suffix.lower()
+        name = f.filename or ''
+        ext = Path(name).suffix.lower()
         if ext not in image_exts:
             continue
         content = await f.read()
@@ -156,7 +157,7 @@ async def print_images_batch(
         saved_paths.append(str(save_path))
         file_size += len(content)
         if not first_name:
-            first_name = Path(f.filename).stem
+            first_name = Path(name).stem
 
     if not saved_paths:
         raise HTTPException(status_code=400, detail='没有有效的图片文件')
