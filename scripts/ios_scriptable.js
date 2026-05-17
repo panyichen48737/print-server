@@ -172,6 +172,14 @@ async function shareSheetFlow(files) {
     }
   }
 
+  // 多张图片自动合并为一个打印任务
+  const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif', '.heic', '.heif'];
+  const isMultiImage = files.length > 1 && files.every(f => IMAGE_EXTS.includes(getExtension(f.name)));
+  if (isMultiImage) {
+    await batchImageUpload(files, cfg);
+    return;
+  }
+
   // QuickLook 预览确认
   for (const f of files) {
     await QuickLook.present(f.data || f.image);
@@ -367,6 +375,64 @@ async function sendResultNotif(jobs, statuses) {
     n.userInfo = { type: 'failed', jobs: jobs, errors: fail, timestamp: Date.now() };
   }
   n.sound = "default";
+  await n.schedule();
+}
+
+// ── 多图片合并上传 ──
+
+async function batchImageUpload(files, cfg) {
+  const wv = new WebView();
+  let wvClosed = false;
+  wv.present(true).then(() => { wvClosed = true; });
+  await wv.loadHTML(uploadPageHTML(files, cfg));
+
+  const r = new Request(SERVER_URL + "/api/print/images");
+  r.method = "POST"; r.allowInsecureRequest = true;
+  r.headers = { Authorization: "Bearer " + API_KEY };
+
+  for (const [i, f] of files.entries()) {
+    if (!wvClosed) await wv.evaluateJavaScript('u(' + i + ",'添加中...')");
+    if (f.data) {
+      r.addFileDataToMultipart(f.data, "application/octet-stream", "files", f.name);
+    } else if (f.image) {
+      let img = f.image;
+      r.addFileDataToMultipart(Data.fromJPEG(img), "image/jpeg", "files", f.name);
+    }
+  }
+
+  if (cfg.printer) r.addParameterToMultipart("printer", cfg.printer);
+  r.addParameterToMultipart("copies", String(cfg.copies || 1));
+  r.addParameterToMultipart("duplex", cfg.duplex ? "1" : "0");
+  r.addParameterToMultipart("color", cfg.color ? "1" : "0");
+  if (cfg.paperSize) r.addParameterToMultipart("paper_size", cfg.paperSize);
+
+  let jobId = null;
+  let failed = false;
+  try {
+    const res = await r.loadJSON();
+    if (res && res.job_id) {
+      jobId = res.job_id;
+      if (!wvClosed) await wv.evaluateJavaScript('xfer()');
+    } else {
+      failed = true;
+    }
+  } catch {
+    failed = true;
+  }
+
+  if (failed || !jobId) {
+    if (!wvClosed) {
+      await wv.evaluateJavaScript('document.body.innerHTML=\'<div class="card" style="text-align:center;padding:24px"><div style="font-size:40px">\\u274C</div><div style="font-size:16px;font-weight:600;margin:8px 0">\\u4E0A\\u4F20\\u5931\\u8D25</div><button class="btn btn-pri" onclick="window.location=\'cb://close\'">\\u8FD4\\u56DE</button></div>\'');
+    }
+    return;
+  }
+
+  await wv.evaluateJavaScript('xmsg("已提交 ' + files.length + ' 张图片")');
+  const n = new Notification();
+  n.title = "✅ 打印任务已提交";
+  n.body = files.length + " 张图片已合并为一个打印任务";
+  n.sound = "default";
+  n.userInfo = { type: 'uploaded', jobs: [{ id: jobId, filename: files[0].name + ' 等' }], timestamp: Date.now() };
   await n.schedule();
 }
 
