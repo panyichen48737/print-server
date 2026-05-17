@@ -19,7 +19,7 @@ dependencies = [
     "pydantic-settings>=2.0",
     "python-multipart>=0.0.18",
     "watchfiles>=1.1.1",
-    "PySide6>=6.8.0",
+    "PySide6>=6.11.1",
 ]
 
 [project.urls]
