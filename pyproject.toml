@@ -9,7 +9,7 @@ description = "iOSPrintServer"
 requires-python = ">=3.14.5"
 dependencies = [
     "fastapi>=0.136.1",
-    "uvicorn[standard]>=0.34.0",
+    "uvicorn[standard]>=0.46.0",
     "loguru>=0.7.0",
     "pywin32>=311",
     "pillow>=10.4.0",
