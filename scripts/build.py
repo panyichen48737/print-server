@@ -220,9 +220,9 @@ def build(version: str):
         'PySide6.QtXml',
         'PySide6.Qt3DGeometry',
     ]
+    args += ['--collect-all', 'PySide6']
     for mod in pyside6_excludes:
         args += ['--exclude-module', mod]
-    args += ['--collect-all', 'PySide6']
 
     # ── 排除不需要的库 ──
     args += [
