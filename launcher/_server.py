@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import contextlib
 import socket
 import sys
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 from loguru import logger
@@ -31,42 +29,6 @@ def _find_cert(config) -> tuple[str | None, str | None]:
     return None, None
 
 
-class _RedirectHandler(BaseHTTPRequestHandler):
-    """HTTP→HTTPS 301 重定向"""
-
-    main_port = 5000
-
-    def do_GET(self):
-        host = self.headers.get('Host', '127.0.0.1').split(':')[0]
-        self.send_response(301)
-        self.send_header('Location', f'https://{host}:{self.main_port}{self.path}')
-        self.send_header('Connection', 'close')
-        self.end_headers()
-
-    do_POST = do_GET
-    do_PUT = do_GET
-    do_DELETE = do_GET
-    do_HEAD = do_GET
-    do_OPTIONS = do_GET
-
-    def log_message(self, fmt, *args):
-        pass
-
-
-def _start_redirect_server(main_port: int, redirect_port: int | None = None) -> HTTPServer | None:
-    try:
-        rp = redirect_port if redirect_port and redirect_port > 0 else main_port + 1
-        _RedirectHandler.main_port = main_port
-        server = HTTPServer(('0.0.0.0', rp), _RedirectHandler)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        logger.info(f'HTTP 重定向服务 http://0.0.0.0:{rp} → https://0.0.0.0:{main_port}')
-        return server
-    except Exception as e:
-        logger.warning(f'HTTP 重定向服务启动失败: {e}')
-        return None
-
-
 def _port_listening(host: str, port: int) -> bool:
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -87,7 +49,6 @@ class ServerHandle:
         self._config = None
         self._port: int | None = None
         self._ssl = False
-        self._redirect_server = None
 
     def start(self, app, config) -> bool:
         if self.is_running:
@@ -117,20 +78,11 @@ class ServerHandle:
 
         ready = self._started.is_set()
 
-        if ready and self._ssl:
-            self._redirect_server = _start_redirect_server(
-                self._port, config.get('redirect_port', 0)
-            )
-
         return ready
 
     def stop(self) -> None:
         if self.server:
             self.server.should_exit = True
-        if self._redirect_server:
-            with contextlib.suppress(Exception):
-                self._redirect_server.shutdown()
-            self._redirect_server = None
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=10)
         self._started.clear()
