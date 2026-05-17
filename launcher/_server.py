@@ -76,9 +76,7 @@ class ServerHandle:
                 break
             time.sleep(0.1)
 
-        ready = self._started.is_set()
-
-        return ready
+        return self._started.is_set()
 
     def stop(self) -> None:
         if self.server:
