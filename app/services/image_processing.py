@@ -44,6 +44,24 @@ class QuarkEnhancer:
 
         try:
             max_api_size = 10 * 1024 * 1024
+            valid_exts = {'.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff', '.tif', '.webp'}
+
+            ext = Path(filepath).suffix.lower()
+            if ext not in valid_exts:
+                logger.warning(f'Quark API 不支持的格式: {ext}')
+                return None
+
+            # 校验尺寸和比例
+            img = Image.open(filepath)
+            w, h = img.size
+            if w < 15 or h < 15 or w > 8192 or h > 8192:
+                logger.warning(f'Quark API 尺寸超限: {w}x{h}（需 15~8192 像素）')
+                return None
+            if max(w, h) / min(w, h) > 50:
+                logger.warning(
+                    f'Quark API 长宽比超限: {max(w, h)}/{min(w, h)}={max(w, h) / min(w, h):.1f} > 50'
+                )
+                return None
 
             raw_size = Path(filepath).stat().st_size
             if raw_size <= max_api_size:
@@ -51,7 +69,6 @@ class QuarkEnhancer:
                 with open(filepath, 'rb') as f:
                     img_data = f.read()
             else:
-                img = Image.open(filepath)
                 if img.mode in ('RGBA', 'P', 'LA'):
                     img = img.convert('RGB')
 
