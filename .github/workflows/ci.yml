@@ -148,7 +148,7 @@ jobs:
         shell: pwsh
         run: |
           $ver = "${{ github.ref_name }}" -replace '^v', ''
-          & "C:\Program Files (x86)\Inno Setup 6\iscc.exe" installer.iss /DMyAppVersion=$ver
+          & "C:\Program Files (x86)\Inno Setup 6\iscc.exe" installer.iss "/DMyAppVersion=$ver"
       - name: Generate SHA256 checksum
         shell: pwsh
         run: |
