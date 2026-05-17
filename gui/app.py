@@ -458,12 +458,15 @@ class MainWindow(QMainWindow):
             )
 
     def closeEvent(self, event):
-        self._state_manager.save()
-        current_page = self.stack.currentWidget()
-        if hasattr(current_page, 'history_table'):
-            self._state_manager.save_table_state('history', current_page.history_table)
-        if hasattr(current_page, 'cleanup'):
-            current_page.cleanup()
+        try:
+            self._state_manager.save()
+            current_page = self.stack.currentWidget()
+            if hasattr(current_page, 'history_table'):
+                self._state_manager.save_table_state('history', current_page.history_table)
+            if hasattr(current_page, 'cleanup'):
+                current_page.cleanup()
+        except Exception:
+            pass
         event.ignore()
         self.hide()
 

@@ -274,6 +274,7 @@ def _gui_main() -> int:
     from PySide6.QtWidgets import QApplication
 
     _ = QApplication.instance() or QApplication(sys.argv)
+    QApplication.instance().setQuitOnLastWindowClosed(False)
     _install_qt_translator()
 
     from gui.app import run_gui
