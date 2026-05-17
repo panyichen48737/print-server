@@ -67,8 +67,8 @@ class QuarkEnhancer:
             if img.mode in ('RGBA', 'P', 'LA'):
                 img = img.convert('RGB')
 
-            # 统一转 JPEG（API 推荐格式）
-            quality = 95
+            # 转 JPEG，≤10MB 用 quality=100（不压缩），>10MB 逐步降 quality
+            quality = 100 if raw_size <= max_api_size else 95
             buf = io.BytesIO()
             img.save(buf, format='JPEG', quality=quality)
             while buf.tell() > max_api_size and quality > 50:
