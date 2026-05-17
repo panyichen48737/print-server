@@ -22,10 +22,9 @@ def _save_temp_image(data: bytes, suffix='.png') -> str:
     """保存测试图片到临时文件，返回路径"""
     import tempfile
 
-    f = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-    f.write(data)
-    f.close()
-    return f.name
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as f:
+        f.write(data)
+        return f.name
 
 
 class TestMergeImagesToPdf:
