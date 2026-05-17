@@ -59,10 +59,8 @@ class _ToggleSection(QWidget):
 class AboutPage(PageBase):
     def __init__(self, main_window, parent=None):
         self._mw = main_window
-        super().__init__(parent)
-
         self.update_section = UpdateSection()
-        self._build_content(self._content)
+        super().__init__(parent)
 
     def _build_content(self, layout: QVBoxLayout):
         title = QLabel('iOS 云打印服务器')

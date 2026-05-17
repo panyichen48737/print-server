@@ -28,15 +28,19 @@ type Watchdog struct {
 	stopOnce     sync.Once
 	restartCmd   *exec.Cmd
 	lastRestart  time.Time
+	startTime    time.Time // time when watchdog was created (for initial startup grace period)
 	backoffLevel int
 	lastStable   time.Time
+	stopped      bool // true when max restart attempts reached
 	logFile      *os.File
 }
 
 func NewWatchdog() *Watchdog {
+	now := time.Now()
 	return &Watchdog{
 		stopCh:     make(chan struct{}),
-		lastStable: time.Now(),
+		startTime:  now,
+		lastStable: now,
 	}
 }
 
@@ -105,8 +109,13 @@ func (w *Watchdog) BackendHealth() bool {
 
 func (w *Watchdog) check(appDir string) {
 	w.mu.Lock()
+	if w.stopped {
+		w.mu.Unlock()
+		return
+	}
 	reg := w.registered
 	port := w.port
+	sinceStart := time.Since(w.startTime)
 	sinceRestart := time.Since(w.lastRestart)
 	sinceStable := time.Since(w.lastStable)
 	backoff := w.backoffLevel
@@ -114,6 +123,11 @@ func (w *Watchdog) check(appDir string) {
 	w.mu.Unlock()
 
 	if !reg {
+		return
+	}
+
+	// Extra grace period at initial startup (30s) so uvicorn can fully boot
+	if sinceStart < 30*time.Second {
 		return
 	}
 
@@ -131,14 +145,19 @@ func (w *Watchdog) check(appDir string) {
 
 	// Check process: prefer PID-native check, fallback to tasklist
 	alive := false
+	var exitCode int
 	if restartCmd != nil && restartCmd.Process != nil {
-		alive = processExists(restartCmd.Process.Pid)
+		alive, exitCode = processExistsWithCode(restartCmd.Process.Pid)
 	} else {
 		alive = isProcessRunning("iOSPrintServer.exe")
 	}
 
 	if !alive {
-		w.logf("iOSPrintServer.exe crashed, restarting...")
+		if restartCmd != nil && restartCmd.Process != nil {
+			w.logf("iOSPrintServer.exe exited (code %d), restarting...", exitCode)
+		} else {
+			w.logf("iOSPrintServer.exe not found, restarting...")
+		}
 		w.recordCrash()
 		w.restartWithBackoff(appDir)
 		return
@@ -187,7 +206,11 @@ func (w *Watchdog) restartWithBackoff(appDir string) {
 	w.mu.Unlock()
 
 	if level >= 3 {
-		w.logf("max restart attempts reached (level 3), stopping watchdog")
+		w.logf("max restart attempts reached (level %d), giving up", level)
+		w.mu.Lock()
+		w.stopped = true
+		w.mu.Unlock()
+		w.Stop()
 		return
 	}
 
@@ -218,14 +241,20 @@ func (w *Watchdog) restartApp(appDir string) {
 // processExists checks if a process with the given PID is still running
 // using Windows native API (no tasklist needed).
 func processExists(pid int) bool {
+	alive, _ := processExistsWithCode(pid)
+	return alive
+}
+
+// processExistsWithCode checks if a process is running and returns its exit code.
+func processExistsWithCode(pid int) (bool, int) {
 	handle, err := windows.OpenProcess(windows.PROCESS_QUERY_INFORMATION, false, uint32(pid))
 	if err != nil {
-		return false
+		return false, 0
 	}
 	defer windows.CloseHandle(handle)
 	var exitCode uint32
 	if err := windows.GetExitCodeProcess(handle, &exitCode); err != nil {
-		return false
+		return false, 0
 	}
-	return exitCode == 259 // STILL_ACTIVE
+	return exitCode == 259, int(exitCode) // 259 = STILL_ACTIVE
 }
