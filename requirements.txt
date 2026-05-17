@@ -15,7 +15,7 @@ certifi==2026.4.22
     # via
     #   httpcore
     #   httpx
-click==8.3.3
+click==8.4.0
     # via uvicorn
 colorama==0.4.6
     # via
@@ -89,7 +89,7 @@ typing-inspection==0.4.2
     #   fastapi
     #   pydantic
     #   pydantic-settings
-uvicorn==0.46.0
+uvicorn==0.47.0
     # via ios-print-server (pyproject.toml)
 watchfiles==1.1.1
     # via
