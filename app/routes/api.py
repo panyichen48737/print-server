@@ -1,5 +1,8 @@
 """打印任务 API 路由 — 上传、取消、状态查询、打印机管理"""
 
+import uuid
+from pathlib import Path
+
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -12,15 +15,17 @@ from fastapi import (
 )
 from loguru import logger
 
+from app.core import _paths as app_core_paths
 from app.core.auth import require_auth
 from app.core.exceptions import FileTypeError, PrintServerError
 from app.core.schemas import (
+    BatchImagesResponse,
     ErrorDetail,
     PrintConfigResponse,
     PrintResponse,
     QueuePositionResponse,
 )
-from app.core.utils import format_time
+from app.core.utils import format_time, safe_remove
 from app.services.upload import handle_file_upload
 
 api_router = APIRouter()
@@ -93,6 +98,103 @@ async def print_file(
         page_range=page_range,
         nup=nup_val,
     )
+
+
+@api_router.post(
+    '/print/images',
+    response_model=BatchImagesResponse,
+    responses={400: {'model': ErrorDetail}},
+)
+async def print_images_batch(
+    request: Request,
+    files: list[UploadFile] = File(...),
+    printer: str = Form(None),
+    copies: str = Form(None),
+    duplex: str = Form(None),
+    color: str = Form(None),
+    paper_size: str = Form(None),
+    _auth=Depends(require_auth),
+):
+    """多图片合并为一个打印任务
+
+    - files: 多个图片文件，按提交顺序打印
+    - 所有图片合并为一个多页 PDF 后作为一个任务提交
+    """
+    if not files:
+        raise HTTPException(status_code=400, detail='至少需要一个图片文件')
+
+    from app.printing.image_merger import merge_images_to_pdf
+
+    config = request.app.state.app_config
+    job_queue = request.app.state.job_queue
+    upload_dir = app_core_paths.persistent_dir() / 'jobs'
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    image_exts = {
+        '.jpg',
+        '.jpeg',
+        '.png',
+        '.bmp',
+        '.gif',
+        '.webp',
+        '.tiff',
+        '.tif',
+        '.heic',
+        '.heif',
+    }
+    saved_paths: list[str] = []
+    file_size = 0
+    first_name = ''
+    for f in files:
+        ext = Path(f.filename).suffix.lower()
+        if ext not in image_exts:
+            continue
+        content = await f.read()
+        job_id = str(uuid.uuid4())
+        save_path = upload_dir / f'{job_id}{ext}'
+        save_path.write_bytes(content)
+        saved_paths.append(str(save_path))
+        file_size += len(content)
+        if not first_name:
+            first_name = Path(f.filename).stem
+
+    if not saved_paths:
+        raise HTTPException(status_code=400, detail='没有有效的图片文件')
+
+    try:
+        pdf_path = merge_images_to_pdf(
+            saved_paths,
+            paper_size=paper_size or config.get('paper_size', 'A4'),
+            color=bool(color) if color in ('0', '1') else config.get('default_color', True),
+            dpi=config.get('print_dpi', 300),
+        )
+    except Exception as e:
+        for p in saved_paths:
+            Path(p).unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail=f'图片合并失败: {e}') from e
+
+    for p in saved_paths:
+        Path(p).unlink(missing_ok=True)
+
+    try:
+        actual_job_id = job_queue.add_job(
+            f'{first_name} 等 {len(saved_paths)} 张图片',
+            pdf_path,
+            file_size,
+            '.pdf',
+            duplex=int(duplex) if duplex in ('0', '1') else None,
+            color=int(color) if color in ('0', '1') else None,
+            copies=int(copies) if copies and copies.isdigit() else None,
+            paper_size=paper_size or None,
+            printer_name=printer or None,
+            source='api',
+        )
+    except Exception as e:
+        safe_remove(pdf_path, '临时 PDF')
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    logger.info(f'Batch images merged: {len(saved_paths)} pages -> job_id={actual_job_id}')
+    return BatchImagesResponse(success=True, job_id=actual_job_id, pages=len(saved_paths))
 
 
 @api_router.get('/status/{job_id}')
