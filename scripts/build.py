@@ -186,11 +186,29 @@ def build(version: str):
         'pydantic',
         '--collect-all',
         'loguru',
-        '--collect-all',
-        'PySide6',
     ]
 
-    # ── 排除不需要的库（减小体积）──
+    # ── PySide6：排除未使用的超大模块 ──
+    pyside6_excludes = [
+        'PySide6.Qt3DCore', 'PySide6.Qt3DRender', 'PySide6.Qt3DInput',
+        'PySide6.Qt3DLogic', 'PySide6.Qt3DAnimation', 'PySide6.Qt3DExtras',
+        'PySide6.QtQuick', 'PySide6.QtQuick3D', 'PySide6.QtQuickWidgets',
+        'PySide6.QtQml', 'PySide6.QtQmlModels',
+        'PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets', 'PySide6.QtWebChannel',
+        'PySide6.QtMultimedia', 'PySide6.QtMultimediaWidgets',
+        'PySide6.QtBluetooth', 'PySide6.QtNfc',
+        'PySide6.QtCharts', 'PySide6.QtDataVisualization',
+        'PySide6.QtSpatialAudio',
+        'PySide6.QtPositioning', 'PySide6.QtSensors',
+        'PySide6.QtHelp', 'PySide6.QtDesigner', 'PySide6.QtUiTools',
+        'PySide6.QtTest', 'PySide6.QtXml',
+        'PySide6.Qt3DGeometry',
+    ]
+    for mod in pyside6_excludes:
+        args += ['--exclude-module', mod]
+    args += ['--collect-all', 'PySide6']
+
+    # ── 排除不需要的库 ──
     args += [
         '--exclude-module',
         'flet',
@@ -278,7 +296,7 @@ def build(version: str):
 
             # 要打包的文件模式：排除缓存和日志
             skip_prefixes = {'__pycache__', '.git'}
-            with zipfile.ZipFile(update_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
+            with zipfile.ZipFile(update_zip, 'w', zipfile.ZIP_BZIP2) as zf:
                 for entry in dist_dir.rglob('*'):
                     if not entry.is_file():
                         continue
