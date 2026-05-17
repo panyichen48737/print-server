@@ -14,7 +14,7 @@ dependencies = [
     "pywin32>=311",
     "pillow>=12.2.0",
     "PyMuPDF>=1.27.2.3",
-    "httpx>=0.28.0",
+    "httpx>=0.28.1",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.1",
     "python-multipart>=0.0.18",
@@ -31,7 +31,7 @@ ios-print-server = "launcher:main"
 [dependency-groups]
 dev = [
     "pytest>=9", "pytest-cov>=7", "pytest-asyncio>=0.25.3", "pytest-xdist>=3.8.0",
-    "httpx>=0.28", "pyinstaller>=6",
+    "httpx>=0.28.1", "pyinstaller>=6",
     "ruff>=0.15.12", "mypy>=2.1.0",
     "hypothesis>=6.152.7",
     "pre-commit>=4.6.0",
