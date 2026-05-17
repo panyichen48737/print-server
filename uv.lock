@@ -349,7 +349,7 @@ dev = [
     { name = "httpx", specifier = ">=0.28" },
     { name = "hypothesis", specifier = ">=6.152.7" },
     { name = "mypy", specifier = ">=2.1.0" },
-    { name = "pre-commit", specifier = ">=4" },
+    { name = "pre-commit", specifier = ">=4.0.1" },
     { name = "pyinstaller", specifier = ">=6" },
     { name = "pytest", specifier = ">=9" },
     { name = "pytest-asyncio", specifier = ">=0.25.3" },
