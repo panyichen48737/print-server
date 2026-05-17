@@ -46,27 +46,35 @@ class QuarkEnhancer:
             ext = Path(filepath).suffix.lower()
             max_api_size = 10 * 1024 * 1024
 
-            img: Image.Image = Image.open(filepath)
-            if img.mode in ('RGBA', 'P', 'LA'):
-                img = img.convert('RGB')
+            raw_size = Path(filepath).stat().st_size
+            if raw_size <= max_api_size:
+                logger.info(f'Quark API: 原图 {raw_size // 1024}KB，直接发送')
+                with open(filepath, 'rb') as f:
+                    img_data = f.read()
+            else:
+                img = Image.open(filepath)
+                if img.mode in ('RGBA', 'P', 'LA'):
+                    img = img.convert('RGB')
 
-            quality = 95
-            buf = io.BytesIO()
-            img.save(buf, format='JPEG', quality=quality)
-
-            while buf.tell() > max_api_size and quality > 20:
-                quality -= 10
+                quality = 95
                 buf = io.BytesIO()
                 img.save(buf, format='JPEG', quality=quality)
 
-            if buf.tell() > max_api_size:
-                logger.warning(
-                    f'图片压缩至 quality={quality} 仍超过 {max_api_size // 1024 // 1024}MB，跳过 Quark API'
-                )
-                return None
+                while buf.tell() > max_api_size and quality > 20:
+                    quality -= 10
+                    buf = io.BytesIO()
+                    img.save(buf, format='JPEG', quality=quality)
 
-            img_data = buf.getvalue()
-            logger.info(f'Quark API: {ext} → JPG ({len(img_data) // 1024}KB, quality={quality})')
+                if buf.tell() > max_api_size:
+                    logger.warning(
+                        f'图片压缩至 quality={quality} 仍超过 {max_api_size // 1024 // 1024}MB，跳过 Quark API'
+                    )
+                    return None
+
+                img_data = buf.getvalue()
+                logger.info(
+                    f'Quark API: {ext} → JPG ({len(img_data) // 1024}KB, quality={quality})'
+                )
 
             img_b64 = base64.b64encode(img_data).decode('utf-8')
 
