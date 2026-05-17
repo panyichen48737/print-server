@@ -332,7 +332,7 @@ dev = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.136.1" },
     { name = "httpx", specifier = ">=0.28.1" },
-    { name = "loguru", specifier = ">=0.7.0" },
+    { name = "loguru", specifier = ">=0.7.3" },
     { name = "pillow", specifier = ">=12.2.0" },
     { name = "pydantic", specifier = ">=2.13.4" },
     { name = "pydantic-settings", specifier = ">=2.14.1" },
