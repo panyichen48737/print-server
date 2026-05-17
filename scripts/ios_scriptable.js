@@ -381,9 +381,13 @@ async function directRunFlow() {
     ["clock.arrow.circlepath", "打印历史", "最近完成的任务，可重新提交"],
     ["server.rack", "服务器状态", "连接状态、队列长度、打印机列表"],
   ];
-  for (const [icon, title, sub] of items) {
+  let selected = -1;
+  for (let i = 0; i < items.length; i++) {
+    const [icon, title, sub] = items[i];
     const row = new UITableRow();
-    row.dismissOnTap = true; row.cellSpacing = 10;
+    row.dismissOnSelect = true;
+    row.cellSpacing = 10;
+    row.onSelect = () => { selected = i; };
     const sym = SFSymbol.named(icon);
     if (sym) {
       const c = row.addImage(sym.image);
@@ -396,11 +400,11 @@ async function directRunFlow() {
     tc.widthWeight = 100;
     table.addRow(row);
   }
-  const idx = await table.present();
-  if (idx === 0) await showSettings();
-  else if (idx === 1) await showTaskList();
-  else if (idx === 2) await showHistory();
-  else if (idx === 3) await showServerStatus();
+  await table.present();
+  if (selected === 0) await showSettings();
+  else if (selected === 1) await showTaskList();
+  else if (selected === 2) await showHistory();
+  else if (selected === 3) await showServerStatus();
 }
 
 async function showSettings() {
@@ -449,8 +453,8 @@ async function showTaskList() {
     if (failed.length > 1) {
       const hr = new UITableRow();
       hr.addText("批量重试 (" + failed.length + " 个失败任务)");
-      hr.dismissOnTap = true;
-      hr.onTap = async () => {
+      hr.dismissOnSelect = true;
+      hr.onSelect = async () => {
         for (const f of failed) { try { await retryJob(f.id); } catch {} }
         const a = new Alert(); a.title = "批量重试"; a.message = "已全部重新提交"; a.addAction("返回"); await a.present();
         await showTaskList();
@@ -458,7 +462,7 @@ async function showTaskList() {
       table.addRow(hr);
     }
     for (const j of jobs) {
-      const row = new UITableRow(); row.dismissOnTap = false; row.cellSpacing = 8;
+      const row = new UITableRow(); row.cellSpacing = 8;
       const icon = j.status === 'completed' ? '✅' : j.status === 'failed' ? '❌' : j.status === 'printing' ? '🖨' : '⏳';
       const tc = row.addText(icon + ' ' + j.filename, j.status + (j.error_message ? ' - ' + j.error_message : ''));
       tc.titleFont = Font.mediumFont(15); tc.subtitleFont = Font.systemFont(12); tc.subtitleColor = Color.gray(); tc.widthWeight = 100;
@@ -486,11 +490,11 @@ async function showHistory() {
     }
     const table = new UITable(); table.showSeparators = true;
     for (const j of jobs) {
-      const row = new UITableRow(); row.dismissOnTap = true;
+      const row = new UITableRow(); row.dismissOnSelect = true;
       const icon = j.status === 'completed' ? '✅' : '❌';
       const ts = j.completed_at ? new Date(j.completed_at).toLocaleString() : '';
       row.addText(icon + ' ' + j.filename, ts + (j.error_message ? ' - ' + j.error_message : ''));
-      row.onTap = async () => {
+      row.onSelect = async () => {
         try {
           const res = await retryJob(j.id);
           if (res && res.new_job_id) {
@@ -546,16 +550,16 @@ async function handleNotification(n) {
       const fj = ctx.failedJobs || [];
       const table = new UITable(); table.showSeparators = true;
       for (const f of fj) {
-        const row = new UITableRow(); row.dismissOnTap = true;
+        const row = new UITableRow();
         const btn = row.addButton("重试"); btn.widthWeight = 50;
         btn.onTap = async () => { try { await retryJob(f.id); } catch {} };
         row.addText("❌ " + f.filename);
         table.addRow(row);
       }
       if (fj.length > 1) {
-        const rr = new UITableRow(); rr.dismissOnTap = true;
+        const rr = new UITableRow(); rr.dismissOnSelect = true;
         rr.addText("全部重试 (" + fj.length + ")");
-        rr.onTap = async () => { for (const f of fj) { try { await retryJob(f.id); } catch {} } const a = new Alert(); a.title = "已全部重试"; a.message = fj.length + " 个任务已重新提交"; a.addAction("返回"); await a.present(); };
+        rr.onSelect = async () => { for (const f of fj) { try { await retryJob(f.id); } catch {} } const a = new Alert(); a.title = "已全部重试"; a.message = fj.length + " 个任务已重新提交"; a.addAction("返回"); await a.present(); };
         table.addRow(rr);
       }
       await table.present(); break;
