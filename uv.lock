@@ -355,7 +355,7 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=1.3.0" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
-    { name = "ruff", specifier = ">=0.15.12" },
+    { name = "ruff", specifier = ">=0.15.13" },
 ]
 
 [[package]]
