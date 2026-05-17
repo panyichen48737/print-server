@@ -44,7 +44,18 @@ class QuarkEnhancer:
 
         try:
             max_api_size = 10 * 1024 * 1024
-            valid_exts = {'.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff', '.tif', '.webp'}
+            valid_exts = {
+                '.png',
+                '.jpg',
+                '.jpeg',
+                '.bmp',
+                '.gif',
+                '.tiff',
+                '.tif',
+                '.webp',
+                '.heic',
+                '.heif',
+            }
 
             ext = Path(filepath).suffix.lower()
             if ext not in valid_exts:
