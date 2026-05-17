@@ -161,18 +161,40 @@ async def print_images_batch(
     if not saved_paths:
         raise HTTPException(status_code=400, detail='没有有效的图片文件')
 
+    # 图片增强
+    from app.services.image_processing import QuarkEnhancer
+
+    enhancer = QuarkEnhancer(config)
+    enhanced_paths = []
+    for p in saved_paths:
+        try:
+            result = enhancer.enhance(p)
+            if result:
+                ext = Path(p).suffix
+                enhanced = Path(p).with_suffix('.enhanced' + ext)
+                enhanced.write_bytes(result)
+                enhanced_paths.append(str(enhanced))
+            else:
+                enhanced_paths.append(p)
+        except Exception:  # noqa: PERF203
+            enhanced_paths.append(p)
+
     try:
         pdf_path = merge_images_to_pdf(
-            saved_paths,
+            enhanced_paths,
             paper_size=paper_size or config.get('paper_size', 'A4'),
             color=bool(color) if color in ('0', '1') else config.get('default_color', True),
             dpi=config.get('print_dpi', 300),
         )
     except Exception as e:
+        for p in enhanced_paths:
+            Path(p).unlink(missing_ok=True)
         for p in saved_paths:
             Path(p).unlink(missing_ok=True)
         raise HTTPException(status_code=500, detail=f'图片合并失败: {e}') from e
 
+    for p in enhanced_paths:
+        Path(p).unlink(missing_ok=True)
     for p in saved_paths:
         Path(p).unlink(missing_ok=True)
 
