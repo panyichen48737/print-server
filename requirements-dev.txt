@@ -111,7 +111,7 @@ pyinstaller-hooks-contrib==2026.5
     # via pyinstaller
 pyside6==6.11.0
     # via ios-print-server (pyproject.toml)
-pyside6-addons==6.11.0
+pyside6-addons==6.11.1
     # via pyside6
 pyside6-essentials==6.11.1
     # via
