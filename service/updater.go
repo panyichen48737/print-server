@@ -13,12 +13,6 @@ import (
 )
 
 func runUpdate(zipPath, exePath, appDir string) {
-	// Unregister from watchdog so it doesn't restart the GUI during update
-	if watchdog != nil {
-		watchdog.Unregister()
-		log.Println("Watchdog unregistered for update")
-	}
-
 	// Determine update type from file extension
 	isFull := strings.HasSuffix(strings.ToLower(zipPath), ".exe")
 

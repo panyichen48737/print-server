@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"path/filepath"
 
 	"golang.org/x/sys/windows/svc"
 )
@@ -20,14 +19,8 @@ func (h *handler) Execute(args []string, requests <-chan svc.ChangeRequest, chan
 	go servePipe(stopCh)
 	startUpdateChecker(stopCh, appDir)
 
-	// Start watchdog
-	wd := NewWatchdog()
-	wd.SetLogFile(filepath.Join(dataDir(), "logs", "watchdog.log"))
-	setWatchdog(wd)
-	wd.Start(appDir)
-
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
-	log.Println("Service is running, pipe listener, update checker and watchdog active")
+	log.Println("Service is running, pipe listener and update checker active")
 
 	for {
 		select {
@@ -37,7 +30,6 @@ func (h *handler) Execute(args []string, requests <-chan svc.ChangeRequest, chan
 				changes <- c.CurrentStatus
 			case svc.Stop, svc.Shutdown:
 				log.Println("Service stopping...")
-				wd.Stop()
 				close(stopCh)
 				changes <- svc.Status{State: svc.StopPending}
 				return false, uint32(0)
