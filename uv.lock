@@ -470,7 +470,7 @@ requires-dist = [
     { name = "pymupdf", specifier = ">=1.25.0" },
     { name = "pyside6", specifier = ">=6.8.0" },
     { name = "python-multipart", specifier = ">=0.0.18" },
-    { name = "pywin32", specifier = ">=306" },
+    { name = "pywin32", specifier = ">=311" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.0" },
     { name = "watchfiles", specifier = ">=1.0.0" },
 ]
