@@ -4,7 +4,7 @@
 // iOS Cloud Print Server - Scriptable Script
 
 // ===== 配置 =====
-const SERVER_URL = "https://192.168.1.100:5000";
+const SERVER_URL = "https://10.1.0.62:5000";
 const API_KEY = "print-server-key-2026";
 const ALLOWED_EXTENSIONS = [".doc", ".docx", ".pdf", ".xls", ".xlsx", ".ppt", ".pptx", ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif", ".heic", ".heif"];
 const CONFIG_KEY = "PrintServer_Config";
@@ -101,8 +101,8 @@ function htmlWrap(title, bodyHTML, configTag, extraJS) {
   const cfg = configTag ? `
 <div class="card cfg">
   <div style="font-weight:600;margin-bottom:4px;color:var(--text);font-size:14px">打印配置</div>
-  <div>&#x1F5A8; ${cfg.printer || '默认打印机'}</div>
-  <div class="cfg-row"><span>份数:${cfg.copies||1}</span><span>${cfg.duplex?'双面':'单面'}</span><span>${cfg.color?'彩色':'黑白'}</span><span>${cfg.paperSize||'A4'}</span></div>
+  <div>&#x1F5A8; ${configTag.printer || '默认打印机'}</div>
+  <div class="cfg-row"><span>份数:${configTag.copies||1}</span><span>${configTag.duplex?'双面':'单面'}</span><span>${configTag.color?'彩色':'黑白'}</span><span>${configTag.paperSize||'A4'}</span></div>
 </div>` : '';
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><style>${PORCELAIN_CSS}</style></head><body><h1>${title}</h1>${bodyHTML}${cfg}${extraJS ? '<script>'+extraJS+'</script>' : ''}</body></html>`;
 }
