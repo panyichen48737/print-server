@@ -180,9 +180,10 @@ async function shareSheetFlow(files) {
     return;
   }
 
-  // QuickLook 预览确认
+  // QuickLook 预览确认 — Data 类型不能直接传递，需先转为 Image
   for (const f of files) {
-    await QuickLook.present(f.data || f.image);
+    const preview = f.image || (f.data ? Image.fromData(f.data) : null);
+    if (preview) await QuickLook.present(preview);
   }
 
   const wv = new WebView();
