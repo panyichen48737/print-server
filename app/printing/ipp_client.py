@@ -104,9 +104,12 @@ def _parse_ipp_response(data: bytes) -> int | None:
 def get_printer_ip(printer_name: str) -> str | None:
     """Return the IPv4 address of a Windows network printer, or None.
 
-    Looks up the printer's port via win32print.GetPrinter() and scans the port
-    name for an IPv4 pattern (covers TCP/IP ports named ``IP_192.168.1.100``,
-    ``192.168.1.100``, WSD ports carrying an IP, etc.).
+    Two resolution strategies:
+    1. Extract IP from the printer's port name (covers Standard TCP/IP Ports
+       named like ``IP_192.168.1.100``, WSD ports with an embedded IP, etc.).
+    2. Fall back to the registry — many vendor port monitors (EPSON, HP, etc.)
+       store the IP under ``HKLM\\...\\Print\\Monitors\\<Monitor>\\Ports\\<PortName>``
+       as an ``IpAddress`` or ``HostName`` value.
     """
     if win32print is None:
         logger.warning('win32print is not available; cannot resolve printer IP')
@@ -131,14 +134,88 @@ def get_printer_ip(printer_name: str) -> str | None:
     if not port_name:
         return None
 
+    # Strategy 1: IP embedded in port name
+    ip = _resolve_ip_from_port_name(port_name)
+    if ip:
+        return ip
+
+    # Strategy 2: registry lookup for vendor port monitors
+    return _resolve_ip_from_registry(port_name)
+
+
+def _resolve_ip_from_port_name(port_name: str) -> str | None:
+    """Extract an IPv4 address embedded in a port name string."""
     match = _IP_REGEX.search(port_name)
     if not match:
         return None
-
     ip = match.group(0)
-    if not all(0 <= int(octet) <= 255 for octet in ip.split('.')):
+    if _valid_ipv4(ip):
+        return ip
+    return None
+
+
+def _resolve_ip_from_registry(port_name: str) -> str | None:
+    """Search HKLM/Print/Monitors for a port matching ``port_name`` and return its IP."""
+    import winreg
+
+    monitors_path = r'SYSTEM\CurrentControlSet\Control\Print\Monitors'
+    try:
+        monitors_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, monitors_path)
+    except OSError:
         return None
-    return ip
+
+    try:
+        monitor_count = winreg.QueryInfoKey(monitors_key)[0]
+        for i in range(monitor_count):
+            try:
+                monitor_name = winreg.EnumKey(monitors_key, i)
+            except OSError:
+                continue
+            ip = _read_port_ip(monitor_name, port_name)
+            if ip:
+                return ip
+        return None
+    finally:
+        winreg.CloseKey(monitors_key)
+
+
+def _read_port_ip(monitor_name: str, port_name: str) -> str | None:
+    """Try to read the IpAddress or PrinterAddress value for a single port."""
+    import winreg
+
+    port_key_path = (
+        rf'SYSTEM\CurrentControlSet\Control\Print\Monitors\{monitor_name}\Ports\{port_name}'
+    )
+    try:
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, port_key_path)
+    except OSError:
+        return None
+
+    try:
+        # Try common registry value names for IP address
+        for value_name in ('IpAddress', 'IPAddress', 'HostName', 'HostAddress', 'PrinterAddress'):
+            try:
+                val, _ = winreg.QueryValueEx(key, value_name)
+                if isinstance(val, str) and _valid_ipv4(val):
+                    return val
+                if isinstance(val, str):
+                    m = _IP_REGEX.search(val)
+                    if m and _valid_ipv4(m.group(0)):
+                        return m.group(0)
+            except FileNotFoundError:  # noqa: PERF203
+                continue
+        return None
+    finally:
+        winreg.CloseKey(key)
+
+
+def _valid_ipv4(ip: str) -> bool:
+    """Check that a string is a valid non-zero IPv4 address."""
+    try:
+        octets = [int(o) for o in ip.split('.')]
+        return len(octets) == 4 and all(0 <= o <= 255 for o in octets) and octets[0] != 0
+    except (ValueError, AttributeError):
+        return False
 
 
 def print_via_ipp(printer_ip: str, pdf_path: str, copies: int = 1, duplex: bool = False) -> bool:

@@ -36,11 +36,7 @@ class PdfBackend(PrinterBackend):
                 if printer_ip and self._try_ipp(printer_ip, prepared, job_id, print_params):
                     return True
 
-                # ❷ RAW — PDF 字节直送 Windows Spooler，零渲染
-                if self._try_raw(printer_name, prepared, job_id):
-                    return True
-
-                # ❸ Chromium — 软件渲染保底
+                # ❷ Chromium — 浏览器渲染后打印，兼容所有打印机
                 self._try_chromium(printer_name, prepared, job_id, print_params)
                 return True
 
