@@ -95,6 +95,11 @@ function fileSizeKB(data) {
   return b ? b.length / 1024 : 0;
 }
 
+// ── WebView 安全执行工具 ──
+async function wvEval(wv, js) {
+  try { return await wv.evaluateJavaScript(js); } catch { return null; }
+}
+
 // ── HTML 页面生成 ──
 
 function htmlWrap(title, bodyHTML, configTag, extraJS) {
@@ -199,7 +204,7 @@ async function shareSheetFlow(files) {
 
   async function uploadOne(file) {
     const i = files.indexOf(file);
-    if (!wvClosed) await wv.evaluateJavaScript('u(' + i + ",'上传中...')");
+    if (!wvClosed) await wvEval(wv,'u(' + i + ",'上传中...')");
 
     const r = new Request(SERVER_URL + "/api/print");
     r.method = "POST"; r.allowInsecureRequest = true;
@@ -236,15 +241,15 @@ async function shareSheetFlow(files) {
       if (res && res.job_id) {
         jobs.push({ id: res.job_id, filename: file.name });
         if (!wvClosed) {
-          await wv.evaluateJavaScript('u(' + i + ",'✅ 已上传')");
-          await wv.evaluateJavaScript('d(' + i + ')');
-          await wv.evaluateJavaScript('p(' + jobs.length + ',' + files.length + ')');
+          await wvEval(wv,'u(' + i + ",'✅ 已上传')");
+          await wvEval(wv,'d(' + i + ')');
+          await wvEval(wv,'p(' + jobs.length + ',' + files.length + ')');
         }
         return res.job_id;
       }
     } catch {}
     if (!wvClosed) {
-      await wv.evaluateJavaScript('u(' + i + ",'❌ 上传失败')");
+      await wvEval(wv,'u(' + i + ",'❌ 上传失败')");
     }
     return null;
   }
@@ -259,7 +264,7 @@ async function shareSheetFlow(files) {
         await uploadOne(file);
         // 检查用户是否取消
         if (!wvClosed) {
-          try { cancelled = await wv.evaluateJavaScript('c_'); } catch {}
+          try { cancelled = await wvEval(wv,'c_'); } catch {}
         }
       }
     })());
@@ -280,13 +285,13 @@ async function shareSheetFlow(files) {
   }
 
   // 上传完成 → 过渡到等待页
-  await wv.evaluateJavaScript('xfer()');
+  await wvEval(wv,'xfer()');
   if (jobs.length === 0) {
-    await wv.evaluateJavaScript('xmsg("全部上传失败")');
+    await wvEval(wv,'xmsg("全部上传失败")');
     await new Promise(r => setTimeout(r, 2000));
     return;
   }
-  await wv.evaluateJavaScript('xmsg("' + jobs.length + ' 个文件已提交")');
+  await wvEval(wv,'xmsg("' + jobs.length + ' 个文件已提交")');
 
   // 等用户点"查看进度"
   try {
@@ -316,11 +321,11 @@ async function shareSheetFlow(files) {
           statuses[d.job_id] = d.status;
           const idx = jobs.findIndex(j => j.id === d.job_id);
           if (idx >= 0 && !wvClosed) {
-            wv.evaluateJavaScript("u(" + idx + ",'" + (d.status||'').replace(/'/g,"\\'") + "','" + (d.error||'').replace(/'/g,"\\'") + "')");
+            wvEval(wv,"u(" + idx + ",'" + (d.status||'').replace(/'/g,"\\'") + "','" + (d.error||'').replace(/'/g,"\\'") + "')");
           }
           // 检查是否全部完成
           if (jobs.every(j => { const s=statuses[j.id]; return s==='completed'||s==='failed'; })) {
-            if (!wvClosed) wv.evaluateJavaScript('allDone()');
+            if (!wvClosed) wvEval(wv,'allDone()');
           }
         }
       } catch {}
@@ -392,7 +397,7 @@ async function batchImageUpload(files, cfg) {
   r.headers = { Authorization: "Bearer " + API_KEY };
 
   for (const [i, f] of files.entries()) {
-    if (!wvClosed) await wv.evaluateJavaScript('u(' + i + ",'添加中...')");
+    if (!wvClosed) await wvEval(wv,'u(' + i + ",'添加中...')");
     if (f.data) {
       r.addFileDataToMultipart(f.data, "application/octet-stream", "files", f.name);
     } else if (f.image) {
@@ -413,7 +418,7 @@ async function batchImageUpload(files, cfg) {
     const res = await r.loadJSON();
     if (res && res.job_id) {
       jobId = res.job_id;
-      if (!wvClosed) await wv.evaluateJavaScript('xfer()');
+      if (!wvClosed) await wvEval(wv,'xfer()');
     } else {
       failed = true;
     }
@@ -423,12 +428,12 @@ async function batchImageUpload(files, cfg) {
 
   if (failed || !jobId) {
     if (!wvClosed) {
-      await wv.evaluateJavaScript('document.body.innerHTML=\'<div class="card" style="text-align:center;padding:24px"><div style="font-size:40px">\\u274C</div><div style="font-size:16px;font-weight:600;margin:8px 0">\\u4E0A\\u4F20\\u5931\\u8D25</div><button class="btn btn-pri" onclick="window.location=\'cb://close\'">\\u8FD4\\u56DE</button></div>\'');
+      await wvEval(wv,'document.body.innerHTML=\'<div class="card" style="text-align:center;padding:24px"><div style="font-size:40px">\\u274C</div><div style="font-size:16px;font-weight:600;margin:8px 0">\\u4E0A\\u4F20\\u5931\\u8D25</div><button class="btn btn-pri" onclick="window.location=\'cb://close\'">\\u8FD4\\u56DE</button></div>\'');
     }
     return;
   }
 
-  await wv.evaluateJavaScript('xmsg("已提交 ' + files.length + ' 张图片")');
+  await wvEval(wv,'xmsg("已提交 ' + files.length + ' 张图片")');
   const n = new Notification();
   n.title = "✅ 打印任务已提交";
   n.body = files.length + " 张图片已合并为一个打印任务";
@@ -493,7 +498,7 @@ async function showSettings() {
       const url = cb.url || '';
       if (url.includes('save')) {
         saveConfig(JSON.parse(decodeURIComponent(url.split('?')[1])));
-        await wv.evaluateJavaScript('document.body.innerHTML=\'<div class="card" style="text-align:center;padding:24px"><div style="font-size:40px">\\u2705</div><div style="font-size:16px;font-weight:600;margin:8px 0">\\u8BBE\\u7F6E\\u5DF2\\u4FDD\\u5B58</div><button class="btn btn-pri" onclick="window.location=\'cb://close\'" style="margin-top:16px">\\u5173\\u95ED</button></div>\'');
+        await wvEval(wv,'document.body.innerHTML=\'<div class="card" style="text-align:center;padding:24px"><div style="font-size:40px">\\u2705</div><div style="font-size:16px;font-weight:600;margin:8px 0">\\u8BBE\\u7F6E\\u5DF2\\u4FDD\\u5B58</div><button class="btn btn-pri" onclick="window.location=\'cb://close\'" style="margin-top:16px">\\u5173\\u95ED</button></div>\'');
       } else if (url.includes('reset')) {
         try {
           const sc = await fetchServerConfig();
@@ -501,7 +506,7 @@ async function showSettings() {
           saveConfig(def);
           await wv.loadHTML(settingsHTML(def, printers));
         } catch {
-          await wv.evaluateJavaScript('alert("无法获取服务器默认配置")');
+          await wvEval(wv,'alert("无法获取服务器默认配置")');
         }
       } else break;
     } catch { break; }
