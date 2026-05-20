@@ -298,3 +298,37 @@ def is_printer_ipp_supported(printer_name: str) -> bool:
     is only confirmed when ``print_via_ipp`` succeeds.
     """
     return get_printer_ip(printer_name) is not None
+
+
+_MOPRIA_KEYWORDS = ('mopria', 'ipp class driver', 'ippv4', 'microsoft ipp', 'airprint')
+
+
+def is_mopria_driver(printer_name: str) -> bool:
+    """Check if a printer uses the Mopria IPP Class Driver (driverless printing).
+
+    Modern printers (2015+) use Microsoft's built-in IPP Class Driver instead of
+    vendor-specific drivers. The driver exposes IPP Everywhere capabilities and
+    passes standard job formats (PDF, PWG-Raster) directly to the printer's
+    hardware RIP without intermediate GDI rasterization.
+
+    Returns:
+        True if the printer's driver name contains Mopria/IPP keywords.
+    """
+    import win32print
+
+    try:
+        handle = win32print.OpenPrinter(printer_name)
+    except Exception:
+        return False
+    try:
+        info = win32print.GetPrinter(handle, 2)
+    except Exception:
+        return False
+    finally:
+        with contextlib.suppress(Exception):
+            win32print.ClosePrinter(handle)
+
+    if not isinstance(info, dict):
+        return False
+    driver_name = info.get('pDriverName', '') or ''
+    return any(kw in driver_name.lower() for kw in _MOPRIA_KEYWORDS)

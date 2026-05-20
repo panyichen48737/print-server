@@ -1,4 +1,4 @@
-"""PDF 打印后端 — IPP → RAW → Chromium 三阶策略"""
+"""PDF 打印后端 — IPP(网络) → Mopria RAW(USB现代) → Chromium → GDI 栅格 四阶降级"""
 
 import contextlib
 import os
@@ -11,12 +11,12 @@ from loguru import logger
 
 from app.core.exceptions import PrintError
 from app.printing.backends.base import PrinterBackend, cancel_all_spooler_jobs, register
-from app.printing.ipp_client import get_printer_ip, print_via_ipp
+from app.printing.ipp_client import get_printer_ip, is_mopria_driver, print_via_ipp
 
 
 @register('.pdf')
 class PdfBackend(PrinterBackend):
-    """PDF 打印后端 — IPP(直送) → RAW(Spooler) → Chromium(渲染) 三阶降级"""
+    """PDF 打印后端 — IPP(网络) → Mopria RAW(USB) → Chromium → GDI 栅格 四阶降级"""
 
     def __init__(self, config):
         self.config = config
@@ -31,14 +31,26 @@ class PdfBackend(PrinterBackend):
             self._track_job(job_id, printer_name, 'pending')
 
             try:
-                # ❶ IPP Everywhere — PDF 直送打印机硬件 RIP，质量最高
+                # ❶ IPP Everywhere — PDF 直送打印机硬件 RIP，质量最高（仅网络）
                 printer_ip = get_printer_ip(printer_name)
                 if printer_ip and self._try_ipp(printer_ip, prepared, job_id, print_params):
                     return True
 
-                # ❷ Chromium — 浏览器渲染后打印，兼容所有打印机
-                self._try_chromium(printer_name, prepared, job_id, print_params)
-                return True
+                # ❷ Mopria RAW — USB 打印机使用 Windows IPP Class Driver 时，
+                #    PDF 通过 RAW 发送会被透传给打印机硬件 RIP（无损），
+                #    质量等同 IPP，无需 GDI 重采样
+                if is_mopria_driver(printer_name) and self._try_raw(printer_name, prepared, job_id):
+                    return True
+
+                # ❸ Chromium — 浏览器渲染后 GDI 打印
+                if self._try_chromium(printer_name, prepared, job_id, print_params):
+                    return True
+
+                # ❹ GDI 栅格 — 纯 PyMuPDF 渲染位图走打印机驱动，最兼容
+                if self._try_gdi_raster(printer_name, prepared, job_id, print_params):
+                    return True
+
+                raise PrintError(f'所有打印后端均失败: {filepath}')
 
             except Exception as e:
                 logger.error(f'打印失败: {filepath} - {e}')
@@ -101,10 +113,71 @@ class PdfBackend(PrinterBackend):
             logger.warning(f'RAW 失败 ({printer_name}): {e}')
             return False
 
+    def _try_gdi_raster(self, printer_name, filepath, job_id, print_params=None):
+        """PyMuPDF 渲染 PDF 每页为位图 → GDI 打印，兼容任何打印机驱动（无需 Chrome）"""
+        import fitz
+        import win32con
+        import win32ui
+        from PIL import Image
+
+        try:
+            self._track_job(job_id, printer_name, 'gdi_raster')
+            doc = fitz.open(filepath)
+            total = len(doc)
+            dpi = int(self.config.get('print_dpi', 300))
+            color = True
+            if print_params:
+                cv = print_params.get('color')
+                if cv is not None:
+                    color = bool(cv)
+
+            dc = win32ui.CreateDC()
+            dc.CreatePrinterDC(printer_name)
+            dc.StartDoc(Path(filepath).name)
+
+            for page_num in range(total):
+                page = doc[page_num]
+                mat = fitz.Matrix(dpi / 72, dpi / 72)
+                pix = page.get_pixmap(matrix=mat, colorspace=fitz.csRGB)
+                img = Image.frombytes('RGB', (pix.width, pix.height), pix.samples)
+                if not color:
+                    img = img.convert('L')
+
+                dc.StartPage()
+
+                mem_dc = dc.CreateCompatibleDC()
+                bmp = win32ui.CreateBitmap()
+                bmp.CreateBitmap(pix.width, pix.height, 1, 24, img.tobytes())
+                old_bmp = mem_dc.SelectObject(bmp)
+
+                page_w = pix.width
+                page_h = pix.height
+                dc.StretchBlt(
+                    (0, 0, page_w, page_h),
+                    mem_dc,
+                    (0, 0, pix.width, pix.height),
+                    win32con.SRCCOPY,
+                )
+
+                mem_dc.SelectObject(old_bmp)
+                bmp.DeleteObject()
+                mem_dc.DeleteDC()
+                dc.EndPage()
+
+            dc.EndDoc()
+            dc.DeleteDC()
+            doc.close()
+            logger.info(f'GDI 栅格打印成功: {Path(filepath).name} → {printer_name} ({total}页)')
+            return True
+        except Exception as e:
+            logger.warning(f'GDI 栅格打印失败 ({printer_name}): {e}')
+            return False
+
     def _try_chromium(self, printer_name, filepath, job_id, _print_params):
         chrome_path = self._find_chromium()
         if not chrome_path:
-            raise PrintError('未找到 Chromium 浏览器 (Chrome/Edge)')
+            logger.warning('未找到 Chromium 浏览器 (Chrome/Edge)')
+            return False
 
         # 净化打印机名称：移除可能干扰 Chrome 参数解析的字符
         safe_printer = printer_name.replace('"', '').replace("'", '')
@@ -129,11 +202,17 @@ class PdfBackend(PrinterBackend):
         except subprocess.TimeoutExpired:
             proc.kill()
             _, stderr = proc.communicate()
-            raise PrintError(f'Chrome 打印超时 ({self.config.get("job_timeout", 300)}s)') from None
+            logger.warning(f'Chrome 打印超时 ({self.config.get("job_timeout", 300)}s)')
+            return False
         if proc.returncode != 0:
-            raise PrintError(
-                f'Chrome 打印失败: {proc.returncode}\n{stderr[:500].decode("utf-8", errors="replace")}'
+            logger.warning(
+                f'Chrome 打印失败: returncode={proc.returncode}\n'
+                f'{stderr[:500].decode("utf-8", errors="replace")}'
             )
+            return False
+
+        logger.info(f'Chromium 打印成功: {Path(filepath).name} → {printer_name}')
+        return True
 
     # ── 页码范围 + N-up 预处理 ──
 
