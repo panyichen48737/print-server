@@ -31,7 +31,7 @@ colorama==0.4.6
     #   uvicorn
 coverage==7.14.0
     # via pytest-cov
-distlib==0.4.0
+distlib==0.4.3
     # via virtualenv
 execnet==2.1.2
     # via pytest-xdist
