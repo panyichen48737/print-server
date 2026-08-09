@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "ios-print-server"
 version = "3.10.14"
 description = "iOSPrintServer"
-requires-python = ">=3.14.5"
+requires-python = ">=3.14.7"
 dependencies = [
     "fastapi>=0.136.1",
     "uvicorn[standard]>=0.47.0",
