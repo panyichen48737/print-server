@@ -145,7 +145,7 @@ pyyaml==6.0.3
     # via
     #   pre-commit
     #   uvicorn
-ruff==0.15.13
+ruff==0.15.22
     # via ios-print-server (pyproject.toml:dev)
 setuptools==82.0.1
     # via
