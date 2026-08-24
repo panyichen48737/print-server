@@ -4,7 +4,7 @@ aiosqlite==0.22.1
     # via ios-print-server (pyproject.toml)
 altgraph==0.17.5
     # via pyinstaller
-annotated-doc==0.0.4
+annotated-doc==0.0.5
     # via fastapi
 annotated-types==0.7.0
     # via pydantic
