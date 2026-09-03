@@ -53,7 +53,7 @@ httpx==0.28.1
     # via
     #   ios-print-server (pyproject.toml)
     #   ios-print-server (pyproject.toml:dev)
-hypothesis==6.152.7
+hypothesis==6.152.12
     # via ios-print-server (pyproject.toml:dev)
 identify==2.6.19
     # via pre-commit
