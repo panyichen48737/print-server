@@ -29,7 +29,7 @@ colorama==0.4.6
     #   loguru
     #   pytest
     #   uvicorn
-coverage==7.14.0
+coverage==7.14.3
     # via pytest-cov
 distlib==0.4.0
     # via virtualenv
